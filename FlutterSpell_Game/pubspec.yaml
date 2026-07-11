@@ -26,6 +26,8 @@ dependencies:
   lottie: ^2.0.0
 
   # Audio
+  # Note: audioplayers ^4.x requires http ^0.13.x, but this project uses http ^1.1.0
+  # which is incompatible. Therefore, audioplayers ^5.0.0 is required.
   audioplayers: ^5.0.0
 
   # UI
@@ -43,9 +45,3 @@ flutter:
   assets:
     - assets/sounds/
     - assets/animations/
-  fonts:
-    - family: Fredoka
-      fonts:
-        - asset: assets/fonts/Fredoka-Regular.ttf
-        - asset: assets/fonts/Fredoka-Bold.ttf
-          weight: 700
