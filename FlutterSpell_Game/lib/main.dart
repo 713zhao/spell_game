@@ -13,6 +13,10 @@ import 'screens/treasure_island_screen.dart';
 import 'screens/review_cave_screen.dart';
 import 'screens/english_castle_screen.dart';
 import 'screens/english_level_screen.dart';
+import 'screens/chinese_kingdom_screen.dart';
+import 'screens/chinese_lesson_screen.dart';
+import 'screens/boss_arena_screen.dart';
+import 'screens/boss_battle_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,6 +100,28 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 builder: (context) => EnglishLevelScreen(
                   stageNumber: stageNumber ?? 1,
+                ),
+              );
+            case '/chinese-kingdom':
+              return MaterialPageRoute(
+                builder: (context) => const ChineseKingdomScreen(),
+              );
+            case '/chinese-lesson':
+              final lessonNum = settings.arguments as int?;
+              return MaterialPageRoute(
+                builder: (context) => ChineseLessonScreen(
+                  lessonNumber: lessonNum ?? 1,
+                ),
+              );
+            case '/boss-arena':
+              return MaterialPageRoute(
+                builder: (context) => const BossArenaScreen(),
+              );
+            case '/boss-battle':
+              final bossId = settings.arguments as int?;
+              return MaterialPageRoute(
+                builder: (context) => BossBattleScreen(
+                  bossId: bossId ?? 1,
                 ),
               );
             default:

@@ -44,7 +44,7 @@ class WorldMapScreen extends StatelessWidget {
                       icon: '🐉',
                       label: 'Chinese\nKingdom',
                       color: DuolingoColors.chineseKingdomGradient[0],
-                      onTap: () => print('Chinese Kingdom tapped'),
+                      onTap: () => Navigator.of(context).pushNamed('/chinese-kingdom'),
                     ),
                   ],
                 ),
