@@ -11,6 +11,8 @@ import 'screens/world_map_screen.dart';
 import 'screens/backpack_screen.dart';
 import 'screens/treasure_island_screen.dart';
 import 'screens/review_cave_screen.dart';
+import 'screens/english_castle_screen.dart';
+import 'screens/english_level_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +86,17 @@ class MyApp extends StatelessWidget {
             case '/review-cave':
               return MaterialPageRoute(
                 builder: (context) => const ReviewCaveScreen(),
+              );
+            case '/english-castle':
+              return MaterialPageRoute(
+                builder: (context) => const EnglishCastleScreen(),
+              );
+            case '/english-level':
+              final stageNumber = settings.arguments as int?;
+              return MaterialPageRoute(
+                builder: (context) => EnglishLevelScreen(
+                  stageNumber: stageNumber ?? 1,
+                ),
               );
             default:
               return null;

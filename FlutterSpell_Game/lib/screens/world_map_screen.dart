@@ -38,7 +38,7 @@ class WorldMapScreen extends StatelessWidget {
                       icon: '🏰',
                       label: 'English\nKingdom',
                       color: DuolingoColors.englishKingdomGradient[0],
-                      onTap: () => print('English Kingdom tapped'),
+                      onTap: () => Navigator.pushNamed(context, '/english-castle'),
                     ),
                     _LocationNode(
                       icon: '🐉',
