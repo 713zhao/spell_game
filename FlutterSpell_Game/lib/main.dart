@@ -5,6 +5,7 @@ import 'screens/home.dart';
 import 'screens/study.dart';
 import 'screens/rewards_shop.dart';
 import 'screens/leaderboard.dart';
+import 'screens/profile.dart';
 
 void main() {
   runApp(const MyApp());
@@ -67,14 +68,5 @@ class LevelSelectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(body: Center(child: Text('Level Select')));
-  }
-}
-
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Profile')));
   }
 }

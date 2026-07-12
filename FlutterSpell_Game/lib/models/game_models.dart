@@ -87,11 +87,25 @@ class UserStats {
   final int totalPoints;
   final int currentStreak;
   final String? lastLogin;
+  final int? bestStreak;
+  final int? levelsCompleted;
+  final double? accuracy;
+  final int? level;
+  final String? username;
+  final String? grade;
+  final String? equippedCosmetic;
 
   UserStats({
     required this.totalPoints,
     required this.currentStreak,
     this.lastLogin,
+    this.bestStreak,
+    this.levelsCompleted,
+    this.accuracy,
+    this.level,
+    this.username,
+    this.grade,
+    this.equippedCosmetic,
   });
 
   factory UserStats.fromJson(Map<String, dynamic> json) =>
@@ -105,15 +119,38 @@ class Challenge {
   final String status;
   final int levelId;
   final int? winnerId;
+  final String? challengerName;
+  final String? challengeeName;
 
   Challenge({
     required this.id,
     required this.status,
     required this.levelId,
     this.winnerId,
+    this.challengerName,
+    this.challengeeName,
   });
 
   factory Challenge.fromJson(Map<String, dynamic> json) =>
       _$ChallengeFromJson(json);
   Map<String, dynamic> toJson() => _$ChallengeToJson(this);
+}
+
+@JsonSerializable()
+class LeaderboardEntry {
+  final int rank;
+  final String userName;
+  final int points;
+  final String? medal;
+
+  LeaderboardEntry({
+    required this.rank,
+    required this.userName,
+    required this.points,
+    this.medal,
+  });
+
+  factory LeaderboardEntry.fromJson(Map<String, dynamic> json) =>
+      _$LeaderboardEntryFromJson(json);
+  Map<String, dynamic> toJson() => _$LeaderboardEntryToJson(this);
 }

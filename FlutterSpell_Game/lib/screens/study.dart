@@ -268,7 +268,7 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
                             onPressed: () {
                               // TODO: Implement TTS
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Playing: ${currentWord.text}')),
+                                SnackBar(content: Text('Playing: ${currentWord.text}')),
                               );
                             },
                             icon: const Icon(Icons.volume_up),

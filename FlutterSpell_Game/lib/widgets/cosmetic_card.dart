@@ -34,7 +34,7 @@ class CosmeticCard extends StatelessWidget {
       case 'theme':
         return Icons.palette;
       case 'effect':
-        return Icons.sparkles;
+        return Icons.auto_awesome;
       default:
         return Icons.star;
     }
