@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'screens/home.dart';
+import 'screens/rewards_shop.dart';
 
 void main() {
   runApp(const MyApp());
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
         routes: {
           '/level-select': (context) => const LevelSelectScreen(),
           '/study': (context) => const StudyScreen(),
-          '/rewards': (context) => const RewardsScreen(),
+          '/rewards': (context) => const RewardsShopScreen(),
           '/leaderboard': (context) => const LeaderboardScreen(),
           '/profile': (context) => const ProfileScreen(),
         },
@@ -54,14 +55,6 @@ class StudyScreen extends StatelessWidget {
   }
 }
 
-class RewardsScreen extends StatelessWidget {
-  const RewardsScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Rewards')));
-  }
-}
 
 class LeaderboardScreen extends StatelessWidget {
   const LeaderboardScreen();
