@@ -40,7 +40,9 @@ class GameProvider extends ChangeNotifier {
     if (!_soundEnabled) {
       await _soundService.setSoundEnabled(false);
     }
-    notifyListeners();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 
   Future<void> setSoundEnabled(bool enabled) async {
