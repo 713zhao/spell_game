@@ -35,4 +35,16 @@ class DuolingoColors {
     Color(0xFFF0F9FF),  // Light blue
     Color(0xFFE6F2FF),  // Medium blue
   ];
+
+  // Adventure World specific colors
+  static const Color treasureGold = Color(0xFFFFB800);
+  static const Color darkText = Color(0xFF333333);
+  static const Color bodyText = Color(0xFF666666);
+
+  // New gradients for kingdoms
+  static const List<Color> englishKingdomGradient = [Color(0xFFE6F5FF), Color(0xFFCCE6FF)];
+  static const List<Color> chineseKingdomGradient = [Color(0xFFFFE6CC), Color(0xFFFFD9B3)];
+  static const List<Color> reviewCaveGradient = [Color(0xFFF0E6FF), Color(0xFFE6D9FF)];
+  static const List<Color> treasureIslandGradient = [Color(0xFFFFFDE6), Color(0xFFFFFFE0)];
+  static const List<Color> bossArenaGradient = [Color(0xFFFFE6E6), Color(0xFFFFCCCC)];
 }

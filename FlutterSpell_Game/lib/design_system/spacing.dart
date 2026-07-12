@@ -23,4 +23,12 @@ class DuolingoSpacing {
   static const double starSize = 16;
   static const double progressBarHeight = 12;
   static const double radiusBadge = 10;
+
+  // Adventure World specific sizes
+  static const double kingdomIconSize = 40;
+  static const double nodeSize = 56;
+  static const double mascotSize = 50;
+  static const double largeButton = 56;
+  static const double miniTouchTarget = 40;
+  static const double glowRadius = 20;
 }
