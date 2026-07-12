@@ -73,7 +73,7 @@ class _PrimaryButtonState extends State<PrimaryButton>
             gradient: LinearGradient(
               colors: widget.disabled
                   ? [Colors.grey, Colors.grey.shade400]
-                  : [DuolingoColors.primaryGreen, Color(0xFF7ed321)],
+                  : [DuolingoColors.primaryGreen, DuolingoColors.primaryGreenLight],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -82,31 +82,25 @@ class _PrimaryButtonState extends State<PrimaryButton>
                 ? []
                 : DuolingoShadows.primaryButtonShadow,
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.disabled ? null : widget.onPressed,
-              child: Center(
-                child: widget.isLoading
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                    : Text(
-                        widget.label,
-                        style: DuolingoTextStyles.cardTitle.copyWith(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
+          child: Center(
+            child: widget.isLoading
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.white,
                       ),
-              ),
-            ),
+                    ),
+                  )
+                : Text(
+                    widget.label,
+                    style: DuolingoTextStyles.cardTitle.copyWith(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
           ),
         ),
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class DuolingoColors {
   // Primary brand colors
   static const Color primaryGreen = Color(0xFF58CC02);      // Action buttons
+  static const Color primaryGreenLight = Color(0xFF7ed321); // Light green gradient
   static const Color streakOrange = Color(0xFFFFA500);      // Streak counter
   static const Color rewardYellow = Color(0xFFFFD700);      // Points/celebration
   static const Color informationBlue = Color(0xFF1F9DFF);   // Info cards
