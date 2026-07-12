@@ -27,6 +27,7 @@ class TreasureIslandScreen extends StatefulWidget {
 
 class _TreasureIslandScreenState extends State<TreasureIslandScreen> {
   late List<Cosmetic> _cosmetics;
+  late int _equippedId;
 
   @override
   void initState() {
@@ -72,21 +73,12 @@ class _TreasureIslandScreenState extends State<TreasureIslandScreen> {
         equipped: false,
       ),
     ];
+    _equippedId = 1;
   }
 
   void _equipCosmetic(int cosmeticId) {
     setState(() {
-      // Unequip current
-      for (var cosmetic in _cosmetics) {
-        if (cosmetic.equipped) {
-          cosmetic.equipped = false;
-        }
-      }
-      // Equip selected
-      final index = _cosmetics.indexWhere((c) => c.id == cosmeticId);
-      if (index >= 0) {
-        _cosmetics[index].equipped = true;
-      }
+      _equippedId = cosmeticId;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -138,7 +130,7 @@ class _TreasureIslandScreenState extends State<TreasureIslandScreen> {
 
   Widget _buildCosmeticCard(Cosmetic cosmetic) {
     final isOwned = cosmetic.owned;
-    final isEquipped = cosmetic.equipped;
+    final isEquipped = cosmetic.id == _equippedId;
 
     return Card(
       color: isEquipped ? Colors.amber[50] : Colors.white,

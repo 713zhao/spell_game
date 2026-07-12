@@ -278,7 +278,7 @@ class LevelData {
   final String description;
   final List<String> words;
 
-  LevelData({
+  const LevelData({
     required this.levelNumber,
     required this.stageName,
     required this.description,

@@ -1,0 +1,226 @@
+Analyzing FlutterSpell_Game...                                  
+
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:19:16 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:33:30 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:56:30 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:128:16 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:129:21 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\backpack_screen.dart:139:59 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:146:33 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:147:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:149:15 - prefer_const_constructors
+   info - Don't invoke 'print' in production code - lib\screens\backpack_screen.dart:151:30 - avoid_print
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:153:28 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:183:16 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:184:21 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\backpack_screen.dart:194:60 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:201:33 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:202:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:204:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:208:28 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\backpack_screen.dart:215:35 - prefer_const_constructors
+   info - Constructors for public widgets should have a named 'key' parameter - lib\screens\home.dart:13:9 - use_key_in_widget_constructors
+   info - Use 'const' for final variables initialized to a constant value - lib\screens\home.dart:81:11 - prefer_const_declarations
+   info - Use 'const' for final variables initialized to a constant value - lib\screens\home.dart:82:11 - prefer_const_declarations
+   info - Use 'const' for final variables initialized to a constant value - lib\screens\home.dart:83:11 - prefer_const_declarations
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:101:30 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:121:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:136:33 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:147:40 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:163:35 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:176:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:189:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:197:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:214:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:215:24 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:233:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:234:24 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:252:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:253:24 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:268:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:269:24 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:286:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:287:26 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:291:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\home.dart:292:24 - prefer_const_constructors
+   info - Don't use 'BuildContext's across async gaps - lib\screens\leaderboard.dart:110:29 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\leaderboard.dart:113:38 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\leaderboard.dart:117:38 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\leaderboard.dart:279:64 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\leaderboard.dart:296:64 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\profile.dart:54:22 - use_build_context_synchronously
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:12:16 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:19:20 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:24:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:25:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:31:26 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\screens\progress_screen.dart:32:27 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:33:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:34:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:35:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:36:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:37:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:38:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:41:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:43:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:44:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:45:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:46:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:47:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:48:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:49:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:50:15 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\progress_screen.dart:104:26 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\progress_screen.dart:104:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\progress_screen.dart:107:41 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:113:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:131:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:132:16 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\progress_screen.dart:134:56 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:145:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:146:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:156:26 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\progress_screen.dart:156:43 - prefer_const_constructors
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\rewards_shop.dart:65:30 - use_build_context_synchronously
+   info - Use 'const' with the constructor to improve performance - lib\screens\rewards_shop.dart:66:11 - prefer_const_constructors
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\rewards_shop.dart:88:30 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\rewards_shop.dart:96:30 - use_build_context_synchronously
+   info - Use 'const' with the constructor to improve performance - lib\screens\rewards_shop.dart:283:17 - prefer_const_constructors
+warning - Unused import: '../widgets/point_pop_animation.dart' - lib\screens\study.dart:7:8 - unused_import
+   info - Don't use 'BuildContext's across async gaps - lib\screens\study.dart:88:28 - use_build_context_synchronously
+   info - Use interpolation to compose strings and values - lib\screens\study.dart:508:16 - prefer_interpolation_to_compose_strings
+   info - Constructors for public widgets should have a named 'key' parameter - lib\screens\study.dart:670:9 - use_key_in_widget_constructors
+warning - The value of the field '_starsAnimating' isn't used - lib\screens\study.dart:686:13 - unused_field
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:12:16 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:20:22 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:24:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:32:17 - prefer_const_constructors
+   info - Don't invoke 'print' in production code - lib\screens\world_map_screen.dart:41:36 - avoid_print
+   info - Don't invoke 'print' in production code - lib\screens\world_map_screen.dart:47:36 - avoid_print
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:51:17 - prefer_const_constructors
+   info - Don't invoke 'print' in production code - lib\screens\world_map_screen.dart:59:36 - avoid_print
+   info - Don't invoke 'print' in production code - lib\screens\world_map_screen.dart:65:36 - avoid_print
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:69:17 - prefer_const_constructors
+   info - Don't invoke 'print' in production code - lib\screens\world_map_screen.dart:75:32 - avoid_print
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:77:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:145:40 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\world_map_screen.dart:148:11 - prefer_const_constructors
+   info - The private field _soundTests could be 'final' - lib\widgets\audio_test_widget.dart:19:21 - prefer_final_fields
+   info - Use 'const' with the constructor to improve performance - lib\widgets\buttons\primary_button.dart:87:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\buttons\primary_button.dart:90:28 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\buttons\primary_button.dart:92:35 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:23:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:25:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:33:18 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:37:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:38:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:43:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:50:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\boss_battle_card.dart:56:28 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:31:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:69:22 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:71:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:79:18 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:97:32 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:112:13 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\cards\daily_goal_card.dart:119:37 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:130:35 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\widgets\cards\daily_goal_card.dart:131:35 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\daily_goal_card.dart:143:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:42:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:52:18 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:77:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:82:13 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\cards\journey_card.dart:87:37 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:95:31 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\widgets\cards\journey_card.dart:96:31 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:98:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:106:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:111:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\journey_card.dart:117:28 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:43:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:46:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:60:22 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:68:48 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:69:23 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:76:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:87:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:98:36 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:109:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:123:14 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\level_card.dart:148:18 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\stat_card.dart:30:22 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\stat_card.dart:40:18 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\stat_card.dart:45:31 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\stat_card.dart:46:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\stat_card.dart:51:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:21:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:23:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:31:18 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:37:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:40:30 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:52:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:58:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\widgets\cards\treasure_chest_card.dart:62:26 - prefer_const_constructors
+   info - Constructors for public widgets should have a named 'key' parameter - lib\widgets\challenge_card.dart:11:9 - use_key_in_widget_constructors
+   info - Use 'const' for final variables initialized to a constant value - lib\widgets\confetti_animation.dart:128:9 - prefer_const_declarations
+   info - Use 'const' for final variables initialized to a constant value - lib\widgets\confetti_animation.dart:129:9 - prefer_const_declarations
+   info - Constructors for public widgets should have a named 'key' parameter - lib\widgets\cosmetic_card.dart:10:9 - use_key_in_widget_constructors
+   info - Constructors for public widgets should have a named 'key' parameter - lib\widgets\level_card.dart:9:9 - use_key_in_widget_constructors
+   info - Constructors for public widgets should have a named 'key' parameter - lib\widgets\player_card.dart:9:9 - use_key_in_widget_constructors
+warning - Unused import: 'package:flutter/material.dart' - test\design_system\colors_test.dart:1:8 - unused_import
+   info - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion - test\design_system\colors_test.dart:13:40 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:9:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:10:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:11:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:22:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:23:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:24:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:35:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:36:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:37:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:47:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:48:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:49:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:57:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:58:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:59:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:69:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:70:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:71:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:82:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:83:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\daily_goal_card_test.dart:84:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:9:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:10:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:11:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:29:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:30:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:31:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:47:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:48:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:49:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:65:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:66:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:67:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:84:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:85:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:86:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:103:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:104:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\level_card_test.dart:105:19 - prefer_const_constructors
+warning - Unused import: 'package:spell_game/design_system/design_system.dart' - test\widgets\cards\stat_card_test.dart:4:8 - unused_import
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:10:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:11:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:12:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:28:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:29:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:30:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:46:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:47:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:48:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:84:9 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:85:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - test\widgets\cards\stat_card_test.dart:86:19 - prefer_const_constructors
+
+222 issues found. (ran in 1.9s)
