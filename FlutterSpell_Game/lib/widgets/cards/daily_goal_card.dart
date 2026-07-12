@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:spell_game/design_system/design_system.dart';
 
+const double _progressBarBgOpacity = 0.6;
+
 class DailyGoalCard extends StatefulWidget {
   final int completed;
   final int total;
@@ -97,8 +99,10 @@ class _DailyGoalCardState extends State<DailyGoalCard>
                       child: Text(
                         '⭐',
                         style: TextStyle(
-                          fontSize: 16,
-                          color: isFilled ? Colors.orange : Colors.grey,
+                          fontSize: DuolingoSpacing.starSize,
+                          color: isFilled
+                              ? DuolingoColors.streakOrange
+                              : DuolingoColors.neutralGray,
                         ),
                       ),
                     );
@@ -111,10 +115,10 @@ class _DailyGoalCardState extends State<DailyGoalCard>
             // Progress bar
             Container(
               width: double.infinity,
-              height: 12,
+              height: DuolingoSpacing.progressBarHeight,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withOpacity(_progressBarBgOpacity),
+                borderRadius: BorderRadius.circular(DuolingoSpacing.radiusBadge),
               ),
               child: AnimatedBuilder(
                 animation: _progressAnimation,
@@ -130,7 +134,7 @@ class _DailyGoalCardState extends State<DailyGoalCard>
                             DuolingoColors.primaryGreenLight,
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusBadge),
                       ),
                     ),
                   );

@@ -18,4 +18,9 @@ class DuolingoSpacing {
 
   // Icon size
   static const double iconSize = 28;
+
+  // Component-specific sizes
+  static const double starSize = 16;
+  static const double progressBarHeight = 12;
+  static const double radiusBadge = 10;
 }
