@@ -9,6 +9,7 @@ import 'screens/profile.dart';
 import 'screens/progress_screen.dart';
 import 'screens/world_map_screen.dart';
 import 'screens/backpack_screen.dart';
+import 'screens/treasure_island_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,6 +75,10 @@ class MyApp extends StatelessWidget {
             case '/leaderboard':
               return MaterialPageRoute(
                 builder: (context) => const LeaderboardScreen(),
+              );
+            case '/treasure-island':
+              return MaterialPageRoute(
+                builder: (context) => const TreasureIslandScreen(),
               );
             default:
               return null;
