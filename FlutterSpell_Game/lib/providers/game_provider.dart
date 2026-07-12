@@ -68,7 +68,9 @@ class GameProvider extends ChangeNotifier {
   Future<void> loadLevelDetails(int levelId) async {
     isLoading = true;
     errorMessage = null;
-    notifyListeners();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
 
     try {
       currentLevel = await apiClient.getLevelDetails(levelId);
@@ -76,7 +78,9 @@ class GameProvider extends ChangeNotifier {
       errorMessage = e.toString();
     } finally {
       isLoading = false;
-      notifyListeners();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
