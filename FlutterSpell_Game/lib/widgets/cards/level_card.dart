@@ -44,7 +44,7 @@ class _LevelCardState extends State<LevelCard> {
         transform: Matrix4.translationValues(0, _isHovered && !widget.isLocked ? -4 : 0, 0),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFF0F9FF), Color(0xFFE6F2FF)],
+            colors: DuolingoColors.levelCardGradient,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -100,7 +100,7 @@ class _LevelCardState extends State<LevelCard> {
                             '⭐',
                             style: TextStyle(
                               fontSize: 16,
-                              color: isFilled ? Colors.orange : Colors.grey,
+                              color: isFilled ? DuolingoColors.streakOrange : DuolingoColors.neutralGray,
                             ),
                           ),
                         );
@@ -150,7 +150,7 @@ class _Button extends StatelessWidget {
           vertical: DuolingoSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: isPrimary ? DuolingoColors.primaryGreen : Colors.grey,
+          color: isPrimary ? DuolingoColors.primaryGreen : DuolingoColors.secondaryButtonGray,
           borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
         ),
         child: Text(
