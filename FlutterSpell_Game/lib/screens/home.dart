@@ -113,8 +113,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           child: ScaleTransition(
                             scale: _mascotAnimation,
                             child: const Text(
-                              '🏰',
-                              style: TextStyle(fontSize: 72),
+                              '🐕',
+                              style: TextStyle(fontSize: 80),
                             ),
                           ),
                         ),
@@ -287,9 +287,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: SizedBox(height: DuolingoSpacing.lg),
                 ),
 
-              // Bottom padding
+              // Bottom padding (account for bottom nav bar ~56dp + extra spacing)
               SliverToBoxAdapter(
-                child: SizedBox(height: DuolingoSpacing.xxl),
+                child: SizedBox(height: 100),
               ),
             ],
           );

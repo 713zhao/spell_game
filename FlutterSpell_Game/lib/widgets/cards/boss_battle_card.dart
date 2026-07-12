@@ -28,6 +28,10 @@ class BossBattleCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+          border: Border.all(
+            color: const Color(0xFF1F9DFF),
+            width: 2,
+          ),
           boxShadow: DuolingoShadows.cardShadow,
         ),
         padding: EdgeInsets.all(DuolingoSpacing.lg),
