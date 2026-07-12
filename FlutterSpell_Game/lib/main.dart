@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'screens/home.dart';
+import 'screens/study.dart';
 import 'screens/rewards_shop.dart';
+import 'screens/leaderboard.dart';
 
 void main() {
   runApp(const MyApp());
@@ -24,12 +26,34 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
         ),
         home: const HomeScreen(userName: 'alice'),
-        routes: {
-          '/level-select': (context) => const LevelSelectScreen(),
-          '/study': (context) => const StudyScreen(),
-          '/rewards': (context) => const RewardsShopScreen(),
-          '/leaderboard': (context) => const LeaderboardScreen(),
-          '/profile': (context) => const ProfileScreen(),
+        onGenerateRoute: (settings) {
+          switch (settings.name) {
+            case '/level-select':
+              return MaterialPageRoute(
+                builder: (context) => const LevelSelectScreen(),
+              );
+            case '/study':
+              final levelId = settings.arguments as int?;
+              return MaterialPageRoute(
+                builder: (context) => StudyScreen(
+                  levelId: levelId ?? 1,
+                ),
+              );
+            case '/rewards':
+              return MaterialPageRoute(
+                builder: (context) => const RewardsShopScreen(),
+              );
+            case '/leaderboard':
+              return MaterialPageRoute(
+                builder: (context) => const LeaderboardScreen(),
+              );
+            case '/profile':
+              return MaterialPageRoute(
+                builder: (context) => const ProfileScreen(),
+              );
+            default:
+              return null;
+          }
         },
       ),
     );
@@ -43,25 +67,6 @@ class LevelSelectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(body: Center(child: Text('Level Select')));
-  }
-}
-
-class StudyScreen extends StatelessWidget {
-  const StudyScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Study')));
-  }
-}
-
-
-class LeaderboardScreen extends StatelessWidget {
-  const LeaderboardScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Leaderboard')));
   }
 }
 
