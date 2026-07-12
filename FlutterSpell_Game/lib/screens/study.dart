@@ -48,6 +48,7 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
   void initState() {
     super.initState();
     _soundService = SoundService();
+    _initSoundService();
 
     _popAnimationController = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -67,6 +68,26 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
     );
 
     _loadLevel();
+  }
+
+  /// Initialize sound service
+  Future<void> _initSoundService() async {
+    try {
+      await _soundService.init();
+    } catch (e) {
+      // Sound service initialization failed, but app continues
+    }
+  }
+
+  /// Play word pronunciation using TTS
+  Future<void> _playWordAudio(String word) async {
+    try {
+      await _soundService.playWordPronunciation(word);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not play audio: $e')),
+      );
+    }
   }
 
   Future<void> _loadLevel() async {
@@ -158,6 +179,7 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
   void dispose() {
     _popAnimationController.dispose();
     _feedbackAnimationController.dispose();
+    _soundService.dispose();
     super.dispose();
   }
 
@@ -274,12 +296,8 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
                           ),
                           const SizedBox(height: 24),
                           FloatingActionButton.extended(
-                            onPressed: () {
-                              // TODO: Implement TTS
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Playing: ${currentWord.text}')),
-                              );
-                            },
+                            onPressed: () => _playWordAudio(currentWord.text),
+                            tooltip: 'Hear pronunciation',
                             icon: const Icon(Icons.volume_up),
                             label: const Text('Hear it'),
                           ),

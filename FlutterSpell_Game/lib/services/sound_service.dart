@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service to manage all sound effects in the app
@@ -6,8 +7,10 @@ class SoundService {
   static final SoundService _instance = SoundService._internal();
 
   late AudioPlayer _audioPlayer;
+  late FlutterTts _flutterTts;
   late SharedPreferences _prefs;
   bool _soundEnabled = true;
+  bool _ttsInitialized = false;
 
   factory SoundService() {
     return _instance;
@@ -18,8 +21,26 @@ class SoundService {
   /// Initialize the sound service
   Future<void> init() async {
     _audioPlayer = AudioPlayer();
+    _flutterTts = FlutterTts();
     _prefs = await SharedPreferences.getInstance();
     _soundEnabled = _prefs.getBool('sound_enabled') ?? true;
+    await _initTts();
+  }
+
+  /// Initialize TTS settings
+  Future<void> _initTts() async {
+    try {
+      // Set default language to English (US)
+      await _flutterTts.setLanguage("en-US");
+      // Set speech rate (0.0 to 2.0, where 1.0 is normal)
+      await _flutterTts.setSpeechRate(0.5);
+      // Set pitch (0.5 to 2.0, where 1.0 is normal)
+      await _flutterTts.setPitch(1.0);
+      _ttsInitialized = true;
+    } catch (e) {
+      // TTS initialization failed, but app continues
+      _ttsInitialized = false;
+    }
   }
 
   /// Update sound enabled setting
@@ -73,6 +94,17 @@ class SoundService {
     await _playSound('pop');
   }
 
+  /// Play word pronunciation using Text-to-Speech
+  Future<void> playWordPronunciation(String word) async {
+    if (!_soundEnabled || !_ttsInitialized) return;
+    try {
+      await _flutterTts.speak(word);
+    } catch (e) {
+      // TTS playback failed, but app continues gracefully
+      // In production, this would be logged
+    }
+  }
+
   /// Internal method to play a sound by name
   Future<void> _playSound(String soundName) async {
     try {
@@ -91,8 +123,9 @@ class SoundService {
     await _audioPlayer.stop();
   }
 
-  /// Dispose the audio player
+  /// Dispose the audio player and TTS
   Future<void> dispose() async {
     await _audioPlayer.dispose();
+    await _flutterTts.stop();
   }
 }

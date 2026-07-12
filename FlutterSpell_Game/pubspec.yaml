@@ -31,6 +31,9 @@ dependencies:
   # which is incompatible. Therefore, audioplayers ^5.0.0 is required.
   audioplayers: ^5.0.0
 
+  # Text-to-Speech for word pronunciation
+  flutter_tts: ^4.2.5
+
   # UI
   cupertino_icons: ^1.0.0
 
