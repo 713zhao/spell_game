@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../design_system/design_system.dart';
-import '../models/game_models.dart';
 import '../providers/game_provider.dart';
 import '../widgets/cards/daily_goal_card.dart';
 import '../widgets/cards/level_card.dart';
@@ -68,15 +67,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return icons[levelId % icons.length];
   }
 
-  int _getCompletedLessonsToday() {
-    // This would come from API in real implementation
-    // For now, return a mock value
-    return 3;
+  bool _isLevelUnlocked(int levelId, int levelsCompleted) {
+    // A level is unlocked if it's the first level or if the previous level has been completed
+    return levelId <= levelsCompleted + 1;
+  }
+
+  int _getCompletedLessonsToday(GameProvider provider) {
+    // Get from user stats - represents total levels completed
+    return provider.userStats?.levelsCompleted ?? 0;
   }
 
   int _getDailyGoalTarget() {
-    // Mock value - would come from config or API
-    return 5;
+    // Daily goal configuration - can be made configurable via API in future
+    const int dailyGoalTarget = 5;
+    return dailyGoalTarget;
   }
 
   @override
@@ -92,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             return Center(child: Text('Error: ${provider.errorMessage}'));
           }
 
-          final completedToday = _getCompletedLessonsToday();
+          final completedToday = _getCompletedLessonsToday(provider);
           final dailyGoalTarget = _getDailyGoalTarget();
 
           return CustomScrollView(
@@ -221,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               difficulty: _getDifficultyString(level.difficulty),
                               wordCount: level.words?.length ?? 0,
                               starsEarned: 0, // Would come from progress data
-                              isLocked: level.id > 1, // Simplified lock logic
+                              isLocked: !_isLevelUnlocked(level.id, provider.userStats?.levelsCompleted ?? 0),
                               isCompleted: false, // Would come from progress data
                               onPlayTap: () {
                                 Navigator.of(context).pushNamed(
@@ -253,9 +257,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
+        backgroundColor: DuolingoColors.backgroundWhite,
         selectedItemColor: DuolingoColors.primaryGreen,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: DuolingoColors.neutralGray,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),

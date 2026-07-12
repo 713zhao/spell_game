@@ -59,7 +59,6 @@ class _DailyGoalCardState extends State<DailyGoalCard>
     super.dispose();
   }
 
-  double get _progress => widget.completed / widget.total;
   int get _filledStars => ((widget.completed / widget.total) * 3).ceil();
 
   @override

@@ -72,7 +72,7 @@ class _PrimaryButtonState extends State<PrimaryButton>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: widget.disabled
-                  ? [Colors.grey, Colors.grey.shade400]
+                  ? [DuolingoColors.neutralGray, DuolingoColors.neutralGray]
                   : [DuolingoColors.primaryGreen, DuolingoColors.primaryGreenLight],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
