@@ -27,7 +27,7 @@ class StatCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        constraints: BoxConstraints(minHeight: DuolingoSpacing.minTouchTarget),
+        constraints: BoxConstraints(minHeight: DuolingoSpacing.minTouchTarget, minWidth: DuolingoSpacing.minTouchTarget),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: _gradientColors,
@@ -42,10 +42,10 @@ class StatCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(icon, style: const TextStyle(fontSize: 28)),
+            Text(icon, style: TextStyle(fontSize: DuolingoSpacing.iconSize)),
             SizedBox(height: DuolingoSpacing.sm),
             Text(
-              label,
+              label.toUpperCase(),
               style: DuolingoTextStyles.label,
             ),
             SizedBox(height: DuolingoSpacing.xs),

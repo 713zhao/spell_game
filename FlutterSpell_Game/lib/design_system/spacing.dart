@@ -15,4 +15,7 @@ class DuolingoSpacing {
 
   // Minimum touch target (48x48px for children)
   static const double minTouchTarget = 48;
+
+  // Icon size
+  static const double iconSize = 28;
 }
