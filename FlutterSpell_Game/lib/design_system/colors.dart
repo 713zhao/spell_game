@@ -12,8 +12,6 @@ class DuolingoColors {
   // Neutrals
   static const Color backgroundWhite = Color(0xFFFFFFFF);
   static const Color neutralGray = Color(0xFFF5F5F5);
-  static const Color textDark = Color(0xFF333333);
-  static const Color textLight = Color(0xFF999999);
 
   // Gradients (for cards)
   static const List<Color> streakGradient = [
