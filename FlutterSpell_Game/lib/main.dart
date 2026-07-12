@@ -7,6 +7,8 @@ import 'screens/rewards_shop.dart';
 import 'screens/leaderboard.dart';
 import 'screens/profile.dart';
 import 'screens/progress_screen.dart';
+import 'screens/world_map_screen.dart';
+import 'screens/backpack_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,8 +40,25 @@ class MyApp extends StatelessWidget {
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/':
+            case '/home':
               return MaterialPageRoute(
                 builder: (context) => const HomeScreen(userName: 'alice'),
+              );
+            case '/world-map':
+              return MaterialPageRoute(
+                builder: (context) => const WorldMapScreen(),
+              );
+            case '/backpack':
+              return MaterialPageRoute(
+                builder: (context) => const BackpackScreen(),
+              );
+            case '/progress':
+              return MaterialPageRoute(
+                builder: (context) => const ProgressScreen(),
+              );
+            case '/profile':
+              return MaterialPageRoute(
+                builder: (context) => const ProfileScreen(),
               );
             case '/study':
               final levelId = settings.arguments as int?;
@@ -55,14 +74,6 @@ class MyApp extends StatelessWidget {
             case '/leaderboard':
               return MaterialPageRoute(
                 builder: (context) => const LeaderboardScreen(),
-              );
-            case '/profile':
-              return MaterialPageRoute(
-                builder: (context) => const ProfileScreen(),
-              );
-            case '/progress':
-              return MaterialPageRoute(
-                builder: (context) => const ProgressScreen(),
               );
             default:
               return null;

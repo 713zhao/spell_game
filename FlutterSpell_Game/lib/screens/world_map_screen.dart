@@ -82,6 +82,7 @@ class WorldMapScreen extends StatelessWidget {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 1,
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
@@ -89,6 +90,25 @@ class WorldMapScreen extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'Progress'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              Navigator.of(context).pushReplacementNamed('/');
+              break;
+            case 1:
+              // Already on world-map
+              break;
+            case 2:
+              Navigator.of(context).pushReplacementNamed('/backpack');
+              break;
+            case 3:
+              Navigator.of(context).pushReplacementNamed('/progress');
+              break;
+            case 4:
+              Navigator.of(context).pushReplacementNamed('/profile');
+              break;
+          }
+        },
       ),
     );
   }

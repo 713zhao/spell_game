@@ -392,6 +392,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         },
       ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: 4,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
+          BottomNavigationBarItem(icon: Icon(Icons.backpack), label: 'Backpack'),
+          BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'Progress'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              Navigator.of(context).pushReplacementNamed('/');
+              break;
+            case 1:
+              Navigator.of(context).pushReplacementNamed('/world-map');
+              break;
+            case 2:
+              Navigator.of(context).pushReplacementNamed('/backpack');
+              break;
+            case 3:
+              Navigator.of(context).pushReplacementNamed('/progress');
+              break;
+            case 4:
+              // Already on profile
+              break;
+          }
+        },
+      ),
     );
   }
 

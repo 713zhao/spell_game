@@ -54,6 +54,10 @@ class ProgressScreen extends StatelessWidget {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 3,
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: DuolingoColors.backgroundWhite,
+        selectedItemColor: DuolingoColors.primaryGreen,
+        unselectedItemColor: DuolingoColors.neutralGray,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
@@ -61,6 +65,25 @@ class ProgressScreen extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'Progress'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              Navigator.of(context).pushReplacementNamed('/');
+              break;
+            case 1:
+              Navigator.of(context).pushReplacementNamed('/world-map');
+              break;
+            case 2:
+              Navigator.of(context).pushReplacementNamed('/backpack');
+              break;
+            case 3:
+              // Already on progress
+              break;
+            case 4:
+              Navigator.of(context).pushReplacementNamed('/profile');
+              break;
+          }
+        },
       ),
     );
   }

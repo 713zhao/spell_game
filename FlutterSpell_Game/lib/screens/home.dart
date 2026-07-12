@@ -334,13 +334,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 // Already on home
                 break;
               case 1:
-                Navigator.of(context).pushReplacementNamed('/leaderboard');
+                Navigator.of(context).pushReplacementNamed('/world-map');
                 break;
               case 2:
-                Navigator.of(context).pushReplacementNamed('/rewards');
+                Navigator.of(context).pushReplacementNamed('/backpack');
                 break;
               case 3:
-                Navigator.of(context).pushReplacementNamed('/study');
+                Navigator.of(context).pushReplacementNamed('/progress');
                 break;
               case 4:
                 Navigator.of(context).pushReplacementNamed('/profile');
