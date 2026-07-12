@@ -65,6 +65,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
+      appBar: AppBar(
+        title: Text('Adventure World', style: DuolingoTextStyles.pageTitle),
+        centerTitle: true,
+        backgroundColor: DuolingoColors.backgroundWhite,
+        elevation: 0,
+      ),
       body: Consumer<GameProvider>(
         builder: (context, provider, _) {
           if (provider.isLoading && provider.userStats == null) {
@@ -87,211 +93,163 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               provider.userStats!.accuracy! < 0.8;
           final weakWords = ['because', 'beautiful', 'responsible'];
 
-          return CustomScrollView(
-            slivers: [
-              // Header Section (No Scroll)
-              SliverAppBar(
-                backgroundColor: DuolingoColors.backgroundWhite,
-                elevation: 0,
-                floating: false,
-                pinned: true,
-                toolbarHeight: 280,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Padding(
-                    padding: EdgeInsets.only(
-                      left: DuolingoSpacing.lg,
-                      right: DuolingoSpacing.lg,
-                      top: DuolingoSpacing.xl,
-                      bottom: DuolingoSpacing.lg,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        // Animated mascot
-                        Center(
-                          child: ScaleTransition(
-                            scale: _mascotAnimation,
-                            child: const Text(
-                              '🐕',
-                              style: TextStyle(fontSize: 80),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: DuolingoSpacing.lg),
-
-                        // Greeting + Streak
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${_getGreeting()}, $userName!',
-                                  style: DuolingoTextStyles.pageTitle.copyWith(
-                                    color: DuolingoColors.darkText,
-                                  ),
-                                ),
-                                SizedBox(height: DuolingoSpacing.xs),
-                                Text(
-                                  'Continue your adventure...',
-                                  style: DuolingoTextStyles.body.copyWith(
-                                    color: DuolingoColors.bodyText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // Streak Badge
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: DuolingoSpacing.md,
-                                vertical: DuolingoSpacing.sm,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: DuolingoColors.streakGradient,
-                                ),
-                                borderRadius: BorderRadius.circular(
-                                  DuolingoSpacing.radiusButton,
-                                ),
-                                boxShadow: DuolingoShadows.cardShadow,
-                              ),
-                              child: Row(
-                                children: [
-                                  const Text('🔥', style: TextStyle(fontSize: 20)),
-                                  SizedBox(width: DuolingoSpacing.xs),
-                                  Text(
-                                    '$streak',
-                                    style: DuolingoTextStyles.cardTitle.copyWith(
-                                      color: DuolingoColors.streakOrange,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(height: DuolingoSpacing.lg),
-
-                        // Quick stats row
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Expanded(
-                              child: StatCard(
-                                icon: '⭐',
-                                label: 'XP',
-                                value: '$xp',
-                              ),
-                            ),
-                            SizedBox(width: DuolingoSpacing.md),
-                            Expanded(
-                              child: StatCard(
-                                icon: '💰',
-                                label: 'Coins',
-                                value: '$coins',
-                              ),
-                            ),
-                            SizedBox(width: DuolingoSpacing.md),
-                            Expanded(
-                              child: StatCard(
-                                icon: '💎',
-                                label: 'Gems',
-                                value: '$gems',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+          return SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.all(DuolingoSpacing.lg),
+              child: Column(
+                children: [
+                  // Animated mascot
+                  Center(
+                    child: ScaleTransition(
+                      scale: _mascotAnimation,
+                      child: const Text(
+                        '🐕',
+                        style: TextStyle(fontSize: 80),
+                      ),
                     ),
                   ),
-                ),
-              ),
+                  SizedBox(height: DuolingoSpacing.lg),
 
-              // Scrollable Content Section
-              SliverToBoxAdapter(
-                child: SizedBox(height: DuolingoSpacing.lg),
-              ),
+                  // Greeting + Streak
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_getGreeting()}, $userName!',
+                            style: DuolingoTextStyles.pageTitle.copyWith(
+                              color: DuolingoColors.darkText,
+                            ),
+                          ),
+                          SizedBox(height: DuolingoSpacing.xs),
+                          Text(
+                            'Continue your adventure...',
+                            style: DuolingoTextStyles.body.copyWith(
+                              color: DuolingoColors.bodyText,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Streak Badge
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: DuolingoSpacing.md,
+                          vertical: DuolingoSpacing.sm,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: DuolingoColors.streakGradient,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            DuolingoSpacing.radiusButton,
+                          ),
+                          boxShadow: DuolingoShadows.cardShadow,
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('🔥', style: TextStyle(fontSize: 20)),
+                            SizedBox(width: DuolingoSpacing.xs),
+                            Text(
+                              '$streak',
+                              style: DuolingoTextStyles.cardTitle.copyWith(
+                                color: DuolingoColors.streakOrange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
 
-              // English Kingdom Card
-              SliverToBoxAdapter(
-                child: JourneyCard(
-                  kingdom: 'english',
-                  icon: '🏰',
-                  label: 'English Kingdom',
-                  current: 'Stage 5',
-                  completed: 8,
-                  total: 10,
-                  stars: 2,
-                  onTap: () {
-                    Navigator.of(context).pushNamed('/study');
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(height: DuolingoSpacing.lg),
-              ),
+                  SizedBox(height: DuolingoSpacing.lg),
 
-              // Chinese Kingdom Card
-              SliverToBoxAdapter(
-                child: JourneyCard(
-                  kingdom: 'chinese',
-                  icon: '🐉',
-                  label: 'Chinese Kingdom',
-                  current: 'Forest Stage 7',
-                  completed: 7,
-                  total: 10,
-                  stars: 2,
-                  onTap: () {
-                    Navigator.of(context).pushNamed('/study');
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(height: DuolingoSpacing.lg),
-              ),
+                  // Quick stats row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      StatCard(
+                        icon: '⭐',
+                        label: 'XP',
+                        value: '$xp',
+                      ),
+                      StatCard(
+                        icon: '💰',
+                        label: 'Coins',
+                        value: '$coins',
+                      ),
+                      StatCard(
+                        icon: '💎',
+                        label: 'Gems',
+                        value: '$gems',
+                      ),
+                    ],
+                  ),
 
-              // Daily Treasure Chest Card
-              SliverToBoxAdapter(
-                child: TreasureChestCard(
-                  isAvailable: true,
-                  reward: '+50 XP, +20 Coins',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Treasure opened!')),
-                    );
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(height: DuolingoSpacing.lg),
-              ),
+                  SizedBox(height: DuolingoSpacing.xl),
 
-              // Boss Battle Card (if weak words exist)
-              if (hasWeakWords)
-                SliverToBoxAdapter(
-                  child: BossBattleCard(
-                    bossName: 'Vocabulary Champion',
-                    weakWordsCount: weakWords.length,
-                    weakWords: weakWords,
+                  // English Kingdom Card
+                  JourneyCard(
+                    kingdom: 'english',
+                    icon: '🏰',
+                    label: 'English Kingdom',
+                    current: 'Stage 5',
+                    completed: 8,
+                    total: 10,
+                    stars: 2,
                     onTap: () {
                       Navigator.of(context).pushNamed('/study');
                     },
                   ),
-                ),
+                  SizedBox(height: DuolingoSpacing.lg),
 
-              if (hasWeakWords)
-                SliverToBoxAdapter(
-                  child: SizedBox(height: DuolingoSpacing.lg),
-                ),
+                  // Chinese Kingdom Card
+                  JourneyCard(
+                    kingdom: 'chinese',
+                    icon: '🐉',
+                    label: 'Chinese Kingdom',
+                    current: 'Forest Stage 7',
+                    completed: 7,
+                    total: 10,
+                    stars: 2,
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/study');
+                    },
+                  ),
+                  SizedBox(height: DuolingoSpacing.lg),
 
-              // Bottom padding (account for bottom nav bar ~56dp + extra spacing)
-              SliverToBoxAdapter(
-                child: SizedBox(height: 100),
+                  // Daily Treasure Chest Card
+                  TreasureChestCard(
+                    isAvailable: true,
+                    reward: '+50 XP, +20 Coins',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Treasure opened!')),
+                      );
+                    },
+                  ),
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Boss Battle Card (if weak words exist)
+                  if (hasWeakWords)
+                    BossBattleCard(
+                      bossName: 'Vocabulary Champion',
+                      weakWordsCount: weakWords.length,
+                      weakWords: weakWords,
+                      onTap: () {
+                        Navigator.of(context).pushNamed('/study');
+                      },
+                    ),
+
+                  if (hasWeakWords)
+                    SizedBox(height: DuolingoSpacing.lg),
+
+                  // Bottom padding (account for bottom nav bar ~56dp + extra spacing)
+                  SizedBox(height: 100),
+                ],
               ),
-            ],
+            ),
           );
         },
       ),
