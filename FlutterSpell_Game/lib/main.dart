@@ -6,6 +6,7 @@ import 'screens/study.dart';
 import 'screens/rewards_shop.dart';
 import 'screens/leaderboard.dart';
 import 'screens/profile.dart';
+import 'screens/progress_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +59,10 @@ class MyApp extends StatelessWidget {
             case '/profile':
               return MaterialPageRoute(
                 builder: (context) => const ProfileScreen(),
+              );
+            case '/progress':
+              return MaterialPageRoute(
+                builder: (context) => const ProgressScreen(),
               );
             default:
               return null;
