@@ -13,6 +13,7 @@ class DuolingoColors {
   // Neutrals
   static const Color backgroundWhite = Color(0xFFFFFFFF);
   static const Color neutralGray = Color(0xFFF5F5F5);
+  static const Color secondaryButtonGray = Color(0xFFCCCCCC);
 
   // Gradients (for cards)
   static const List<Color> streakGradient = [
@@ -28,5 +29,10 @@ class DuolingoColors {
   static const List<Color> infoGradient = [
     Color(0xFFE6F5FF),
     Color(0xFFCCE6FF),
+  ];
+
+  static const List<Color> levelCardGradient = [
+    Color(0xFFF0F9FF),  // Light blue
+    Color(0xFFE6F2FF),  // Medium blue
   ];
 }

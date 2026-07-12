@@ -1,9 +1,10 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/game_models.dart';
+import '../config/api_config.dart';
 
 class ApiClient {
-  static const String _baseUrl = 'http://localhost:8000';
+  static const String _baseUrl = ApiConfig.baseUrl;
   final String userName;
 
   ApiClient({required this.userName});
