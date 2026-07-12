@@ -72,7 +72,7 @@ class WorldMapScreen extends StatelessWidget {
                   icon: '⚔️',
                   label: 'Boss Arena',
                   color: DuolingoColors.bossArenaGradient[0],
-                  onTap: () => print('Boss Arena tapped'),
+                  onTap: () => Navigator.pushNamed(context, '/boss-arena'),
                 ),
                 SizedBox(height: DuolingoSpacing.xl),
               ],

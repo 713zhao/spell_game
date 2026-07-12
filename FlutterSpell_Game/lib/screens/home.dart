@@ -214,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     total: 10,
                     stars: 2,
                     onTap: () {
-                      Navigator.of(context).pushNamed('/study');
+                      Navigator.of(context).pushNamed('/chinese-kingdom');
                     },
                   ),
                   SizedBox(height: DuolingoSpacing.lg),
