@@ -136,7 +136,7 @@ class _ConfettiAnimationState extends State<ConfettiAnimation>
             ...confetti.map((piece) {
               // Calculate opacity - fade out over time
               final opacity = math.max(
-                0,
+                0.0,
                 1 - (_animationController.value * 1.2),
               );
 

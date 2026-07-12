@@ -13,6 +13,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -119,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         isLocked: level.id > 1, // Simplified; use actual logic
                         onTap: () {
                           Navigator.of(context).pushNamed(
-                            '/level-select',
+                            '/study',
                             arguments: level.id,
                           );
                         },
@@ -134,6 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
       bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Levels'),
@@ -142,7 +145,29 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
-          // TODO: Navigate to other screens
+          if (index != _currentIndex) {
+            setState(() {
+              _currentIndex = index;
+            });
+
+            switch (index) {
+              case 0:
+                // Already on home
+                break;
+              case 1:
+                Navigator.of(context).pushReplacementNamed('/study');
+                break;
+              case 2:
+                Navigator.of(context).pushReplacementNamed('/leaderboard');
+                break;
+              case 3:
+                Navigator.of(context).pushReplacementNamed('/rewards');
+                break;
+              case 4:
+                Navigator.of(context).pushReplacementNamed('/profile');
+                break;
+            }
+          }
         },
       ),
     );

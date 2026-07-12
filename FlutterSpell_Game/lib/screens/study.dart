@@ -20,6 +20,7 @@ class StudyScreen extends StatefulWidget {
 enum ChallengeType { multipleChoice, typing, speech }
 
 class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin {
+  int _currentIndex = 1;
   late List<Word> words;
   int currentWordIndex = 0;
   int correctCount = 0;
@@ -388,6 +389,41 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Levels'),
+          BottomNavigationBarItem(icon: Icon(Icons.leaderboard), label: 'Leaderboard'),
+          BottomNavigationBarItem(icon: Icon(Icons.card_giftcard), label: 'Rewards'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+        onTap: (index) {
+          if (index != _currentIndex) {
+            setState(() {
+              _currentIndex = index;
+            });
+
+            switch (index) {
+              case 0:
+                Navigator.of(context).pushReplacementNamed('/');
+                break;
+              case 1:
+                // Already on levels/study
+                break;
+              case 2:
+                Navigator.of(context).pushReplacementNamed('/leaderboard');
+                break;
+              case 3:
+                Navigator.of(context).pushReplacementNamed('/rewards');
+                break;
+              case 4:
+                Navigator.of(context).pushReplacementNamed('/profile');
+                break;
+            }
+          }
+        },
       ),
     );
   }

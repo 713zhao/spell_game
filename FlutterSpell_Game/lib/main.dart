@@ -36,9 +36,9 @@ class MyApp extends StatelessWidget {
         home: const HomeScreen(userName: 'alice'),
         onGenerateRoute: (settings) {
           switch (settings.name) {
-            case '/level-select':
+            case '/':
               return MaterialPageRoute(
-                builder: (context) => const LevelSelectScreen(),
+                builder: (context) => const HomeScreen(userName: 'alice'),
               );
             case '/study':
               final levelId = settings.arguments as int?;
@@ -65,15 +65,5 @@ class MyApp extends StatelessWidget {
         },
       ),
     );
-  }
-}
-
-// Placeholder screens
-class LevelSelectScreen extends StatelessWidget {
-  const LevelSelectScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Level Select')));
   }
 }

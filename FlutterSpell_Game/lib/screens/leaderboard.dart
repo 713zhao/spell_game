@@ -13,6 +13,7 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen>
     with TickerProviderStateMixin {
+  int _currentIndex = 2;
   late TabController _tabController;
   String _selectedFilter = 'global';
   final List<String> _filterOptions = ['global', 'friends', 'school', 'grade'];
@@ -317,6 +318,41 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         onPressed: _showChallengeDialog,
         icon: const Icon(Icons.add),
         label: const Text('Challenge'),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Levels'),
+          BottomNavigationBarItem(icon: Icon(Icons.leaderboard), label: 'Leaderboard'),
+          BottomNavigationBarItem(icon: Icon(Icons.card_giftcard), label: 'Rewards'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+        onTap: (index) {
+          if (index != _currentIndex) {
+            setState(() {
+              _currentIndex = index;
+            });
+
+            switch (index) {
+              case 0:
+                Navigator.of(context).pushReplacementNamed('/');
+                break;
+              case 1:
+                Navigator.of(context).pushReplacementNamed('/study');
+                break;
+              case 2:
+                // Already on leaderboard
+                break;
+              case 3:
+                Navigator.of(context).pushReplacementNamed('/rewards');
+                break;
+              case 4:
+                Navigator.of(context).pushReplacementNamed('/profile');
+                break;
+            }
+          }
+        },
       ),
     );
   }
