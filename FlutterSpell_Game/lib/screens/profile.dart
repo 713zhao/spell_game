@@ -80,6 +80,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).pushReplacementNamed('/');
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Helper method to calculate level from points
   int _calculateLevel(int points) {
     return (points / 100).floor() + 1;
@@ -369,7 +392,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
+                        // Logout Button
+                        Center(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _showLogoutDialog();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[400],
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 12,
+                              ),
+                            ),
+                            icon: const Icon(Icons.logout),
+                            label: const Text('Logout'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         Center(
                           child: Text(
                             'Version 1.0.0',

@@ -56,7 +56,7 @@ class WorldMapScreen extends StatelessWidget {
                       icon: '🔍',
                       label: 'Review\nCave',
                       color: DuolingoColors.reviewCaveGradient[0],
-                      onTap: () => print('Review Cave tapped'),
+                      onTap: () => Navigator.of(context).pushNamed('/review-cave'),
                     ),
                     _LocationNode(
                       icon: '🏝️',
