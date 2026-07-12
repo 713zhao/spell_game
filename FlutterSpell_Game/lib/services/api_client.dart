@@ -24,7 +24,6 @@ class ApiClient {
         throw Exception('Failed to load levels');
       }
     } catch (e) {
-      print('Error loading levels: $e');
       rethrow;
     }
   }
@@ -41,7 +40,6 @@ class ApiClient {
         throw Exception('Failed to load level');
       }
     } catch (e) {
-      print('Error loading level: $e');
       rethrow;
     }
   }
@@ -63,7 +61,6 @@ class ApiClient {
         throw Exception('Failed to complete level');
       }
     } catch (e) {
-      print('Error completing level: $e');
       rethrow;
     }
   }
@@ -84,7 +81,6 @@ class ApiClient {
         throw Exception('Failed to load unlockables');
       }
     } catch (e) {
-      print('Error loading unlockables: $e');
       rethrow;
     }
   }
@@ -101,7 +97,6 @@ class ApiClient {
         throw Exception('Failed to redeem unlockable');
       }
     } catch (e) {
-      print('Error redeeming: $e');
       rethrow;
     }
   }
@@ -118,7 +113,6 @@ class ApiClient {
         throw Exception('Failed to load stats');
       }
     } catch (e) {
-      print('Error loading stats: $e');
       rethrow;
     }
   }
@@ -135,7 +129,80 @@ class ApiClient {
         throw Exception('Failed to create challenge');
       }
     } catch (e) {
-      print('Error creating challenge: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<LeaderboardEntry>> getLeaderboard({String filter = 'global'}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/leaderboard/?filter=$filter'),
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final entries = json['entries'] as List;
+        return entries
+            .map((e) => LeaderboardEntry.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw Exception('Failed to load leaderboard');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<Challenge>> getChallenges() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/challenges/?user_name=$userName'),
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final challenges = json['challenges'] as List;
+        return challenges
+            .map((c) => Challenge.fromJson(c as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw Exception('Failed to load challenges');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> acceptChallenge(int challengeId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/challenges/$challengeId/accept?user_name=$userName'),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to accept challenge');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> completeChallenge(int challengeId, double accuracy) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/challenges/$challengeId/complete?user_name=$userName'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'accuracy': accuracy}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to complete challenge');
+      }
+    } catch (e) {
       rethrow;
     }
   }

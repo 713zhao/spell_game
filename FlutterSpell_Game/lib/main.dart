@@ -7,7 +7,8 @@ import 'screens/rewards_shop.dart';
 import 'screens/leaderboard.dart';
 import 'screens/profile.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -18,7 +19,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => GameProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = GameProvider();
+            provider.init('alice');
+            return provider;
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'Spell Adventure',

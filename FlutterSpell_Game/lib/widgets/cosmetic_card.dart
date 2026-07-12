@@ -52,7 +52,7 @@ class CosmeticCard extends StatelessWidget {
             // Header with rarity border
             Container(
               decoration: BoxDecoration(
-                color: _getRarityColor().withOpacity(0.2),
+                color: _getRarityColor().withValues(alpha: 0.2),
                 border: Border(
                   top: BorderSide(
                     color: _getRarityColor(),
@@ -103,7 +103,7 @@ class CosmeticCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getRarityColor().withOpacity(0.3),
+                      color: _getRarityColor().withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -126,7 +126,7 @@ class CosmeticCard extends StatelessWidget {
                   child: Icon(
                     _getTypeIcon(),
                     size: 48,
-                    color: _getRarityColor().withOpacity(0.3),
+                    color: _getRarityColor().withValues(alpha: 0.3),
                   ),
                 ),
               ),

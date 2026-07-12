@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import '../providers/game_provider.dart';
 import '../models/game_models.dart';
+import '../services/sound_service.dart';
+import '../widgets/point_pop_animation.dart';
+import '../widgets/star_animation.dart';
+import '../widgets/confetti_animation.dart';
 
 class StudyScreen extends StatefulWidget {
   final int levelId;
@@ -31,6 +35,7 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
   String? selectedChoice;
   bool isLoading = true;
   String? errorMessage;
+  late SoundService _soundService;
 
   final Random _random = Random();
   final List<ChallengeType> _challengeTypes = [
@@ -42,6 +47,8 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    _soundService = SoundService();
+
     _popAnimationController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -101,8 +108,10 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
       if (isCorrectAnswer) {
         correctCount++;
         _popAnimationController.forward();
+        _soundService.playCorrectAnswer();
       } else {
         incorrectCount++;
+        _soundService.playIncorrectAnswer();
       }
     });
 
@@ -618,10 +627,17 @@ class CompletionDialog extends StatefulWidget {
 class _CompletionDialogState extends State<CompletionDialog> with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+  late SoundService _soundService;
+  late bool _confettiVisible;
+  late bool _starsAnimating;
 
   @override
   void initState() {
     super.initState();
+    _soundService = SoundService();
+    _confettiVisible = true;
+    _starsAnimating = false;
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -633,6 +649,7 @@ class _CompletionDialogState extends State<CompletionDialog> with TickerProvider
 
     _animationController.forward();
     _submitCompletion();
+    _soundService.playLevelComplete();
   }
 
   Future<void> _submitCompletion() async {
@@ -659,60 +676,77 @@ class _CompletionDialogState extends State<CompletionDialog> with TickerProvider
   Widget build(BuildContext context) {
     final accuracy = ((widget.correctCount / widget.totalCount) * 100).toStringAsFixed(0);
     final stars = int.parse(accuracy) >= 80 ? 3 : int.parse(accuracy) >= 60 ? 2 : 1;
+    final pointsEarned = widget.correctCount * 10;
 
     return ScaleTransition(
       scale: _scaleAnimation,
-      child: AlertDialog(
-        title: const Text('Level Complete!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Star rating
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(3, (index) {
-                return Icon(
-                  index < stars ? Icons.star : Icons.star_outline,
-                  color: Colors.amber,
-                  size: 32,
-                );
-              }),
+      child: Stack(
+        children: [
+          AlertDialog(
+            title: const Text('Level Complete!'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Star animation rating
+                SizedBox(
+                  height: 80,
+                  child: StarAnimation(
+                    starCount: stars,
+                    size: 48,
+                    delayBetweenStars: const Duration(milliseconds: 250),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Score
+                Text(
+                  '${widget.correctCount}/${widget.totalCount}',
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$accuracy% Accuracy',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                // Points earned with animation
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '+$pointsEarned points earned',
+                    style: TextStyle(
+                      color: Colors.green[800],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            // Score
-            Text(
-              '${widget.correctCount}/${widget.totalCount}',
-              style: Theme.of(context).textTheme.headlineLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$accuracy% Accuracy',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            // Points earned
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.green[100],
-                borderRadius: BorderRadius.circular(8),
+            actions: [
+              TextButton(
+                onPressed: widget.onComplete,
+                child: const Text('Continue'),
               ),
-              child: Text(
-                '+${(widget.correctCount * 10)} points earned',
-                style: TextStyle(
-                  color: Colors.green[800],
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+            ],
+          ),
+          // Confetti overlay
+          if (_confettiVisible)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ConfettiAnimation(
+                  duration: const Duration(seconds: 3),
+                  onComplete: () {
+                    if (mounted) {
+                      setState(() => _confettiVisible = false);
+                    }
+                  },
                 ),
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: widget.onComplete,
-            child: const Text('Continue'),
-          ),
         ],
       ),
     );

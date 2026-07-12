@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../models/game_models.dart';
 import '../widgets/cosmetic_card.dart';
+import '../services/sound_service.dart';
 
 class RewardsShopScreen extends StatefulWidget {
   const RewardsShopScreen({Key? key}) : super(key: key);
@@ -13,10 +14,12 @@ class RewardsShopScreen extends StatefulWidget {
 
 class _RewardsShopScreenState extends State<RewardsShopScreen> {
   bool _isRedeeming = false;
+  late SoundService _soundService;
 
   @override
   void initState() {
     super.initState();
+    _soundService = SoundService();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<GameProvider>();
       provider.loadUnlockables();
@@ -80,6 +83,7 @@ class _RewardsShopScreenState extends State<RewardsShopScreen> {
       setState(() => _isRedeeming = false);
 
       if (success) {
+        _soundService.playPointRedemption();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${cosmetic.name} redeemed!'),
@@ -210,7 +214,7 @@ class _RewardsShopScreenState extends State<RewardsShopScreen> {
                             if (_isRedeeming)
                               Positioned.fill(
                                 child: Container(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   child: const Center(
                                     child: CircularProgressIndicator(),
                                   ),

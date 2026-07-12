@@ -5,6 +5,7 @@ import '../providers/game_provider.dart';
 import '../models/game_models.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/achievement_badge.dart';
+import '../services/sound_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -15,6 +16,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late SharedPreferences _prefs;
+  late SoundService _soundService;
   bool _soundEnabled = true;
   bool _notificationsEnabled = true;
   bool _parentMode = false;
@@ -22,6 +24,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _soundService = SoundService();
     _initializeSettings();
     _loadProfileData();
   }
@@ -47,6 +50,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _updateSoundSetting(bool value) async {
     setState(() => _soundEnabled = value);
     await _prefs.setBool('sound_enabled', value);
+    await _soundService.setSoundEnabled(value);
+    final provider = context.read<GameProvider>();
+    await provider.setSoundEnabled(value);
   }
 
   void _updateNotificationSetting(bool value) async {
@@ -63,6 +69,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final success = await provider.redeemUnlockable(cosmeticId);
     if (!mounted) return;
     if (success) {
+      _soundService.playCosmeticUnlock();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cosmetic equipped!')),
       );
