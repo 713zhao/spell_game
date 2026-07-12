@@ -10,12 +10,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:spell_game/main.dart';
 
 void main() {
-  testWidgets('Spell Academy app smoke test', (WidgetTester tester) async {
+  testWidgets('Spell Adventure app smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const SpellGameApp());
+    await tester.pumpWidget(const MyApp());
 
     // Verify that the app displays the expected UI.
-    expect(find.text('Spell Academy'), findsWidgets);
-    expect(find.text('Game UI coming soon...'), findsOneWidget);
+    expect(find.text('Spell Adventure'), findsWidgets);
   });
 }
