@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../design_system/design_system.dart';
-import '../providers/game_provider.dart';
+import '../widgets/celebration.dart';
 import '../main.dart' show gameProvider;
 import '../widgets/cards/journey_card.dart';
 import '../widgets/cards/treasure_chest_card.dart';
@@ -228,9 +228,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     isAvailable: true,
                     reward: '+50 XP, +20 Coins',
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Treasure opened!')),
-                      );
+                      Celebration.reward(context);
+                      Celebration.xpPop(context, 50);
                     },
                   ),
                   SizedBox(height: DuolingoSpacing.lg),

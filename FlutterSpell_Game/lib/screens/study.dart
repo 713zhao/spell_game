@@ -3,6 +3,7 @@ import 'dart:math';
 import '../design_system/design_system.dart';
 import '../models/game_models.dart';
 import '../services/sound_service.dart';
+import '../widgets/celebration.dart';
 import '../main.dart' show gameProvider;
 
 /// Duolingo-style study session:
@@ -229,7 +230,7 @@ class _StudyScreenState extends State<StudyScreen>
           _earnedXp += 10;
           _firstTryCorrect++;
         }
-        _soundService.playCorrectAnswer();
+        Celebration.correct(context);
       } else {
         // Duolingo behavior: missed word comes back later in the session
         _queue.add(_buildExercise(_current.word, isRetry: true));
@@ -256,7 +257,7 @@ class _StudyScreenState extends State<StudyScreen>
   Future<void> _finishSession() async {
     setState(() => _phase = SessionPhase.complete);
     _celebrationController.forward(from: 0);
-    _soundService.playLevelComplete();
+    Celebration.lessonComplete(context);
     final accuracy =
         _totalWords == 0 ? 0.0 : _firstTryCorrect / _totalWords;
     // Report to backend (updates stars/progress and reloads stats)

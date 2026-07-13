@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/game_provider.dart';
+import '../widgets/celebration.dart';
 
 class Cosmetic {
   final int id;
@@ -80,10 +79,7 @@ class _TreasureIslandScreenState extends State<TreasureIslandScreen> {
     setState(() {
       _equippedId = cosmeticId;
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Cosmetic equipped!')),
-    );
+    Celebration.unlock(context);
   }
 
   @override

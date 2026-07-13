@@ -128,7 +128,7 @@ class SoundService {
     try {
       // Try to play from assets first
       await _audioPlayer!.play(
-        AssetSource('sounds/$soundName.mp3'),
+        AssetSource('sounds/$soundName.wav'),
       );
     } catch (e) {
       // Silently fail if sound file not found

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:spell_game/design_system/design_system.dart';
+import 'package:spell_game/widgets/celebration.dart';
 
 class BossBattleScreen extends StatefulWidget {
   final int bossId;
@@ -45,6 +46,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         setState(() {
           _isVictory = true;
         });
+        Celebration.lessonComplete(context);
       }
     });
   }
