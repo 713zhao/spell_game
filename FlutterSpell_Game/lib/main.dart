@@ -17,6 +17,7 @@ import 'screens/chinese_kingdom_screen.dart';
 import 'screens/chinese_lesson_screen.dart';
 import 'screens/boss_arena_screen.dart';
 import 'screens/boss_battle_screen.dart';
+import 'screens/lesson_overview_screen.dart';
 
 // Global GameProvider instance (singleton)
 final gameProvider = GameProvider();
@@ -71,6 +72,13 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 builder: (context) => StudyScreen(
                   levelId: levelId ?? 1,
+                ),
+              );
+            case '/lesson-overview':
+              final overviewLevelId = settings.arguments as int?;
+              return MaterialPageRoute(
+                builder: (context) => LessonOverviewScreen(
+                  levelId: overviewLevelId ?? 1,
                 ),
               );
             case '/rewards':

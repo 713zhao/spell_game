@@ -26,21 +26,27 @@ class ApiClient {
     await http.post(Uri.parse('$_baseUrl/users/$userName/login'));
   }
 
-  /// Fetch the user's study deck (their real assigned words).
-  Future<List<Word>> getDeckWords() async {
+  /// Fetch the user's study deck (their real assigned words) including
+  /// spaced-repetition state used for adaptive difficulty.
+  Future<List<DeckCard>> getDeckCards() async {
     final response = await http.get(
       Uri.parse('$_baseUrl/users/$userName/deck'),
     );
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
       final cards = json['cards'] as List;
-      return cards
-          .map((c) => Word(
-                id: c['word_id'] as int,
-                text: c['text'] as String,
-                language: (c['language'] ?? 'english') as String,
-              ))
-          .toList();
+      return cards.map((c) {
+        final state = c['state'] as Map<String, dynamic>? ?? {};
+        return DeckCard(
+          word: Word(
+            id: c['word_id'] as int,
+            text: c['text'] as String,
+            language: (c['language'] ?? 'english') as String,
+          ),
+          repetitions: (state['repetitions'] ?? 0) as int,
+          status: (state['status'] ?? 'new') as String,
+        );
+      }).toList();
     }
     throw Exception('Failed to load deck');
   }

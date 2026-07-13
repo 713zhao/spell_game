@@ -6,11 +6,13 @@ import '../services/sound_service.dart';
 import '../widgets/celebration.dart';
 import '../main.dart' show gameProvider;
 
-/// Duolingo-style study session:
-/// - One exercise at a time with a progress bar on top
-/// - Immediate feedback panel slides up after every answer
-/// - Missed words are re-queued until answered correctly
-/// - Celebration screen with XP + accuracy at the end
+/// SpellQuest study session — a sequence of mini-games:
+/// - Learn card (new words), Listen & Choose, Missing Letters,
+///   Build the Word, Listen & Type
+/// - Exercise type adapts to each word's mastery (spaced-repetition state)
+/// - Instant feedback after every interaction (Duolingo-style)
+/// - Missed words re-queued with an easier exercise
+/// - Summary with stars, XP, coins and weak words
 class StudyScreen extends StatefulWidget {
   final int levelId;
 
@@ -20,20 +22,24 @@ class StudyScreen extends StatefulWidget {
   State<StudyScreen> createState() => _StudyScreenState();
 }
 
-enum ExerciseType { chooseSpelling, typeWord }
+enum ExerciseType { learn, chooseSpelling, missingLetters, buildWord, typeWord }
 
 enum SessionPhase { loading, empty, exercising, complete }
 
 class _Exercise {
   final Word word;
   final ExerciseType type;
-  final List<String> choices;
+  final List<String> choices; // chooseSpelling
+  final List<String?> slots; // fixed letters; null = blank (letter games)
+  final List<String> bank; // tappable letter tiles (letter games)
   final bool isRetry;
 
   _Exercise({
     required this.word,
     required this.type,
-    required this.choices,
+    this.choices = const [],
+    this.slots = const [],
+    this.bank = const [],
     this.isRetry = false,
   });
 }
@@ -50,6 +56,7 @@ class _StudyScreenState extends State<StudyScreen>
 
   // Answer state for the current exercise
   String? _selectedChoice;
+  List<int?> _blankFill = []; // per blank: index into bank, or null
   bool _checked = false;
   bool _wasCorrect = false;
 
@@ -57,10 +64,14 @@ class _StudyScreenState extends State<StudyScreen>
   int _totalWords = 0;
   int _firstTryCorrect = 0;
   int _earnedXp = 0;
+  int _earnedCoins = 0;
+  final Set<String> _weakWords = {};
   String _lastPraise = '';
+  String _lastEncouragement = '';
 
   late AnimationController _celebrationController;
   late Animation<double> _celebrationScale;
+  late AnimationController _shakeController;
 
   static const List<String> _praises = [
     'Nicely done!',
@@ -70,6 +81,13 @@ class _StudyScreenState extends State<StudyScreen>
     'Excellent!',
     'You got it!',
     'Perfect!',
+  ];
+
+  static const List<String> _encouragements = [
+    'Almost there! 💪',
+    'Good try! You\'ll get it next time!',
+    'Keep going, you\'re learning!',
+    'No worries — practice makes perfect!',
   ];
 
   @override
@@ -83,6 +101,10 @@ class _StudyScreenState extends State<StudyScreen>
       parent: _celebrationController,
       curve: Curves.elasticOut,
     );
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 450),
+      vsync: this,
+    );
     _soundService.init();
     _loadWords();
   }
@@ -91,61 +113,137 @@ class _StudyScreenState extends State<StudyScreen>
   void dispose() {
     _typingController.dispose();
     _celebrationController.dispose();
+    _shakeController.dispose();
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------
+  // Session construction (adaptive)
+  // ---------------------------------------------------------------------
+
   Future<void> _loadWords() async {
     try {
-      // Primary source: the user's real word deck from the backend
-      if (gameProvider.deckWords.isEmpty) {
+      if (gameProvider.deckCards.isEmpty) {
         await gameProvider.loadDeck();
       }
-      var words = gameProvider.deckWords;
+      var cards = gameProvider.deckCards;
 
-      // Fallback: words attached to the level (if any)
-      if (words.isEmpty) {
-        await gameProvider.loadLevelDetails(widget.levelId);
-        words = gameProvider.currentLevel?.words ?? [];
-      }
-
-      // Prefer English words for the spelling exercises
-      final english = words
-          .where((w) =>
-              w.language.toLowerCase() == 'english' ||
-              w.language.toLowerCase() == 'en')
+      // Prefer English words for spelling practice
+      final english = cards
+          .where((c) =>
+              c.word.language.toLowerCase() == 'english' ||
+              c.word.language.toLowerCase() == 'en')
           .toList();
-      if (english.isNotEmpty) words = english;
+      if (english.isNotEmpty) cards = english;
 
-      if (words.isEmpty) {
+      if (cards.isEmpty) {
         setState(() => _phase = SessionPhase.empty);
         return;
       }
 
-      words = List<Word>.from(words)..shuffle(_random);
-      _totalWords = words.length;
-      _queue = words.map(_buildExercise).toList();
+      cards = List<DeckCard>.from(cards)..shuffle(_random);
+      _totalWords = cards.length;
+
+      // Interleave: new words get a Learn card right before their exercise
+      _queue = [];
+      for (final card in cards) {
+        if (card.repetitions == 0) {
+          _queue.add(_Exercise(word: card.word, type: ExerciseType.learn));
+        }
+        _queue.add(_buildExercise(
+          card.word,
+          _typeForMastery(card.repetitions),
+        ));
+      }
 
       setState(() => _phase = SessionPhase.exercising);
+      _resetAnswerState();
       _autoPlayCurrentWord();
     } catch (e) {
       setState(() => _phase = SessionPhase.empty);
     }
   }
 
-  _Exercise _buildExercise(Word word, {bool isRetry = false}) {
-    final type = _random.nextBool()
-        ? ExerciseType.chooseSpelling
-        : ExerciseType.typeWord;
-    return _Exercise(
-      word: word,
-      type: type,
-      choices:
-          type == ExerciseType.chooseSpelling ? _buildChoices(word.text) : [],
-      isRetry: isRetry,
-    );
+  /// Adaptive learning ladder (SpellQuest design):
+  /// low mastery = recognition, mid = missing letters / building,
+  /// high = full typing.
+  ExerciseType _typeForMastery(int mastery) {
+    if (mastery <= 1) {
+      return _random.nextBool()
+          ? ExerciseType.chooseSpelling
+          : ExerciseType.missingLetters;
+    }
+    if (mastery <= 3) {
+      return _random.nextBool()
+          ? ExerciseType.missingLetters
+          : ExerciseType.buildWord;
+    }
+    return _random.nextBool()
+        ? ExerciseType.typeWord
+        : ExerciseType.buildWord;
   }
 
-  /// Generate 3 plausible misspellings + the correct word, shuffled.
+  _Exercise _buildExercise(Word word, ExerciseType type,
+      {bool isRetry = false}) {
+    switch (type) {
+      case ExerciseType.chooseSpelling:
+        return _Exercise(
+          word: word,
+          type: type,
+          choices: _buildChoices(word.text),
+          isRetry: isRetry,
+        );
+      case ExerciseType.missingLetters:
+        final result = _buildMissingLetters(word.text);
+        return _Exercise(
+          word: word,
+          type: type,
+          slots: result.$1,
+          bank: result.$2,
+          isRetry: isRetry,
+        );
+      case ExerciseType.buildWord:
+        final letters = word.text.toLowerCase().split('')..shuffle(_random);
+        return _Exercise(
+          word: word,
+          type: type,
+          slots: List<String?>.filled(word.text.length, null),
+          bank: letters,
+          isRetry: isRetry,
+        );
+      default:
+        return _Exercise(word: word, type: type, isRetry: isRetry);
+    }
+  }
+
+  /// Blank out 1-3 letters; bank = blanked letters + distractors.
+  (List<String?>, List<String>) _buildMissingLetters(String word) {
+    final lower = word.toLowerCase();
+    final blankCount = (lower.length ~/ 3).clamp(1, 3);
+    final positions = List<int>.generate(lower.length, (i) => i)
+      ..shuffle(_random);
+    final blanks = positions.take(blankCount).toSet();
+
+    final slots = <String?>[];
+    final bank = <String>[];
+    for (var i = 0; i < lower.length; i++) {
+      if (blanks.contains(i)) {
+        slots.add(null);
+        bank.add(lower[i]);
+      } else {
+        slots.add(lower[i]);
+      }
+    }
+    // Distractor letters
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+    while (bank.length < blankCount + 3) {
+      final c = alphabet[_random.nextInt(26)];
+      bank.add(c);
+    }
+    bank.shuffle(_random);
+    return (slots, bank);
+  }
+
   List<String> _buildChoices(String word) {
     final wrong = <String>{};
     final lower = word.toLowerCase();
@@ -153,12 +251,9 @@ class _StudyScreenState extends State<StudyScreen>
     while (wrong.length < 3 && guard < 60) {
       guard++;
       final candidate = _misspell(lower);
-      if (candidate != lower && candidate.isNotEmpty) {
-        wrong.add(candidate);
-      }
+      if (candidate != lower && candidate.isNotEmpty) wrong.add(candidate);
     }
-    final options = <String>[lower, ...wrong];
-    options.shuffle(_random);
+    final options = <String>[lower, ...wrong]..shuffle(_random);
     return options;
   }
 
@@ -167,34 +262,45 @@ class _StudyScreenState extends State<StudyScreen>
     const vowels = 'aeiou';
     final chars = word.split('');
     switch (_random.nextInt(4)) {
-      case 0: // swap two adjacent letters
+      case 0:
         final i = _random.nextInt(word.length - 1);
         final t = chars[i];
         chars[i] = chars[i + 1];
         chars[i + 1] = t;
         break;
-      case 1: // double a letter
+      case 1:
         final i = _random.nextInt(word.length);
         chars.insert(i, chars[i]);
         break;
-      case 2: // drop a letter
+      case 2:
         chars.removeAt(_random.nextInt(word.length));
         break;
-      default: // substitute a vowel
+      default:
         final vowelIdxs = <int>[];
         for (var i = 0; i < chars.length; i++) {
           if (vowels.contains(chars[i])) vowelIdxs.add(i);
         }
         if (vowelIdxs.isEmpty) return _misspell(word);
-        final i = vowelIdxs[_random.nextInt(vowelIdxs.length)];
-        final replacement =
+        chars[vowelIdxs[_random.nextInt(vowelIdxs.length)]] =
             vowels[_random.nextInt(vowels.length)];
-        chars[i] = replacement;
     }
     return chars.join();
   }
 
+  // ---------------------------------------------------------------------
+  // Session flow
+  // ---------------------------------------------------------------------
+
   _Exercise get _current => _queue[_index];
+
+  void _resetAnswerState() {
+    _checked = false;
+    _wasCorrect = false;
+    _selectedChoice = null;
+    _typingController.clear();
+    final blanks = _current.slots.where((s) => s == null).length;
+    _blankFill = List<int?>.filled(blanks, null);
+  }
 
   void _autoPlayCurrentWord() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -204,37 +310,80 @@ class _StudyScreenState extends State<StudyScreen>
     });
   }
 
+  String _assembledAnswer() {
+    switch (_current.type) {
+      case ExerciseType.chooseSpelling:
+        return _selectedChoice ?? '';
+      case ExerciseType.typeWord:
+        return _typingController.text.trim();
+      case ExerciseType.missingLetters:
+      case ExerciseType.buildWord:
+        final buffer = StringBuffer();
+        var blankIdx = 0;
+        for (final s in _current.slots) {
+          if (s != null) {
+            buffer.write(s);
+          } else {
+            final bankIdx = _blankFill[blankIdx++];
+            buffer.write(bankIdx == null ? ' ' : _current.bank[bankIdx]);
+          }
+        }
+        return buffer.toString();
+      default:
+        return '';
+    }
+  }
+
   bool get _hasAnswer {
     if (_checked) return false;
-    if (_current.type == ExerciseType.chooseSpelling) {
-      return _selectedChoice != null;
+    switch (_current.type) {
+      case ExerciseType.chooseSpelling:
+        return _selectedChoice != null;
+      case ExerciseType.typeWord:
+        return _typingController.text.trim().isNotEmpty;
+      case ExerciseType.missingLetters:
+      case ExerciseType.buildWord:
+        return !_blankFill.contains(null);
+      default:
+        return false;
     }
-    return _typingController.text.trim().isNotEmpty;
   }
 
   void _check() {
-    final answer = _current.type == ExerciseType.chooseSpelling
-        ? (_selectedChoice ?? '')
-        : _typingController.text.trim();
-    final correct =
-        answer.toLowerCase() == _current.word.text.toLowerCase();
+    final correct = _assembledAnswer().toLowerCase() ==
+        _current.word.text.toLowerCase();
 
     setState(() {
       _checked = true;
       _wasCorrect = correct;
       _lastPraise = _praises[_random.nextInt(_praises.length)];
+      _lastEncouragement =
+          _encouragements[_random.nextInt(_encouragements.length)];
       if (correct) {
         if (_current.isRetry) {
           _earnedXp += 5;
         } else {
           _earnedXp += 10;
+          _earnedCoins += 2;
           _firstTryCorrect++;
         }
         Celebration.correct(context);
       } else {
-        // Duolingo behavior: missed word comes back later in the session
-        _queue.add(_buildExercise(_current.word, isRetry: true));
+        _weakWords.add(_current.word.text);
+        // Missed word returns later with an easier exercise
+        _queue.add(_buildExercise(
+          _current.word,
+          ExerciseType.chooseSpelling,
+          isRetry: true,
+        ));
         _soundService.playIncorrectAnswer();
+        _shakeController.forward(from: 0);
+        // Replay the pronunciation so the child hears it again
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted) {
+            _soundService.playWordPronunciation(_current.word.text);
+          }
+        });
       }
     });
   }
@@ -246,10 +395,7 @@ class _StudyScreenState extends State<StudyScreen>
     }
     setState(() {
       _index++;
-      _checked = false;
-      _wasCorrect = false;
-      _selectedChoice = null;
-      _typingController.clear();
+      _resetAnswerState();
     });
     _autoPlayCurrentWord();
   }
@@ -258,10 +404,15 @@ class _StudyScreenState extends State<StudyScreen>
     setState(() => _phase = SessionPhase.complete);
     _celebrationController.forward(from: 0);
     Celebration.lessonComplete(context);
-    final accuracy =
-        _totalWords == 0 ? 0.0 : _firstTryCorrect / _totalWords;
-    // Report to backend (updates stars/progress and reloads stats)
+    final accuracy = _totalWords == 0 ? 0.0 : _firstTryCorrect / _totalWords;
     await gameProvider.completeLevel(widget.levelId, accuracy);
+  }
+
+  int get _stars {
+    final accuracy = _totalWords == 0 ? 0.0 : _firstTryCorrect / _totalWords;
+    if (accuracy >= 0.9) return 3;
+    if (accuracy >= 0.7) return 2;
+    return 1;
   }
 
   Future<void> _confirmQuit() async {
@@ -273,12 +424,12 @@ class _StudyScreenState extends State<StudyScreen>
         ),
         title: const Text('Wait, don\'t go! 🥺'),
         content: const Text(
-            'You\'ll lose your progress in this lesson if you quit now.'),
+            'You\'ll lose your progress in this adventure if you quit now.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text(
-              'KEEP LEARNING',
+              'KEEP GOING',
               style: TextStyle(
                 color: DuolingoColors.primaryGreen,
                 fontWeight: FontWeight.bold,
@@ -300,6 +451,10 @@ class _StudyScreenState extends State<StudyScreen>
     }
   }
 
+  // ---------------------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     switch (_phase) {
@@ -311,7 +466,7 @@ class _StudyScreenState extends State<StudyScreen>
       case SessionPhase.empty:
         return _buildEmptyState();
       case SessionPhase.complete:
-        return _buildCelebration();
+        return _buildSummary();
       case SessionPhase.exercising:
         return _buildExerciseScreen();
     }
@@ -357,14 +512,21 @@ class _StudyScreenState extends State<StudyScreen>
           children: [
             _buildTopBar(progress),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(
-                  horizontal: DuolingoSpacing.xxl,
-                  vertical: DuolingoSpacing.lg,
+              child: AnimatedBuilder(
+                animation: _shakeController,
+                builder: (context, child) {
+                  final t = _shakeController.value;
+                  final dx = sin(t * pi * 4) * 10 * (1 - t);
+                  return Transform.translate(
+                      offset: Offset(dx, 0), child: child);
+                },
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: DuolingoSpacing.xxl,
+                    vertical: DuolingoSpacing.lg,
+                  ),
+                  child: _buildExerciseBody(),
                 ),
-                child: _current.type == ExerciseType.chooseSpelling
-                    ? _buildChooseSpelling()
-                    : _buildTypeWord(),
               ),
             ),
             _buildBottomPanel(),
@@ -372,6 +534,21 @@ class _StudyScreenState extends State<StudyScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildExerciseBody() {
+    switch (_current.type) {
+      case ExerciseType.learn:
+        return _buildLearnCard();
+      case ExerciseType.chooseSpelling:
+        return _buildChooseSpelling();
+      case ExerciseType.missingLetters:
+        return _buildLetterGame('Fill in the missing letters');
+      case ExerciseType.buildWord:
+        return _buildLetterGame('Build the word you hear');
+      case ExerciseType.typeWord:
+        return _buildTypeWord();
+    }
   }
 
   Widget _buildTopBar(double progress) {
@@ -439,6 +616,63 @@ class _StudyScreenState extends State<StudyScreen>
     );
   }
 
+  // --- Learn card (new word introduction) ---
+
+  Widget _buildLearnCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('✨', style: TextStyle(fontSize: 22)),
+            SizedBox(width: DuolingoSpacing.sm),
+            Text('New word!', style: DuolingoTextStyles.sectionTitle),
+          ],
+        ),
+        SizedBox(height: DuolingoSpacing.xxl),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(DuolingoSpacing.xxl),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: DuolingoColors.englishKingdomGradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+            border:
+                Border.all(color: DuolingoColors.informationBlue, width: 2),
+          ),
+          child: Column(
+            children: [
+              const Text('🐕', style: TextStyle(fontSize: 48)),
+              SizedBox(height: DuolingoSpacing.lg),
+              Text(
+                _current.word.text,
+                textAlign: TextAlign.center,
+                style: DuolingoTextStyles.pageTitle.copyWith(
+                  fontSize: 36,
+                  letterSpacing: 2,
+                  color: DuolingoColors.darkText,
+                ),
+              ),
+              SizedBox(height: DuolingoSpacing.xl),
+              _buildAudioButton(size: 56, iconSize: 28),
+              SizedBox(height: DuolingoSpacing.sm),
+              Text(
+                'Listen and remember the spelling',
+                style: DuolingoTextStyles.label
+                    .copyWith(color: DuolingoColors.bodyText),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Listen & Choose ---
+
   Widget _buildChooseSpelling() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -487,9 +721,8 @@ class _StudyScreenState extends State<StudyScreen>
     return Padding(
       padding: EdgeInsets.only(bottom: DuolingoSpacing.md),
       child: GestureDetector(
-        onTap: _checked
-            ? null
-            : () => setState(() => _selectedChoice = choice),
+        onTap:
+            _checked ? null : () => setState(() => _selectedChoice = choice),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           width: double.infinity,
@@ -500,8 +733,7 @@ class _StudyScreenState extends State<StudyScreen>
           decoration: BoxDecoration(
             color: fill,
             border: Border.all(color: border, width: 2),
-            borderRadius:
-                BorderRadius.circular(DuolingoSpacing.radiusButton),
+            borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
             boxShadow: [
               BoxShadow(
                 color: border.withOpacity(selected || _checked ? 0.4 : 1),
@@ -523,6 +755,144 @@ class _StudyScreenState extends State<StudyScreen>
       ),
     );
   }
+
+  // --- Missing Letters / Build the Word (letter tile games) ---
+
+  Widget _buildLetterGame(String prompt) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(prompt, style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.xl),
+        Center(child: _buildAudioButton(size: 56, iconSize: 28)),
+        SizedBox(height: DuolingoSpacing.xxl),
+        // Word slots
+        Center(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 8,
+            children: _buildSlotTiles(),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.xxl * 1.5),
+        // Letter bank
+        Center(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: _buildBankTiles(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildSlotTiles() {
+    final tiles = <Widget>[];
+    var blankIdx = 0;
+    for (final s in _current.slots) {
+      if (s != null) {
+        tiles.add(_slotTile(letter: s, fixed: true));
+      } else {
+        final idx = blankIdx;
+        final bankIdx = _blankFill[idx];
+        tiles.add(GestureDetector(
+          onTap: _checked || bankIdx == null
+              ? null
+              : () => setState(() => _blankFill[idx] = null),
+          child: _slotTile(
+            letter: bankIdx == null ? '' : _current.bank[bankIdx],
+            fixed: false,
+          ),
+        ));
+        blankIdx++;
+      }
+    }
+    return tiles;
+  }
+
+  Widget _slotTile({required String letter, required bool fixed}) {
+    final filled = letter.isNotEmpty;
+    return Container(
+      width: 38,
+      height: 46,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: fixed
+            ? DuolingoColors.neutralGray
+            : (filled ? const Color(0xFFDDF4FF) : Colors.white),
+        border: Border.all(
+          color: fixed
+              ? Colors.transparent
+              : (filled
+                  ? DuolingoColors.informationBlue
+                  : const Color(0xFFE5E5E5)),
+          width: 2,
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        letter,
+        style: DuolingoTextStyles.cardTitle.copyWith(
+          fontSize: 22,
+          color: fixed
+              ? DuolingoColors.darkText
+              : const Color(0xFF1899D6),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildBankTiles() {
+    final usedIdxs = _blankFill.whereType<int>().toSet();
+    final tiles = <Widget>[];
+    for (var i = 0; i < _current.bank.length; i++) {
+      final used = usedIdxs.contains(i);
+      tiles.add(GestureDetector(
+        onTap: _checked || used
+            ? null
+            : () {
+                final nextBlank = _blankFill.indexOf(null);
+                if (nextBlank != -1) {
+                  setState(() => _blankFill[nextBlank] = i);
+                  _soundService.playPop();
+                }
+              },
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: used ? 0.25 : 1,
+          child: Container(
+            width: 44,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: const Color(0xFFE5E5E5), width: 2),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0xFFE5E5E5),
+                  offset: Offset(0, 3),
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            child: Text(
+              _current.bank[i],
+              style: DuolingoTextStyles.cardTitle.copyWith(
+                fontSize: 22,
+                color: DuolingoColors.darkText,
+              ),
+            ),
+          ),
+        ),
+      ));
+    }
+    return tiles;
+  }
+
+  // --- Listen & Type ---
 
   Widget _buildTypeWord() {
     return Column(
@@ -579,9 +949,27 @@ class _StudyScreenState extends State<StudyScreen>
     );
   }
 
-  /// The bottom area: CHECK button before answering, then it transforms into
-  /// the Duolingo-style instant feedback panel with CONTINUE.
+  // --- Bottom panel: CHECK / feedback / GOT IT ---
+
   Widget _buildBottomPanel() {
+    // Learn card: single always-enabled button, no checking
+    if (_current.type == ExerciseType.learn) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(DuolingoSpacing.xl),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFE5E5E5), width: 2)),
+        ),
+        child: _buildBigButton(
+          label: 'GOT IT!',
+          enabled: true,
+          color: DuolingoColors.primaryGreen,
+          shadowColor: const Color(0xFF58A700),
+          onTap: _continue,
+        ),
+      );
+    }
+
     if (!_checked) {
       return Container(
         width: double.infinity,
@@ -601,9 +989,8 @@ class _StudyScreenState extends State<StudyScreen>
 
     final panelColor =
         _wasCorrect ? const Color(0xFFD7FFB8) : const Color(0xFFFFDFE0);
-    final accent = _wasCorrect
-        ? const Color(0xFF58A700)
-        : const Color(0xFFEA2B2B);
+    final accent =
+        _wasCorrect ? const Color(0xFF58A700) : const Color(0xFFEA2B2B);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -619,15 +1006,14 @@ class _StudyScreenState extends State<StudyScreen>
               Container(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  _wasCorrect ? Icons.check : Icons.close,
-                  color: accent,
-                  size: 30,
-                ),
+                child: _wasCorrect
+                    ? const Text('🐕', style: TextStyle(fontSize: 24))
+                    : Icon(Icons.close, color: accent, size: 30),
               ),
               SizedBox(width: DuolingoSpacing.md),
               Expanded(
@@ -635,16 +1021,16 @@ class _StudyScreenState extends State<StudyScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _wasCorrect ? _lastPraise : 'Correct answer:',
+                      _wasCorrect ? _lastPraise : _lastEncouragement,
                       style: DuolingoTextStyles.sectionTitle
-                          .copyWith(color: accent),
+                          .copyWith(color: accent, fontSize: 17),
                     ),
                     if (!_wasCorrect)
                       Text(
-                        _current.word.text,
+                        'Correct answer: ${_current.word.text}',
                         style: DuolingoTextStyles.cardTitle.copyWith(
                           color: accent,
-                          fontSize: 20,
+                          fontSize: 18,
                           letterSpacing: 1.2,
                         ),
                       ),
@@ -715,9 +1101,8 @@ class _StudyScreenState extends State<StudyScreen>
         child: Text(
           label,
           style: DuolingoTextStyles.cardTitle.copyWith(
-            color: enabled
-                ? Colors.white
-                : DuolingoColors.secondaryButtonGray,
+            color:
+                enabled ? Colors.white : DuolingoColors.secondaryButtonGray,
             letterSpacing: 1.5,
           ),
         ),
@@ -725,7 +1110,9 @@ class _StudyScreenState extends State<StudyScreen>
     );
   }
 
-  Widget _buildCelebration() {
+  // --- Summary (stars, XP, coins, weak words) ---
+
+  Widget _buildSummary() {
     final accuracy =
         _totalWords == 0 ? 0 : (_firstTryCorrect / _totalWords * 100).round();
     return Scaffold(
@@ -738,13 +1125,31 @@ class _StudyScreenState extends State<StudyScreen>
               const Spacer(),
               ScaleTransition(
                 scale: _celebrationScale,
-                child: const Text('🎉', style: TextStyle(fontSize: 96)),
+                child: Column(
+                  children: [
+                    const Text('🎉', style: TextStyle(fontSize: 80)),
+                    SizedBox(height: DuolingoSpacing.md),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        3,
+                        (i) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            i < _stars ? '⭐' : '☆',
+                            style: const TextStyle(fontSize: 40),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              SizedBox(height: DuolingoSpacing.xl),
+              SizedBox(height: DuolingoSpacing.lg),
               Text(
-                'Lesson complete!',
-                style: DuolingoTextStyles.pageTitle
-                    .copyWith(color: DuolingoColors.treasureGold, fontSize: 28),
+                'Adventure complete!',
+                style: DuolingoTextStyles.pageTitle.copyWith(
+                    color: DuolingoColors.treasureGold, fontSize: 26),
               ),
               SizedBox(height: DuolingoSpacing.xxl),
               Row(
@@ -755,17 +1160,57 @@ class _StudyScreenState extends State<StudyScreen>
                     value: '⚡ $_earnedXp',
                     color: DuolingoColors.streakOrange,
                   ),
-                  SizedBox(width: DuolingoSpacing.lg),
+                  SizedBox(width: DuolingoSpacing.md),
                   _buildResultCard(
                     title: 'ACCURACY',
                     value: '🎯 $accuracy%',
                     color: DuolingoColors.primaryGreen,
                   ),
+                  SizedBox(width: DuolingoSpacing.md),
+                  _buildResultCard(
+                    title: 'COINS',
+                    value: '💰 $_earnedCoins',
+                    color: DuolingoColors.treasureGold,
+                  ),
                 ],
               ),
+              if (_weakWords.isNotEmpty) ...[
+                SizedBox(height: DuolingoSpacing.xxl),
+                Text(
+                  'Words to practice again:',
+                  style: DuolingoTextStyles.label
+                      .copyWith(color: DuolingoColors.bodyText),
+                ),
+                SizedBox(height: DuolingoSpacing.sm),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: _weakWords
+                      .map((w) => Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: DuolingoSpacing.md,
+                              vertical: DuolingoSpacing.xs,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFDFE0),
+                              borderRadius: BorderRadius.circular(
+                                  DuolingoSpacing.radiusBadge),
+                            ),
+                            child: Text(
+                              w,
+                              style: DuolingoTextStyles.body.copyWith(
+                                color: const Color(0xFFEA2B2B),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ],
               const Spacer(),
               _buildBigButton(
-                label: 'CONTINUE',
+                label: 'CONTINUE ADVENTURE',
                 enabled: true,
                 color: DuolingoColors.primaryGreen,
                 shadowColor: const Color(0xFF58A700),
@@ -784,7 +1229,7 @@ class _StudyScreenState extends State<StudyScreen>
     required Color color,
   }) {
     return Container(
-      width: 140,
+      width: 105,
       padding: EdgeInsets.all(DuolingoSpacing.xs),
       decoration: BoxDecoration(
         color: color,
@@ -799,12 +1244,13 @@ class _StudyScreenState extends State<StudyScreen>
               style: DuolingoTextStyles.label.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
+                fontSize: 11,
               ),
             ),
           ),
           Container(
             width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.lg),
+            padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.md),
             decoration: BoxDecoration(
               color: DuolingoColors.backgroundWhite,
               borderRadius:
@@ -813,7 +1259,8 @@ class _StudyScreenState extends State<StudyScreen>
             child: Text(
               value,
               textAlign: TextAlign.center,
-              style: DuolingoTextStyles.cardTitle.copyWith(color: color),
+              style: DuolingoTextStyles.cardTitle
+                  .copyWith(color: color, fontSize: 15),
             ),
           ),
         ],

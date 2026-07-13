@@ -22,6 +22,20 @@ class Level {
   Map<String, dynamic> toJson() => _$LevelToJson(this);
 }
 
+/// A word from the user's study deck with spaced-repetition state.
+/// Plain class (parsed manually from the /deck endpoint).
+class DeckCard {
+  final Word word;
+  final int repetitions;
+  final String status; // new | learning | review
+
+  DeckCard({
+    required this.word,
+    required this.repetitions,
+    required this.status,
+  });
+}
+
 @JsonSerializable()
 class Word {
   final int id;

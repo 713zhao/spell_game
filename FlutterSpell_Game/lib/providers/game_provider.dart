@@ -11,8 +11,10 @@ class GameProvider extends ChangeNotifier {
   late SharedPreferences _prefs;
 
   List<Level> levels = [];
-  List<Word> deckWords = [];
+  List<DeckCard> deckCards = [];
   bool isLoggedIn = false;
+
+  List<Word> get deckWords => deckCards.map((c) => c.word).toList();
   Level? currentLevel;
   LevelProgress? currentProgress;
   UserStats? userStats;
@@ -73,7 +75,7 @@ class GameProvider extends ChangeNotifier {
   /// Load the user's real word deck from the backend.
   Future<void> loadDeck() async {
     try {
-      deckWords = await apiClient.getDeckWords();
+      deckCards = await apiClient.getDeckCards();
       notifyListeners();
     } catch (e) {
       errorMessage = e.toString();

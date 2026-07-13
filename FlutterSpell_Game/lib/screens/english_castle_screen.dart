@@ -122,7 +122,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
                       if (!stages[index].isLocked) {
                         Navigator.pushNamed(
                           context,
-                          '/english-level',
+                          '/lesson-overview',
                           arguments: stages[index].stageNumber,
                         );
                       }
