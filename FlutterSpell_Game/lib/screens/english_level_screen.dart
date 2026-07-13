@@ -197,14 +197,10 @@ class _EnglishLevelScreenState extends State<EnglishLevelScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigate to practice screen or show practice modal
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Starting practice for ${levelData.stageName}',
-                        ),
-                        duration: const Duration(seconds: 2),
-                      ),
+                    Navigator.pushNamed(
+                      context,
+                      '/study',
+                      arguments: widget.stageNumber,
                     );
                   },
                   style: ElevatedButton.styleFrom(

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'dart:math';
-import '../providers/game_provider.dart';
+import '../design_system/design_system.dart';
 import '../models/game_models.dart';
 import '../services/sound_service.dart';
-import '../widgets/point_pop_animation.dart';
-import '../widgets/star_animation.dart';
-import '../widgets/confetti_animation.dart';
+import '../main.dart' show gameProvider;
 
+/// Duolingo-style study session:
+/// - One exercise at a time with a progress bar on top
+/// - Immediate feedback panel slides up after every answer
+/// - Missed words are re-queued until answered correctly
+/// - Celebration screen with XP + accuracy at the end
 class StudyScreen extends StatefulWidget {
   final int levelId;
 
@@ -17,790 +19,802 @@ class StudyScreen extends StatefulWidget {
   State<StudyScreen> createState() => _StudyScreenState();
 }
 
-enum ChallengeType { multipleChoice, typing, speech }
+enum ExerciseType { chooseSpelling, typeWord }
 
-class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin {
-  int _currentIndex = 1;
-  late List<Word> words;
-  int currentWordIndex = 0;
-  int correctCount = 0;
-  int incorrectCount = 0;
-  bool isAnswered = false;
-  bool isCorrect = false;
-  late AnimationController _popAnimationController;
-  late AnimationController _feedbackAnimationController;
-  late Animation<double> _popAnimation;
-  late Animation<double> _feedbackAnimation;
-  ChallengeType? currentChallengeType;
-  String userAnswer = '';
-  String? selectedChoice;
-  bool isLoading = true;
-  String? errorMessage;
-  late SoundService _soundService;
+enum SessionPhase { loading, empty, exercising, complete }
 
+class _Exercise {
+  final Word word;
+  final ExerciseType type;
+  final List<String> choices;
+  final bool isRetry;
+
+  _Exercise({
+    required this.word,
+    required this.type,
+    required this.choices,
+    this.isRetry = false,
+  });
+}
+
+class _StudyScreenState extends State<StudyScreen>
+    with TickerProviderStateMixin {
+  final SoundService _soundService = SoundService();
   final Random _random = Random();
-  final List<ChallengeType> _challengeTypes = [
-    ChallengeType.multipleChoice,
-    ChallengeType.typing,
-    ChallengeType.speech,
+  final TextEditingController _typingController = TextEditingController();
+
+  SessionPhase _phase = SessionPhase.loading;
+  List<_Exercise> _queue = [];
+  int _index = 0;
+
+  // Answer state for the current exercise
+  String? _selectedChoice;
+  bool _checked = false;
+  bool _wasCorrect = false;
+
+  // Session stats
+  int _totalWords = 0;
+  int _firstTryCorrect = 0;
+  int _earnedXp = 0;
+  String _lastPraise = '';
+
+  late AnimationController _celebrationController;
+  late Animation<double> _celebrationScale;
+
+  static const List<String> _praises = [
+    'Nicely done!',
+    'Awesome!',
+    'Amazing!',
+    'Great job!',
+    'Excellent!',
+    'You got it!',
+    'Perfect!',
   ];
 
   @override
   void initState() {
     super.initState();
-    _soundService = SoundService();
-    _initSoundService();
-
-    _popAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+    _celebrationController = AnimationController(
+      duration: const Duration(milliseconds: 700),
       vsync: this,
     );
-    _feedbackAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
+    _celebrationScale = CurvedAnimation(
+      parent: _celebrationController,
+      curve: Curves.elasticOut,
     );
-
-    _popAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _popAnimationController, curve: Curves.elasticOut),
-    );
-
-    _feedbackAnimation = Tween<double>(begin: 1, end: 0).animate(
-      CurvedAnimation(parent: _feedbackAnimationController, curve: Curves.easeInOut),
-    );
-
-    _loadLevel();
+    _soundService.init();
+    _loadWords();
   }
 
-  /// Initialize sound service
-  Future<void> _initSoundService() async {
+  @override
+  void dispose() {
+    _typingController.dispose();
+    _celebrationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadWords() async {
     try {
-      await _soundService.init();
+      // Primary source: the user's real word deck from the backend
+      if (gameProvider.deckWords.isEmpty) {
+        await gameProvider.loadDeck();
+      }
+      var words = gameProvider.deckWords;
+
+      // Fallback: words attached to the level (if any)
+      if (words.isEmpty) {
+        await gameProvider.loadLevelDetails(widget.levelId);
+        words = gameProvider.currentLevel?.words ?? [];
+      }
+
+      // Prefer English words for the spelling exercises
+      final english = words
+          .where((w) =>
+              w.language.toLowerCase() == 'english' ||
+              w.language.toLowerCase() == 'en')
+          .toList();
+      if (english.isNotEmpty) words = english;
+
+      if (words.isEmpty) {
+        setState(() => _phase = SessionPhase.empty);
+        return;
+      }
+
+      words = List<Word>.from(words)..shuffle(_random);
+      _totalWords = words.length;
+      _queue = words.map(_buildExercise).toList();
+
+      setState(() => _phase = SessionPhase.exercising);
+      _autoPlayCurrentWord();
     } catch (e) {
-      // Sound service initialization failed, but app continues
+      setState(() => _phase = SessionPhase.empty);
     }
   }
 
-  /// Play word pronunciation using TTS
-  Future<void> _playWordAudio(String word) async {
-    try {
-      await _soundService.playWordPronunciation(word);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not play audio: $e')),
-      );
-    }
+  _Exercise _buildExercise(Word word, {bool isRetry = false}) {
+    final type = _random.nextBool()
+        ? ExerciseType.chooseSpelling
+        : ExerciseType.typeWord;
+    return _Exercise(
+      word: word,
+      type: type,
+      choices:
+          type == ExerciseType.chooseSpelling ? _buildChoices(word.text) : [],
+      isRetry: isRetry,
+    );
   }
 
-  Future<void> _loadLevel() async {
-    try {
-      final provider = context.read<GameProvider>();
-      await provider.loadLevelDetails(widget.levelId);
+  /// Generate 3 plausible misspellings + the correct word, shuffled.
+  List<String> _buildChoices(String word) {
+    final wrong = <String>{};
+    final lower = word.toLowerCase();
+    var guard = 0;
+    while (wrong.length < 3 && guard < 60) {
+      guard++;
+      final candidate = _misspell(lower);
+      if (candidate != lower && candidate.isNotEmpty) {
+        wrong.add(candidate);
+      }
+    }
+    final options = <String>[lower, ...wrong];
+    options.shuffle(_random);
+    return options;
+  }
 
-      setState(() {
-        words = provider.currentLevel?.words ?? [];
-        isLoading = false;
-        if (words.isNotEmpty) {
-          _selectRandomChallenge();
+  String _misspell(String word) {
+    if (word.length < 3) return word;
+    const vowels = 'aeiou';
+    final chars = word.split('');
+    switch (_random.nextInt(4)) {
+      case 0: // swap two adjacent letters
+        final i = _random.nextInt(word.length - 1);
+        final t = chars[i];
+        chars[i] = chars[i + 1];
+        chars[i + 1] = t;
+        break;
+      case 1: // double a letter
+        final i = _random.nextInt(word.length);
+        chars.insert(i, chars[i]);
+        break;
+      case 2: // drop a letter
+        chars.removeAt(_random.nextInt(word.length));
+        break;
+      default: // substitute a vowel
+        final vowelIdxs = <int>[];
+        for (var i = 0; i < chars.length; i++) {
+          if (vowels.contains(chars[i])) vowelIdxs.add(i);
         }
-      });
-    } catch (e) {
-      setState(() {
-        errorMessage = 'Failed to load level: $e';
-        isLoading = false;
-      });
+        if (vowelIdxs.isEmpty) return _misspell(word);
+        final i = vowelIdxs[_random.nextInt(vowelIdxs.length)];
+        final replacement =
+            vowels[_random.nextInt(vowels.length)];
+        chars[i] = replacement;
     }
+    return chars.join();
   }
 
-  void _selectRandomChallenge() {
-    setState(() {
-      currentChallengeType = _challengeTypes[_random.nextInt(_challengeTypes.length)];
-      isAnswered = false;
-      selectedChoice = null;
-      userAnswer = '';
+  _Exercise get _current => _queue[_index];
+
+  void _autoPlayCurrentWord() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_phase == SessionPhase.exercising) {
+        _soundService.playWordPronunciation(_current.word.text);
+      }
     });
   }
 
-  void _checkAnswer(String answer) {
-    final correctWord = words[currentWordIndex].text.toLowerCase();
-    final isCorrectAnswer = answer.toLowerCase() == correctWord;
+  bool get _hasAnswer {
+    if (_checked) return false;
+    if (_current.type == ExerciseType.chooseSpelling) {
+      return _selectedChoice != null;
+    }
+    return _typingController.text.trim().isNotEmpty;
+  }
+
+  void _check() {
+    final answer = _current.type == ExerciseType.chooseSpelling
+        ? (_selectedChoice ?? '')
+        : _typingController.text.trim();
+    final correct =
+        answer.toLowerCase() == _current.word.text.toLowerCase();
 
     setState(() {
-      isAnswered = true;
-      isCorrect = isCorrectAnswer;
-      if (isCorrectAnswer) {
-        correctCount++;
-        _popAnimationController.forward();
+      _checked = true;
+      _wasCorrect = correct;
+      _lastPraise = _praises[_random.nextInt(_praises.length)];
+      if (correct) {
+        if (_current.isRetry) {
+          _earnedXp += 5;
+        } else {
+          _earnedXp += 10;
+          _firstTryCorrect++;
+        }
         _soundService.playCorrectAnswer();
       } else {
-        incorrectCount++;
+        // Duolingo behavior: missed word comes back later in the session
+        _queue.add(_buildExercise(_current.word, isRetry: true));
         _soundService.playIncorrectAnswer();
       }
     });
-
-    _feedbackAnimationController.forward().then((_) {
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        if (mounted) {
-          _nextWord();
-        }
-      });
-    });
   }
 
-  void _nextWord() {
+  void _continue() {
+    if (_index + 1 >= _queue.length) {
+      _finishSession();
+      return;
+    }
     setState(() {
-      currentWordIndex++;
-      _popAnimationController.reset();
-      _feedbackAnimationController.reset();
+      _index++;
+      _checked = false;
+      _wasCorrect = false;
+      _selectedChoice = null;
+      _typingController.clear();
     });
-
-    if (currentWordIndex < words.length) {
-      _selectRandomChallenge();
-    } else {
-      _showCompletionScreen();
-    }
+    _autoPlayCurrentWord();
   }
 
-  void _showCompletionScreen() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => CompletionDialog(
-        correctCount: correctCount,
-        totalCount: words.length,
-        levelId: widget.levelId,
-        onComplete: () {
-          Navigator.of(context).pop(); // Close dialog
-          Navigator.of(context).pop(); // Go back to previous screen
-        },
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _popAnimationController.dispose();
-    _feedbackAnimationController.dispose();
-    _soundService.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (errorMessage != null) {
-      return Scaffold(
-        body: Center(child: Text('Error: $errorMessage')),
-      );
-    }
-
-    if (words.isEmpty) {
-      return const Scaffold(
-        body: Center(child: Text('No words to study')),
-      );
-    }
-
-    final currentWord = words[currentWordIndex];
-    final accuracy = ((correctCount / (correctCount + incorrectCount)) * 100).toStringAsFixed(0);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Level ${widget.levelId}'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          // Progress bar and stats
-          Container(
-            color: Colors.blue[50],
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Progress indicator
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${currentWordIndex + 1}/${words.length}',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: (currentWordIndex + 1) / words.length,
-                            minHeight: 8,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '$accuracy%',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Score stats
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _StatChip(
-                      icon: Icons.check_circle,
-                      label: 'Correct',
-                      value: correctCount,
-                      color: Colors.green,
-                    ),
-                    _StatChip(
-                      icon: Icons.cancel,
-                      label: 'Incorrect',
-                      value: incorrectCount,
-                      color: Colors.red,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Main content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Word display with TTS button
-                  Card(
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Spell this word:',
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                          const SizedBox(height: 24),
-                          Text(
-                            currentWord.text,
-                            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 32,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          FloatingActionButton.extended(
-                            onPressed: () => _playWordAudio(currentWord.text),
-                            tooltip: 'Hear pronunciation',
-                            icon: const Icon(Icons.volume_up),
-                            label: const Text('Hear it'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                  // Challenge based on type
-                  if (!isAnswered) ...[
-                    if (currentChallengeType == ChallengeType.multipleChoice)
-                      _MultipleChoiceChallenge(
-                        word: currentWord,
-                        onAnswer: _checkAnswer,
-                      )
-                    else if (currentChallengeType == ChallengeType.typing)
-                      _TypingChallenge(
-                        word: currentWord,
-                        onAnswer: _checkAnswer,
-                      )
-                    else if (currentChallengeType == ChallengeType.speech)
-                      _SpeechChallenge(
-                        word: currentWord,
-                        onAnswer: _checkAnswer,
-                      ),
-                  ] else ...[
-                    // Feedback
-                    FadeTransition(
-                      opacity: _feedbackAnimation,
-                      child: Column(
-                        children: [
-                          if (isCorrect) ...[
-                            const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 64,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Great job!',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                            ScaleTransition(
-                              scale: _popAnimation,
-                              child: const Text(
-                                '+1 point',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ),
-                          ] else ...[
-                            const Icon(
-                              Icons.cancel,
-                              color: Colors.red,
-                              size: 64,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Try again!',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Correct spelling: ${currentWord.text}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Levels'),
-          BottomNavigationBarItem(icon: Icon(Icons.leaderboard), label: 'Leaderboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.card_giftcard), label: 'Rewards'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-        onTap: (index) {
-          if (index != _currentIndex) {
-            setState(() {
-              _currentIndex = index;
-            });
-
-            switch (index) {
-              case 0:
-                Navigator.of(context).pushReplacementNamed('/');
-                break;
-              case 1:
-                // Already on levels/study
-                break;
-              case 2:
-                Navigator.of(context).pushReplacementNamed('/leaderboard');
-                break;
-              case 3:
-                Navigator.of(context).pushReplacementNamed('/rewards');
-                break;
-              case 4:
-                Navigator.of(context).pushReplacementNamed('/profile');
-                break;
-            }
-          }
-        },
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int value;
-  final Color color;
-
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(
-      avatar: Icon(icon, color: color, size: 18),
-      label: Text('$label: $value'),
-    );
-  }
-}
-
-class _MultipleChoiceChallenge extends StatefulWidget {
-  final Word word;
-  final Function(String) onAnswer;
-
-  const _MultipleChoiceChallenge({
-    required this.word,
-    required this.onAnswer,
-  });
-
-  @override
-  State<_MultipleChoiceChallenge> createState() => _MultipleChoiceChallengeState();
-}
-
-class _MultipleChoiceChallengeState extends State<_MultipleChoiceChallenge> {
-  late List<String> options;
-  String? selectedOption;
-
-  @override
-  void initState() {
-    super.initState();
-    _generateOptions();
-  }
-
-  void _generateOptions() {
-    final random = Random();
-    final correctSpelling = widget.word.text;
-
-    // Common misspellings for learning
-    final incorrectOptions = [
-      _createMisspelling(correctSpelling, 0),
-      _createMisspelling(correctSpelling, 1),
-      _createMisspelling(correctSpelling, 2),
-    ];
-
-    options = [correctSpelling, ...incorrectOptions]..shuffle(random);
-  }
-
-  String _createMisspelling(String word, int type) {
-    switch (type) {
-      case 0:
-        // Swap two characters
-        if (word.length > 1) {
-          final chars = word.split('')..shuffle();
-          return chars.join();
-        }
-        return word;
-      case 1:
-        // Remove a character
-        if (word.length > 1) {
-          return word.substring(0, word.length - 1);
-        }
-        return word;
-      case 2:
-        // Add a character
-        return word + 'e';
-      default:
-        return word;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Text(
-          'Select the correct spelling:',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 16),
-        ...options.map((option) {
-          final isSelected = selectedOption == option;
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    selectedOption = option;
-                  });
-                  widget.onAnswer(option);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isSelected ? Colors.blue : Colors.grey[200],
-                  foregroundColor: isSelected ? Colors.white : Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: Text(option, style: const TextStyle(fontSize: 16)),
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-}
-
-class _TypingChallenge extends StatefulWidget {
-  final Word word;
-  final Function(String) onAnswer;
-
-  const _TypingChallenge({
-    required this.word,
-    required this.onAnswer,
-  });
-
-  @override
-  State<_TypingChallenge> createState() => _TypingChallengeState();
-}
-
-class _TypingChallengeState extends State<_TypingChallenge> {
-  late TextEditingController _controller;
-  String userInput = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Text(
-          'Type the word:',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _controller,
-          onChanged: (value) {
-            setState(() {
-              userInput = value;
-            });
-          },
-          decoration: InputDecoration(
-            hintText: 'Enter the word here...',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 18),
-        ),
-        const SizedBox(height: 24),
-        ElevatedButton.icon(
-          onPressed: userInput.isNotEmpty
-              ? () {
-                  widget.onAnswer(userInput);
-                }
-              : null,
-          icon: const Icon(Icons.check),
-          label: const Text('Submit'),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SpeechChallenge extends StatelessWidget {
-  final Word word;
-  final Function(String) onAnswer;
-
-  const _SpeechChallenge({
-    required this.word,
-    required this.onAnswer,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Text(
-          'Say the word:',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 32),
-        FloatingActionButton(
-          onPressed: () {
-            // TODO: Implement speech-to-text
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Listening... (Mock) Expected: ${word.text}')),
-            );
-            // For now, submit the correct word as a mock
-            onAnswer(word.text);
-          },
-          child: const Icon(Icons.mic),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Tap the microphone and say the word clearly',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 14, color: Colors.grey),
-        ),
-      ],
-    );
-  }
-}
-
-class CompletionDialog extends StatefulWidget {
-  final int correctCount;
-  final int totalCount;
-  final int levelId;
-  final VoidCallback onComplete;
-
-  const CompletionDialog({
-    required this.correctCount,
-    required this.totalCount,
-    required this.levelId,
-    required this.onComplete,
-  });
-
-  @override
-  State<CompletionDialog> createState() => _CompletionDialogState();
-}
-
-class _CompletionDialogState extends State<CompletionDialog> with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  late SoundService _soundService;
-  late bool _confettiVisible;
-  late bool _starsAnimating;
-
-  @override
-  void initState() {
-    super.initState();
-    _soundService = SoundService();
-    _confettiVisible = true;
-    _starsAnimating = false;
-
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
-    );
-
-    _animationController.forward();
-    _submitCompletion();
+  Future<void> _finishSession() async {
+    setState(() => _phase = SessionPhase.complete);
+    _celebrationController.forward(from: 0);
     _soundService.playLevelComplete();
+    final accuracy =
+        _totalWords == 0 ? 0.0 : _firstTryCorrect / _totalWords;
+    // Report to backend (updates stars/progress and reloads stats)
+    await gameProvider.completeLevel(widget.levelId, accuracy);
   }
 
-  Future<void> _submitCompletion() async {
-    try {
-      final accuracy = (widget.correctCount / widget.totalCount) * 100;
-      final provider = context.read<GameProvider>();
-      await provider.completeLevel(widget.levelId, accuracy);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving progress: $e')),
-        );
-      }
+  Future<void> _confirmQuit() async {
+    final quit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DuolingoSpacing.radiusDialog),
+        ),
+        title: const Text('Wait, don\'t go! 🥺'),
+        content: const Text(
+            'You\'ll lose your progress in this lesson if you quit now.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'KEEP LEARNING',
+              style: TextStyle(
+                color: DuolingoColors.primaryGreen,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'QUIT',
+              style: TextStyle(color: DuolingoColors.mistakeRed),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (quit == true && mounted) {
+      Navigator.of(context).pop();
     }
   }
 
   @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    switch (_phase) {
+      case SessionPhase.loading:
+        return const Scaffold(
+          backgroundColor: DuolingoColors.backgroundWhite,
+          body: Center(child: CircularProgressIndicator()),
+        );
+      case SessionPhase.empty:
+        return _buildEmptyState();
+      case SessionPhase.complete:
+        return _buildCelebration();
+      case SessionPhase.exercising:
+        return _buildExerciseScreen();
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final accuracy = ((widget.correctCount / widget.totalCount) * 100).toStringAsFixed(0);
-    final stars = int.parse(accuracy) >= 80 ? 3 : int.parse(accuracy) >= 60 ? 2 : 1;
-    final pointsEarned = widget.correctCount * 10;
-
-    return ScaleTransition(
-      scale: _scaleAnimation,
-      child: Stack(
-        children: [
-          AlertDialog(
-            title: const Text('Level Complete!'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Star animation rating
-                SizedBox(
-                  height: 80,
-                  child: StarAnimation(
-                    starCount: stars,
-                    size: 48,
-                    delayBetweenStars: const Duration(milliseconds: 250),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Score
-                Text(
-                  '${widget.correctCount}/${widget.totalCount}',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '$accuracy% Accuracy',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                // Points earned with animation
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '+$pointsEarned points earned',
-                    style: TextStyle(
-                      color: Colors.green[800],
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ],
+  Widget _buildEmptyState() {
+    return Scaffold(
+      backgroundColor: DuolingoColors.backgroundWhite,
+      appBar: AppBar(
+        backgroundColor: DuolingoColors.backgroundWhite,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: DuolingoColors.bodyText),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('📭', style: TextStyle(fontSize: 64)),
+            SizedBox(height: DuolingoSpacing.lg),
+            Text('No words to study yet!',
+                style: DuolingoTextStyles.sectionTitle),
+            SizedBox(height: DuolingoSpacing.sm),
+            Text(
+              'Ask your teacher to add words to your deck.',
+              style: DuolingoTextStyles.body
+                  .copyWith(color: DuolingoColors.bodyText),
             ),
-            actions: [
-              TextButton(
-                onPressed: widget.onComplete,
-                child: const Text('Continue'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExerciseScreen() {
+    final progress = _index / _queue.length;
+    return Scaffold(
+      backgroundColor: DuolingoColors.backgroundWhite,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildTopBar(progress),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: DuolingoSpacing.xxl,
+                  vertical: DuolingoSpacing.lg,
+                ),
+                child: _current.type == ExerciseType.chooseSpelling
+                    ? _buildChooseSpelling()
+                    : _buildTypeWord(),
+              ),
+            ),
+            _buildBottomPanel(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar(double progress) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: DuolingoSpacing.lg,
+        vertical: DuolingoSpacing.md,
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close,
+                color: DuolingoColors.secondaryButtonGray, size: 28),
+            onPressed: _confirmQuit,
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: progress),
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOut,
+                builder: (context, value, _) => LinearProgressIndicator(
+                  value: value,
+                  minHeight: DuolingoSpacing.progressBarHeight,
+                  backgroundColor: DuolingoColors.neutralGray,
+                  valueColor: const AlwaysStoppedAnimation(
+                      DuolingoColors.primaryGreen),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: DuolingoSpacing.md),
+          const Text('⚡', style: TextStyle(fontSize: 18)),
+          Text(
+            '$_earnedXp',
+            style: DuolingoTextStyles.cardTitle
+                .copyWith(color: DuolingoColors.streakOrange),
+          ),
+          SizedBox(width: DuolingoSpacing.sm),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudioButton({double size = 72, double iconSize = 36}) {
+    return GestureDetector(
+      onTap: () => _soundService.playWordPronunciation(_current.word.text),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: DuolingoColors.informationBlue,
+          borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0xFF1876BF),
+              offset: Offset(0, 4),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Icon(Icons.volume_up, color: Colors.white, size: iconSize),
+      ),
+    );
+  }
+
+  Widget _buildChooseSpelling() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Tap the correct spelling',
+            style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.xxl),
+        Center(child: _buildAudioButton()),
+        SizedBox(height: DuolingoSpacing.sm),
+        Center(
+          child: Text(
+            'Tap to hear the word',
+            style: DuolingoTextStyles.label
+                .copyWith(color: DuolingoColors.bodyText),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.xxl),
+        ..._current.choices.map(_buildChoiceTile),
+      ],
+    );
+  }
+
+  Widget _buildChoiceTile(String choice) {
+    final selected = _selectedChoice == choice;
+    final isCorrectChoice =
+        choice.toLowerCase() == _current.word.text.toLowerCase();
+
+    Color border = const Color(0xFFE5E5E5);
+    Color fill = DuolingoColors.backgroundWhite;
+    Color textColor = DuolingoColors.darkText;
+
+    if (_checked && isCorrectChoice) {
+      border = DuolingoColors.primaryGreen;
+      fill = const Color(0xFFD7FFB8);
+      textColor = const Color(0xFF58A700);
+    } else if (_checked && selected && !isCorrectChoice) {
+      border = DuolingoColors.mistakeRed;
+      fill = const Color(0xFFFFDFE0);
+      textColor = const Color(0xFFEA2B2B);
+    } else if (selected) {
+      border = DuolingoColors.informationBlue;
+      fill = const Color(0xFFDDF4FF);
+      textColor = const Color(0xFF1899D6);
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: DuolingoSpacing.md),
+      child: GestureDetector(
+        onTap: _checked
+            ? null
+            : () => setState(() => _selectedChoice = choice),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            vertical: DuolingoSpacing.lg,
+            horizontal: DuolingoSpacing.xl,
+          ),
+          decoration: BoxDecoration(
+            color: fill,
+            border: Border.all(color: border, width: 2),
+            borderRadius:
+                BorderRadius.circular(DuolingoSpacing.radiusButton),
+            boxShadow: [
+              BoxShadow(
+                color: border.withOpacity(selected || _checked ? 0.4 : 1),
+                offset: const Offset(0, 3),
+                blurRadius: 0,
               ),
             ],
           ),
-          // Confetti overlay
-          if (_confettiVisible)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: ConfettiAnimation(
-                  duration: const Duration(seconds: 3),
-                  onComplete: () {
-                    if (mounted) {
-                      setState(() => _confettiVisible = false);
-                    }
-                  },
+          child: Text(
+            choice,
+            textAlign: TextAlign.center,
+            style: DuolingoTextStyles.cardTitle.copyWith(
+              color: textColor,
+              fontSize: 20,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeWord() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Type what you hear', style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.xxl),
+        Center(child: _buildAudioButton()),
+        SizedBox(height: DuolingoSpacing.sm),
+        Center(
+          child: Text(
+            'Tap to hear the word again',
+            style: DuolingoTextStyles.label
+                .copyWith(color: DuolingoColors.bodyText),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.xxl),
+        TextField(
+          controller: _typingController,
+          enabled: !_checked,
+          autofocus: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          textAlign: TextAlign.center,
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) {
+            if (_hasAnswer) _check();
+          },
+          style: DuolingoTextStyles.cardTitle.copyWith(
+            fontSize: 24,
+            letterSpacing: 2,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Type the word...',
+            hintStyle: DuolingoTextStyles.body
+                .copyWith(color: DuolingoColors.secondaryButtonGray),
+            filled: true,
+            fillColor: DuolingoColors.neutralGray,
+            contentPadding: EdgeInsets.all(DuolingoSpacing.xl),
+            border: OutlineInputBorder(
+              borderRadius:
+                  BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius:
+                  BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderSide: const BorderSide(
+                  color: DuolingoColors.informationBlue, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The bottom area: CHECK button before answering, then it transforms into
+  /// the Duolingo-style instant feedback panel with CONTINUE.
+  Widget _buildBottomPanel() {
+    if (!_checked) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(DuolingoSpacing.xl),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFE5E5E5), width: 2)),
+        ),
+        child: _buildBigButton(
+          label: 'CHECK',
+          enabled: _hasAnswer,
+          color: DuolingoColors.primaryGreen,
+          shadowColor: const Color(0xFF58A700),
+          onTap: _check,
+        ),
+      );
+    }
+
+    final panelColor =
+        _wasCorrect ? const Color(0xFFD7FFB8) : const Color(0xFFFFDFE0);
+    final accent = _wasCorrect
+        ? const Color(0xFF58A700)
+        : const Color(0xFFEA2B2B);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: double.infinity,
+      padding: EdgeInsets.all(DuolingoSpacing.xl),
+      color: panelColor,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _wasCorrect ? Icons.check : Icons.close,
+                  color: accent,
+                  size: 30,
                 ),
               ),
+              SizedBox(width: DuolingoSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _wasCorrect ? _lastPraise : 'Correct answer:',
+                      style: DuolingoTextStyles.sectionTitle
+                          .copyWith(color: accent),
+                    ),
+                    if (!_wasCorrect)
+                      Text(
+                        _current.word.text,
+                        style: DuolingoTextStyles.cardTitle.copyWith(
+                          color: accent,
+                          fontSize: 20,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (_wasCorrect)
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: DuolingoSpacing.md,
+                    vertical: DuolingoSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.circular(DuolingoSpacing.radiusBadge),
+                  ),
+                  child: Text(
+                    _current.isRetry ? '+5 XP' : '+10 XP',
+                    style: DuolingoTextStyles.cardTitle
+                        .copyWith(color: DuolingoColors.streakOrange),
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: DuolingoSpacing.lg),
+          _buildBigButton(
+            label: 'CONTINUE',
+            enabled: true,
+            color: _wasCorrect
+                ? DuolingoColors.primaryGreen
+                : DuolingoColors.mistakeRed,
+            shadowColor:
+                _wasCorrect ? const Color(0xFF58A700) : const Color(0xFFC22B2B),
+            onTap: _continue,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBigButton({
+    required String label,
+    required bool enabled,
+    required Color color,
+    required Color shadowColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: double.infinity,
+        height: DuolingoSpacing.largeButton,
+        decoration: BoxDecoration(
+          color: enabled ? color : DuolingoColors.neutralGray,
+          borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: shadowColor,
+                    offset: const Offset(0, 4),
+                    blurRadius: 0,
+                  ),
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: DuolingoTextStyles.cardTitle.copyWith(
+            color: enabled
+                ? Colors.white
+                : DuolingoColors.secondaryButtonGray,
+            letterSpacing: 1.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCelebration() {
+    final accuracy =
+        _totalWords == 0 ? 0 : (_firstTryCorrect / _totalWords * 100).round();
+    return Scaffold(
+      backgroundColor: DuolingoColors.backgroundWhite,
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(DuolingoSpacing.xxl),
+          child: Column(
+            children: [
+              const Spacer(),
+              ScaleTransition(
+                scale: _celebrationScale,
+                child: const Text('🎉', style: TextStyle(fontSize: 96)),
+              ),
+              SizedBox(height: DuolingoSpacing.xl),
+              Text(
+                'Lesson complete!',
+                style: DuolingoTextStyles.pageTitle
+                    .copyWith(color: DuolingoColors.treasureGold, fontSize: 28),
+              ),
+              SizedBox(height: DuolingoSpacing.xxl),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildResultCard(
+                    title: 'TOTAL XP',
+                    value: '⚡ $_earnedXp',
+                    color: DuolingoColors.streakOrange,
+                  ),
+                  SizedBox(width: DuolingoSpacing.lg),
+                  _buildResultCard(
+                    title: 'ACCURACY',
+                    value: '🎯 $accuracy%',
+                    color: DuolingoColors.primaryGreen,
+                  ),
+                ],
+              ),
+              const Spacer(),
+              _buildBigButton(
+                label: 'CONTINUE',
+                enabled: true,
+                color: DuolingoColors.primaryGreen,
+                shadowColor: const Color(0xFF58A700),
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultCard({
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      width: 140,
+      padding: EdgeInsets.all(DuolingoSpacing.xs),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.xs),
+            child: Text(
+              title,
+              style: DuolingoTextStyles.label.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.lg),
+            decoration: BoxDecoration(
+              color: DuolingoColors.backgroundWhite,
+              borderRadius:
+                  BorderRadius.circular(DuolingoSpacing.radiusCard - 4),
+            ),
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: DuolingoTextStyles.cardTitle.copyWith(color: color),
+            ),
+          ),
         ],
       ),
     );

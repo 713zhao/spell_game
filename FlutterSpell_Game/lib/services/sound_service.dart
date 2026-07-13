@@ -1,7 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Service to manage all sound effects in the app
 class SoundService {
@@ -23,8 +22,6 @@ class SoundService {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     _soundEnabled = _prefs.getBool('sound_enabled') ?? true;
-    // Skip audio initialization on web
-    if (kIsWeb) return;
     _initializeAudioIfNeeded();
   }
 

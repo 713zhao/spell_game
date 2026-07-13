@@ -23,7 +23,9 @@ final gameProvider = GameProvider();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  gameProvider.init('alice');
+  gameProvider.init('ERIC');
+  // Login to backend (fire-and-forget; screens react via notifyListeners)
+  gameProvider.login('123');
   runApp(const MyApp());
 }
 
@@ -40,13 +42,13 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.blue,
           useMaterial3: true,
         ),
-        home: const HomeScreen(userName: 'alice'),
+        home: const HomeScreen(userName: 'ERIC'),
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/':
             case '/home':
               return MaterialPageRoute(
-                builder: (context) => const HomeScreen(userName: 'alice'),
+                builder: (context) => const HomeScreen(userName: 'ERIC'),
               );
             case '/world-map':
               return MaterialPageRoute(

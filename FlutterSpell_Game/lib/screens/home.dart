@@ -90,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final xp = gameProvider.userStats?.totalPoints ?? 250;
           final coins = 85;
           final gems = 12;
-          final userName = 'Alex';
+          final userName = gameProvider.userName;
 
           // Check if weak words exist for boss battle
           final hasWeakWords = gameProvider.userStats?.accuracy != null &&

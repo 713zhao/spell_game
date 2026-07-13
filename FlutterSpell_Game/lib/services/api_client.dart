@@ -9,6 +9,42 @@ class ApiClient {
 
   ApiClient({required this.userName});
 
+  /// Verify user password against backend. Returns true when credentials match.
+  Future<bool> verifyPassword(String password) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/$userName/verify-password'),
+      body: {'password': password},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['verified'] == true;
+    }
+    return false;
+  }
+
+  /// Record a login event for streak tracking.
+  Future<void> logLogin() async {
+    await http.post(Uri.parse('$_baseUrl/users/$userName/login'));
+  }
+
+  /// Fetch the user's study deck (their real assigned words).
+  Future<List<Word>> getDeckWords() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/users/$userName/deck'),
+    );
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final cards = json['cards'] as List;
+      return cards
+          .map((c) => Word(
+                id: c['word_id'] as int,
+                text: c['text'] as String,
+                language: (c['language'] ?? 'english') as String,
+              ))
+          .toList();
+    }
+    throw Exception('Failed to load deck');
+  }
+
   Future<List<Level>> getLevelList() async {
     try {
       final response = await http.get(
@@ -51,9 +87,9 @@ class ApiClient {
   ) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/levels/users/$userName/progress/$levelId/complete'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'accuracy': accuracy}),
+        Uri.parse(
+          '$_baseUrl/levels/users/$userName/progress/$levelId/complete?accuracy=$accuracy',
+        ),
       );
 
       if (response.statusCode == 200) {

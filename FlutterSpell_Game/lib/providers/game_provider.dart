@@ -11,6 +11,8 @@ class GameProvider extends ChangeNotifier {
   late SharedPreferences _prefs;
 
   List<Level> levels = [];
+  List<Word> deckWords = [];
+  bool isLoggedIn = false;
   Level? currentLevel;
   LevelProgress? currentProgress;
   UserStats? userStats;
@@ -50,6 +52,33 @@ class GameProvider extends ChangeNotifier {
     await _soundService.setSoundEnabled(enabled);
     await _prefs.setBool('sound_enabled', enabled);
     notifyListeners();
+  }
+
+  /// Login with password verification, then record the login event.
+  Future<bool> login(String password) async {
+    try {
+      isLoggedIn = await apiClient.verifyPassword(password);
+      if (isLoggedIn) {
+        await apiClient.logLogin();
+      }
+      notifyListeners();
+      return isLoggedIn;
+    } catch (e) {
+      errorMessage = 'Login failed: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Load the user's real word deck from the backend.
+  Future<void> loadDeck() async {
+    try {
+      deckWords = await apiClient.getDeckWords();
+      notifyListeners();
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+    }
   }
 
   Future<void> loadLevels() async {
