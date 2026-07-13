@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+//import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'screens/home.dart';
 import 'screens/study.dart';
@@ -18,6 +18,9 @@ import 'screens/chinese_lesson_screen.dart';
 import 'screens/boss_arena_screen.dart';
 import 'screens/boss_battle_screen.dart';
 
+// Global GameProvider instance (singleton)
+final gameProvider = GameProvider();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -28,17 +31,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (_) {
-            final provider = GameProvider();
-            provider.init('alice');
-            return provider;
-          },
-        ),
-      ],
-      child: MaterialApp(
+    // Initialize GameProvider as singleton
+    gameProvider.init('alice');
+
+    return MaterialApp(
         title: 'Spell Adventure',
         theme: ThemeData(
           primarySwatch: Colors.blue,
@@ -128,7 +124,6 @@ class MyApp extends StatelessWidget {
               return null;
           }
         },
-      ),
     );
   }
 }

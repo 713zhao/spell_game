@@ -1,13 +1,15 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Service to manage all sound effects in the app
 class SoundService {
   static final SoundService _instance = SoundService._internal();
 
-  late AudioPlayer _audioPlayer;
-  late FlutterTts _flutterTts;
+  AudioPlayer? _audioPlayer;
+  FlutterTts? _flutterTts;
   late SharedPreferences _prefs;
   bool _soundEnabled = true;
   bool _ttsInitialized = false;
@@ -20,22 +22,41 @@ class SoundService {
 
   /// Initialize the sound service
   Future<void> init() async {
-    _audioPlayer = AudioPlayer();
-    _flutterTts = FlutterTts();
     _prefs = await SharedPreferences.getInstance();
     _soundEnabled = _prefs.getBool('sound_enabled') ?? true;
-    await _initTts();
+    // Skip audio initialization on web
+    if (kIsWeb) return;
+    _initializeAudioIfNeeded();
+  }
+
+  void _initializeAudioIfNeeded() {
+    try {
+      if (_audioPlayer == null) {
+        _audioPlayer = AudioPlayer();
+      }
+    } catch (e) {
+      // AudioPlayer initialization failed
+    }
+    try {
+      if (_flutterTts == null) {
+        _flutterTts = FlutterTts();
+      }
+    } catch (e) {
+      // FlutterTts initialization failed
+    }
+    _initTts();
   }
 
   /// Initialize TTS settings
   Future<void> _initTts() async {
+    if (_flutterTts == null) return;
     try {
       // Set default language to English (US)
-      await _flutterTts.setLanguage("en-US");
+      await _flutterTts!.setLanguage("en-US");
       // Set speech rate (0.0 to 2.0, where 1.0 is normal)
-      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts!.setSpeechRate(0.5);
       // Set pitch (0.5 to 2.0, where 1.0 is normal)
-      await _flutterTts.setPitch(1.0);
+      await _flutterTts!.setPitch(1.0);
       _ttsInitialized = true;
     } catch (e) {
       // TTS initialization failed, but app continues
@@ -96,9 +117,9 @@ class SoundService {
 
   /// Play word pronunciation using Text-to-Speech
   Future<void> playWordPronunciation(String word) async {
-    if (!_soundEnabled || !_ttsInitialized) return;
+    if (!_soundEnabled || !_ttsInitialized || _flutterTts == null) return;
     try {
-      await _flutterTts.speak(word);
+      await _flutterTts!.speak(word);
     } catch (e) {
       // TTS playback failed, but app continues gracefully
       // In production, this would be logged
@@ -107,9 +128,10 @@ class SoundService {
 
   /// Internal method to play a sound by name
   Future<void> _playSound(String soundName) async {
+    if (_audioPlayer == null) return;
     try {
       // Try to play from assets first
-      await _audioPlayer.play(
+      await _audioPlayer!.play(
         AssetSource('sounds/$soundName.mp3'),
       );
     } catch (e) {
@@ -120,12 +142,18 @@ class SoundService {
 
   /// Stop current sound
   Future<void> stop() async {
-    await _audioPlayer.stop();
+    if (_audioPlayer != null) {
+      await _audioPlayer!.stop();
+    }
   }
 
   /// Dispose the audio player and TTS
   Future<void> dispose() async {
-    await _audioPlayer.dispose();
-    await _flutterTts.stop();
+    if (_audioPlayer != null) {
+      await _audioPlayer!.dispose();
+    }
+    if (_flutterTts != null) {
+      await _flutterTts!.stop();
+    }
   }
 }
