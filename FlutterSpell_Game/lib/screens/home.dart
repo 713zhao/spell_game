@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-//import 'package:provider/provider.dart';
 import '../design_system/design_system.dart';
 import '../providers/game_provider.dart';
 import '../main.dart' show gameProvider;
@@ -26,7 +25,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _initializeMascotAnimation();
-    // Listen to GameProvider changes
     gameProvider.addListener(_onGameProviderChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       gameProvider.loadLevels();
@@ -35,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _onGameProviderChanged() {
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   void _initializeMascotAnimation() {
@@ -104,10 +102,152 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               padding: EdgeInsets.all(DuolingoSpacing.lg),
               child: Column(
                 children: [
-                  const Text('Spell Adventure Home', style: TextStyle(fontSize: 24)),
-                  const SizedBox(height: 16),
-                  Text('XP: $xp, Streak: $streak'),
-                  const SizedBox(height: 100),
+                  // Animated mascot
+                  Center(
+                    child: ScaleTransition(
+                      scale: _mascotAnimation,
+                      child: const Text(
+                        '🐕',
+                        style: TextStyle(fontSize: 80),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Greeting + Streak
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_getGreeting()}, $userName!',
+                            style: DuolingoTextStyles.pageTitle.copyWith(
+                              color: DuolingoColors.darkText,
+                            ),
+                          ),
+                          SizedBox(height: DuolingoSpacing.xs),
+                          Text(
+                            'Continue your adventure...',
+                            style: DuolingoTextStyles.body.copyWith(
+                              color: DuolingoColors.bodyText,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Streak Badge
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: DuolingoSpacing.md,
+                          vertical: DuolingoSpacing.sm,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: DuolingoColors.streakGradient,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            DuolingoSpacing.radiusButton,
+                          ),
+                          boxShadow: DuolingoShadows.cardShadow,
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('🔥', style: TextStyle(fontSize: 20)),
+                            SizedBox(width: DuolingoSpacing.xs),
+                            Text(
+                              '$streak',
+                              style: DuolingoTextStyles.cardTitle.copyWith(
+                                color: DuolingoColors.streakOrange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Quick stats row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      StatCard(
+                        icon: '⭐',
+                        label: 'XP',
+                        value: '$xp',
+                      ),
+                      StatCard(
+                        icon: '💰',
+                        label: 'Coins',
+                        value: '$coins',
+                      ),
+                      StatCard(
+                        icon: '💎',
+                        label: 'Gems',
+                        value: '$gems',
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: DuolingoSpacing.xl),
+
+                  // English Kingdom Card
+                  JourneyCard(
+                    kingdom: 'english',
+                    icon: '🏰',
+                    label: 'English Kingdom',
+                    current: 'Stage 5',
+                    completed: 8,
+                    total: 10,
+                    stars: 2,
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/study');
+                    },
+                  ),
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Chinese Kingdom Card
+                  JourneyCard(
+                    kingdom: 'chinese',
+                    icon: '🐉',
+                    label: 'Chinese Kingdom',
+                    current: 'Forest Stage 7',
+                    completed: 7,
+                    total: 10,
+                    stars: 2,
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/chinese-kingdom');
+                    },
+                  ),
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Daily Treasure Chest Card
+                  TreasureChestCard(
+                    isAvailable: true,
+                    reward: '+50 XP, +20 Coins',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Treasure opened!')),
+                      );
+                    },
+                  ),
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Boss Battle Card (if weak words exist)
+                  if (hasWeakWords)
+                    BossBattleCard(
+                      bossName: 'Vocabulary Champion',
+                      weakWordsCount: weakWords.length,
+                      weakWords: weakWords,
+                      onTap: () {
+                        Navigator.of(context).pushNamed('/study');
+                      },
+                    ),
+
+                  if (hasWeakWords)
+                    SizedBox(height: DuolingoSpacing.lg),
 
                   // Bottom padding (account for bottom nav bar ~56dp + extra spacing)
                   SizedBox(height: 100),
@@ -117,32 +257,60 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         },
       ),
-      // bottomNavigationBar commented out for web debugging
-      /*bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,
         backgroundColor: DuolingoColors.backgroundWhite,
         selectedItemColor: DuolingoColors.primaryGreen,
         unselectedItemColor: DuolingoColors.neutralGray,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
-          BottomNavigationBarItem(icon: Icon(Icons.backpack), label: 'Backpack'),
-          BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'Progress'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map),
+            label: 'World Map',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.backpack),
+            label: 'Backpack',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.trending_up),
+            label: 'Progress',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
         ],
         onTap: (index) {
           if (index != _currentIndex) {
-            setState(() => _currentIndex = index);
+            setState(() {
+              _currentIndex = index;
+            });
+
             switch (index) {
-              case 1: Navigator.of(context).pushReplacementNamed('/world-map'); break;
-              case 2: Navigator.of(context).pushReplacementNamed('/backpack'); break;
-              case 3: Navigator.of(context).pushReplacementNamed('/progress'); break;
-              case 4: Navigator.of(context).pushReplacementNamed('/profile'); break;
+              case 0:
+                // Already on home
+                break;
+              case 1:
+                Navigator.of(context).pushReplacementNamed('/world-map');
+                break;
+              case 2:
+                Navigator.of(context).pushReplacementNamed('/backpack');
+                break;
+              case 3:
+                Navigator.of(context).pushReplacementNamed('/progress');
+                break;
+              case 4:
+                Navigator.of(context).pushReplacementNamed('/profile');
+                break;
             }
           }
         },
-      ),*/
+      ),
     );
   }
 }

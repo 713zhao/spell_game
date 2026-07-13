@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-//import 'package:provider/provider.dart';
+import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'screens/home.dart';
 import 'screens/study.dart';
@@ -23,6 +23,7 @@ final gameProvider = GameProvider();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  gameProvider.init('alice');
   runApp(const MyApp());
 }
 
@@ -31,10 +32,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Initialize GameProvider as singleton
-    gameProvider.init('alice');
-
-    return MaterialApp(
+    return ChangeNotifierProvider<GameProvider>.value(
+      value: gameProvider,
+      child: MaterialApp(
         title: 'Spell Adventure',
         theme: ThemeData(
           primarySwatch: Colors.blue,
@@ -124,6 +124,7 @@ class MyApp extends StatelessWidget {
               return null;
           }
         },
+      ),
     );
   }
 }
