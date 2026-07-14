@@ -75,11 +75,9 @@ class MyApp extends StatelessWidget {
                 ),
               );
             case '/lesson-overview':
-              final overviewLevelId = settings.arguments as int?;
+              final overviewArgs = settings.arguments as LessonOverviewArgs;
               return MaterialPageRoute(
-                builder: (context) => LessonOverviewScreen(
-                  levelId: overviewLevelId ?? 1,
-                ),
+                builder: (context) => LessonOverviewScreen(args: overviewArgs),
               );
             case '/rewards':
               return MaterialPageRoute(

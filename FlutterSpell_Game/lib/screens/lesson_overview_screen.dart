@@ -1,15 +1,52 @@
 import 'package:flutter/material.dart';
 import '../design_system/design_system.dart';
 import '../main.dart' show gameProvider;
+import '../utils/reward_calc.dart';
+
+/// Presentation theme (emoji/label/gradient) for whichever kingdom a lesson
+/// belongs to, so Lesson Overview isn't hardcoded to the English Castle.
+class KingdomTheme {
+  final String emoji;
+  final String label;
+  final List<Color> gradientColors;
+
+  const KingdomTheme({
+    required this.emoji,
+    required this.label,
+    required this.gradientColors,
+  });
+
+  static const english = KingdomTheme(
+    emoji: '🏰',
+    label: 'English Castle',
+    gradientColors: DuolingoColors.englishKingdomGradient,
+  );
+
+  static const chinese = KingdomTheme(
+    emoji: '🐉',
+    label: 'Chinese Kingdom',
+    gradientColors: DuolingoColors.chineseKingdomGradient,
+  );
+}
+
+/// Navigation arguments for the '/lesson-overview' route.
+class LessonOverviewArgs {
+  final int levelId;
+  final KingdomTheme kingdom;
+
+  const LessonOverviewArgs({
+    required this.levelId,
+    this.kingdom = KingdomTheme.english,
+  });
+}
 
 /// Pre-game lesson overview (SpellQuest design):
 /// stage number, total words, estimated time, rewards, difficulty,
 /// and a big START ADVENTURE button. The word list itself is NOT shown.
 class LessonOverviewScreen extends StatefulWidget {
-  final int levelId;
+  final LessonOverviewArgs args;
 
-  const LessonOverviewScreen({Key? key, required this.levelId})
-      : super(key: key);
+  const LessonOverviewScreen({Key? key, required this.args}) : super(key: key);
 
   @override
   State<LessonOverviewScreen> createState() => _LessonOverviewScreenState();
@@ -38,11 +75,11 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   @override
   Widget build(BuildContext context) {
     final levels = gameProvider.levels;
-    final level = levels.where((l) => l.id == widget.levelId).isNotEmpty
-        ? levels.firstWhere((l) => l.id == widget.levelId)
+    final level = levels.where((l) => l.id == widget.args.levelId).isNotEmpty
+        ? levels.firstWhere((l) => l.id == widget.args.levelId)
         : null;
-    final levelName = level?.name ?? 'Stage ${widget.levelId}';
-    final difficulty = level?.difficulty ?? widget.levelId;
+    final levelName = level?.name ?? 'Stage ${widget.args.levelId}';
+    final difficulty = level?.difficulty ?? widget.args.levelId;
 
     final wordCount = gameProvider.deckCards.isEmpty
         ? 10
@@ -52,7 +89,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     // Learn cards ~8s, exercises ~20s each
     final estMinutes =
         ((newWords * 8 + wordCount * 20) / 60).ceil().clamp(1, 30);
-    final maxXp = wordCount * 10;
+    final rewards = computeLessonRewards(wordCount);
 
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
@@ -74,8 +111,8 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
               Container(
                 padding: EdgeInsets.all(DuolingoSpacing.xxl),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: DuolingoColors.englishKingdomGradient,
+                  gradient: LinearGradient(
+                    colors: widget.args.kingdom.gradientColors,
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -87,10 +124,11 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                 ),
                 child: Column(
                   children: [
-                    const Text('🏰', style: TextStyle(fontSize: 64)),
+                    Text(widget.args.kingdom.emoji,
+                        style: const TextStyle(fontSize: 64)),
                     SizedBox(height: DuolingoSpacing.md),
                     Text(
-                      'Stage ${widget.levelId}',
+                      'Stage ${widget.args.levelId}',
                       style: DuolingoTextStyles.label
                           .copyWith(color: DuolingoColors.bodyText),
                     ),
@@ -158,8 +196,10 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _RewardChip(emoji: '⚡', label: 'up to $maxXp XP'),
-                        const _RewardChip(emoji: '💰', label: 'Coins'),
+                        _RewardChip(
+                            emoji: '⚡', label: 'up to ${rewards.xp} XP'),
+                        _RewardChip(
+                            emoji: '💰', label: '${rewards.coins} Coins'),
                         const _RewardChip(emoji: '🎁', label: 'Chest'),
                       ],
                     ),
@@ -174,7 +214,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                   Navigator.pushReplacementNamed(
                     context,
                     '/study',
-                    arguments: widget.levelId,
+                    arguments: widget.args.levelId,
                   );
                 },
                 child: Container(
