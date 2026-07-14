@@ -79,7 +79,10 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
         ? levels.firstWhere((l) => l.id == widget.args.levelId)
         : null;
     final levelName = level?.name ?? 'Stage ${widget.args.levelId}';
-    final difficulty = level?.difficulty ?? widget.args.levelId;
+    // Fall back to the stage number when there's no backend Level match, but
+    // clamp it: Chinese Kingdom's stage numbers run 1-30, far past the
+    // 5-star display this row uses (English's 1-5 levelId happened to fit).
+    final difficulty = level?.difficulty ?? widget.args.levelId.clamp(1, 5);
 
     final wordCount = gameProvider.deckCards.isEmpty
         ? 10
