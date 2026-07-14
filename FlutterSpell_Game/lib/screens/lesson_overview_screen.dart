@@ -128,6 +128,14 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                         style: const TextStyle(fontSize: 64)),
                     SizedBox(height: DuolingoSpacing.md),
                     Text(
+                      widget.args.kingdom.label.toUpperCase(),
+                      style: DuolingoTextStyles.label.copyWith(
+                        color: DuolingoColors.bodyText,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: DuolingoSpacing.xs),
+                    Text(
                       'Stage ${widget.args.levelId}',
                       style: DuolingoTextStyles.label
                           .copyWith(color: DuolingoColors.bodyText),
