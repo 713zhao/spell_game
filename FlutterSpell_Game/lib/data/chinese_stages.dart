@@ -7,6 +7,7 @@ import 'package:spell_game/models/stage_data.dart';
 List<StageData> buildChineseStages() {
   const groupNames = ['Forest', 'River', 'Mountain'];
   const lessonsPerGroup = 10;
+  const completedCount = 7; // ports the previous Forest mock's 7/10 done
 
   final stages = <StageData>[];
   for (var g = 0; g < groupNames.length; g++) {
@@ -15,9 +16,9 @@ List<StageData> buildChineseStages() {
       stages.add(StageData(
         stageNumber: stageNumber,
         title: '${groupNames[g]} $i',
-        progress: stageNumber <= 7 ? 1.0 : 0.0,
-        stars: stageNumber <= 7 ? 3 : 0,
-        isLocked: stageNumber > 10,
+        progress: stageNumber <= completedCount ? 1.0 : 0.0,
+        stars: stageNumber <= completedCount ? 3 : 0,
+        isLocked: stageNumber > lessonsPerGroup,
       ));
     }
   }

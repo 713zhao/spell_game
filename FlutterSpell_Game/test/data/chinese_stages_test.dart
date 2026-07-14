@@ -24,4 +24,11 @@ void main() {
     expect(stages[9].isLocked, isFalse); // stage 10, available
     expect(stages[10].isLocked, isTrue); // stage 11, locked
   });
+
+  test('stars are earned only for completed stages', () {
+    final stages = buildChineseStages();
+
+    expect(stages[6].stars, 3); // stage 7, completed
+    expect(stages[7].stars, 0); // stage 8, not started
+  });
 }
