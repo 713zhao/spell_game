@@ -6,6 +6,7 @@ import '../services/sound_service.dart';
 import '../widgets/celebration.dart';
 import '../widgets/handwriting_canvas.dart';
 import '../services/speech_recognition_service.dart';
+import '../utils/exercise_content_parser.dart';
 import '../main.dart' show gameProvider;
 import 'lesson_overview_screen.dart' show StudySessionArgs;
 
@@ -36,6 +37,10 @@ enum ExerciseType {
   listenChoose,
   handwriteTrace,
   voiceRead,
+  // English-specific, powered by back_card/quiz data that isn't present
+  // for every word — see parseSentenceBlank/parseQuiz call sites below.
+  sentenceBlank,
+  meaningMatch,
 }
 
 bool _isChineseWord(String text) => RegExp(r'[一-鿿]').hasMatch(text);
@@ -45,10 +50,12 @@ enum SessionPhase { loading, empty, exercising, complete }
 class _Exercise {
   final Word word;
   final ExerciseType type;
-  final List<String> choices; // chooseSpelling
+  final List<String> choices; // chooseSpelling, listenChoose, meaningMatch
   final List<String?> slots; // fixed letters; null = blank (letter games)
   final List<String> bank; // tappable letter tiles (letter games)
   final bool isRetry;
+  final String? promptText; // meaningMatch's question, sentenceBlank's blanked sentence
+  final String? correctAnswer; // overrides word.text as the graded target (meaningMatch only)
 
   _Exercise({
     required this.word,
@@ -57,6 +64,8 @@ class _Exercise {
     this.slots = const [],
     this.bank = const [],
     this.isRetry = false,
+    this.promptText,
+    this.correctAnswer,
   });
 }
 
@@ -168,14 +177,30 @@ class _StudyScreenState extends State<StudyScreen>
       // Interleave: new words get a Learn card right before their exercise
       _queue = [];
       for (final card in cards) {
+        final isChinese = _isChineseWord(card.word.text);
+
         if (card.repetitions == 0) {
           _queue.add(_Exercise(word: card.word, type: ExerciseType.learn));
+          if (!isChinese && parseQuiz(card.word.quiz) != null) {
+            _queue.add(_buildExercise(card.word, ExerciseType.meaningMatch));
+          }
         }
-        final isChinese = _isChineseWord(card.word.text);
-        final type = isChinese
-            ? _typeForMasteryChinese(card.repetitions)
-            : _typeForMastery(card.repetitions);
-        _queue.add(_buildExercise(card.word, type));
+
+        if (isChinese) {
+          _queue.add(_buildExercise(
+            card.word,
+            _typeForMasteryChinese(card.repetitions),
+          ));
+          final skills = widget.args.skills;
+          if (skills.isEmpty || skills.contains('write')) {
+            _queue.add(_buildExercise(card.word, ExerciseType.handwriteTrace));
+          }
+        } else {
+          final hasSentence = parseSentenceBlank(card.word) != null;
+          final type =
+              _typeForMastery(card.repetitions, hasSentence: hasSentence);
+          _queue.add(_buildExercise(card.word, type));
+        }
       }
 
       setState(() => _phase = SessionPhase.exercising);
@@ -189,7 +214,7 @@ class _StudyScreenState extends State<StudyScreen>
   /// Adaptive learning ladder (SpellQuest design):
   /// low mastery = recognition, mid = missing letters / building,
   /// high = full typing.
-  ExerciseType _typeForMastery(int mastery) {
+  ExerciseType _typeForMastery(int mastery, {required bool hasSentence}) {
     if (mastery <= 1) {
       return _random.nextBool()
           ? ExerciseType.chooseSpelling
@@ -200,18 +225,18 @@ class _StudyScreenState extends State<StudyScreen>
           ? ExerciseType.missingLetters
           : ExerciseType.buildWord;
     }
+    if (hasSentence) return ExerciseType.sentenceBlank;
     return _random.nextBool()
         ? ExerciseType.typeWord
         : ExerciseType.buildWord;
   }
 
-  /// Adaptive ladder for single Chinese characters: recognition (listen &
-  /// choose), then production via tracing, then full recall by reading
-  /// aloud. There's no letter-tile equivalent for a single hanzi.
+  /// Recognition -> production ladder for the read/listen side of a
+  /// Chinese word. Handwriting is handled separately in _loadWords, gated
+  /// by the lesson's skill tags rather than mastery, so it doesn't take
+  /// multiple sessions to become reachable.
   ExerciseType _typeForMasteryChinese(int mastery) {
-    if (mastery <= 1) return ExerciseType.listenChoose;
-    if (mastery <= 3) return ExerciseType.handwriteTrace;
-    return ExerciseType.voiceRead;
+    return mastery <= 1 ? ExerciseType.listenChoose : ExerciseType.voiceRead;
   }
 
   _Exercise _buildExercise(Word word, ExerciseType type,
@@ -247,6 +272,23 @@ class _StudyScreenState extends State<StudyScreen>
           type: type,
           slots: List<String?>.filled(word.text.length, null),
           bank: letters,
+          isRetry: isRetry,
+        );
+      case ExerciseType.meaningMatch:
+        final quizData = parseQuiz(word.quiz)!;
+        return _Exercise(
+          word: word,
+          type: type,
+          choices: quizData.options,
+          promptText: quizData.question,
+          correctAnswer: quizData.correctOption,
+          isRetry: isRetry,
+        );
+      case ExerciseType.sentenceBlank:
+        return _Exercise(
+          word: word,
+          type: type,
+          promptText: parseSentenceBlank(word)!,
           isRetry: isRetry,
         );
       default:
@@ -355,6 +397,11 @@ class _StudyScreenState extends State<StudyScreen>
 
   _Exercise get _current => _queue[_index];
 
+  /// The value an answer is graded against. Every exercise type grades
+  /// against the word's own spelling except meaningMatch, whose correct
+  /// answer is a quiz option's text instead.
+  String get _targetAnswer => _current.correctAnswer ?? _current.word.text;
+
   void _resetAnswerState() {
     _checked = false;
     _wasCorrect = false;
@@ -379,8 +426,10 @@ class _StudyScreenState extends State<StudyScreen>
     switch (_current.type) {
       case ExerciseType.chooseSpelling:
       case ExerciseType.listenChoose:
+      case ExerciseType.meaningMatch:
         return _selectedChoice ?? '';
       case ExerciseType.typeWord:
+      case ExerciseType.sentenceBlank:
         return _typingController.text.trim();
       case ExerciseType.voiceRead:
         return _voiceTranscript ?? '';
@@ -407,8 +456,10 @@ class _StudyScreenState extends State<StudyScreen>
     switch (_current.type) {
       case ExerciseType.chooseSpelling:
       case ExerciseType.listenChoose:
+      case ExerciseType.meaningMatch:
         return _selectedChoice != null;
       case ExerciseType.typeWord:
+      case ExerciseType.sentenceBlank:
         return _typingController.text.trim().isNotEmpty;
       case ExerciseType.voiceRead:
         return _voiceTranscript != null && _voiceTranscript!.isNotEmpty;
@@ -425,8 +476,8 @@ class _StudyScreenState extends State<StudyScreen>
         // Speech-recognition transcripts can carry extra punctuation/noise
         // around the character, so a lenient contains-check avoids
         // penalizing a correct reading over transcription noise.
-        ? (_voiceTranscript ?? '').contains(_current.word.text)
-        : _assembledAnswer().toLowerCase() == _current.word.text.toLowerCase();
+        ? (_voiceTranscript ?? '').contains(_targetAnswer)
+        : _assembledAnswer().toLowerCase() == _targetAnswer.toLowerCase();
     _applyResult(correct);
   }
 
@@ -812,8 +863,7 @@ class _StudyScreenState extends State<StudyScreen>
 
   Widget _buildChoiceTile(String choice) {
     final selected = _selectedChoice == choice;
-    final isCorrectChoice =
-        choice.toLowerCase() == _current.word.text.toLowerCase();
+    final isCorrectChoice = choice.toLowerCase() == _targetAnswer.toLowerCase();
 
     Color border = const Color(0xFFE5E5E5);
     Color fill = DuolingoColors.backgroundWhite;
@@ -1391,7 +1441,7 @@ class _StudyScreenState extends State<StudyScreen>
                     ),
                     if (!_wasCorrect)
                       Text(
-                        'Correct answer: ${_current.word.text}',
+                        'Correct answer: $_targetAnswer',
                         style: DuolingoTextStyles.cardTitle.copyWith(
                           color: accent,
                           fontSize: 18,
