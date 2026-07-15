@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../design_system/design_system.dart';
 import '../main.dart' show gameProvider;
+import '../models/game_models.dart';
 import '../utils/reward_calc.dart';
 
 /// Presentation theme (emoji/label/gradient) for whichever kingdom a lesson
@@ -29,14 +30,35 @@ class KingdomTheme {
   );
 }
 
-/// Navigation arguments for the '/lesson-overview' route.
+/// Navigation arguments for the '/lesson-overview' route. [lesson] carries
+/// the real tag-backed lesson (word count, mastery, tags to scope the
+/// deck) fetched from the backend's `/lessons/{user}?subject=` endpoint.
 class LessonOverviewArgs {
-  final int levelId;
+  final LessonSummary lesson;
+  final String subject; // 'EN' | 'CN'
   final KingdomTheme kingdom;
 
   const LessonOverviewArgs({
-    required this.levelId,
+    required this.lesson,
+    required this.subject,
     this.kingdom = KingdomTheme.english,
+  });
+}
+
+/// Navigation arguments for the '/study' route.
+class StudySessionArgs {
+  final List<String> tags;
+  final String lessonKey;
+  final String displayName;
+  final String subject;
+  final List<String> skills;
+
+  const StudySessionArgs({
+    required this.tags,
+    required this.lessonKey,
+    required this.displayName,
+    required this.subject,
+    this.skills = const [],
   });
 }
 
@@ -57,9 +79,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   void initState() {
     super.initState();
     gameProvider.addListener(_onChanged);
-    if (gameProvider.deckCards.isEmpty) {
-      gameProvider.loadDeck();
-    }
+    gameProvider.loadDeck(tags: widget.args.lesson.tags);
   }
 
   void _onChanged() {
@@ -74,19 +94,11 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final levels = gameProvider.levels;
-    final level = levels.where((l) => l.id == widget.args.levelId).isNotEmpty
-        ? levels.firstWhere((l) => l.id == widget.args.levelId)
-        : null;
-    final levelName = level?.name ?? 'Stage ${widget.args.levelId}';
-    // Fall back to the stage number when there's no backend Level match, but
-    // clamp it: Chinese Kingdom's stage numbers run 1-30, far past the
-    // 5-star display this row uses (English's 1-5 levelId happened to fit).
-    final difficulty = level?.difficulty ?? widget.args.levelId.clamp(1, 5);
+    final lesson = widget.args.lesson;
+    final levelName = lesson.displayName;
+    final stars = lesson.stars; // mastery earned so far (0-3)
 
-    final wordCount = gameProvider.deckCards.isEmpty
-        ? 10
-        : gameProvider.deckCards.length;
+    final wordCount = lesson.wordCount;
     final newWords =
         gameProvider.deckCards.where((c) => c.repetitions == 0).length;
     // Learn cards ~8s, exercises ~20s each
@@ -139,25 +151,19 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                     ),
                     SizedBox(height: DuolingoSpacing.xs),
                     Text(
-                      'Stage ${widget.args.levelId}',
-                      style: DuolingoTextStyles.label
-                          .copyWith(color: DuolingoColors.bodyText),
-                    ),
-                    SizedBox(height: DuolingoSpacing.xs),
-                    Text(
                       levelName,
                       textAlign: TextAlign.center,
                       style: DuolingoTextStyles.pageTitle
                           .copyWith(color: DuolingoColors.darkText),
                     ),
                     SizedBox(height: DuolingoSpacing.md),
-                    // Difficulty stars
+                    // Mastery stars earned so far
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(
-                        5,
+                        3,
                         (i) => Text(
-                          i < difficulty ? '⭐' : '☆',
+                          i < stars ? '⭐' : '☆',
                           style: const TextStyle(fontSize: 20),
                         ),
                       ),
@@ -225,7 +231,13 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                   Navigator.pushReplacementNamed(
                     context,
                     '/study',
-                    arguments: widget.args.levelId,
+                    arguments: StudySessionArgs(
+                      tags: lesson.tags,
+                      lessonKey: lesson.lessonKey,
+                      displayName: lesson.displayName,
+                      subject: widget.args.subject,
+                      skills: lesson.skills,
+                    ),
                   );
                 },
                 child: Container(
