@@ -714,6 +714,10 @@ class _StudyScreenState extends State<StudyScreen>
         return _buildHandwriteTrace();
       case ExerciseType.voiceRead:
         return _buildVoiceRead();
+      case ExerciseType.sentenceBlank:
+        return _buildSentenceBlank();
+      case ExerciseType.meaningMatch:
+        return _buildMeaningMatch();
     }
   }
 
@@ -1324,6 +1328,80 @@ class _StudyScreenState extends State<StudyScreen>
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  // --- Sentence Fill-in (type the missing word) ---
+
+  Widget _buildSentenceBlank() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Fill in the missing word', style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.xl),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(DuolingoSpacing.xl),
+          decoration: BoxDecoration(
+            color: DuolingoColors.neutralGray,
+            borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+          ),
+          child: Text(
+            _current.promptText ?? '',
+            style: DuolingoTextStyles.cardTitle.copyWith(
+              color: DuolingoColors.darkText,
+              fontSize: 18,
+            ),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.xxl),
+        TextField(
+          controller: _typingController,
+          enabled: !_checked,
+          autofocus: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          textAlign: TextAlign.center,
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) {
+            if (_hasAnswer) _check();
+          },
+          style: DuolingoTextStyles.cardTitle.copyWith(
+            fontSize: 24,
+            letterSpacing: 2,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Type the missing word...',
+            hintStyle: DuolingoTextStyles.body
+                .copyWith(color: DuolingoColors.secondaryButtonGray),
+            filled: true,
+            fillColor: DuolingoColors.neutralGray,
+            contentPadding: EdgeInsets.all(DuolingoSpacing.xl),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderSide: const BorderSide(
+                  color: DuolingoColors.informationBlue, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Meaning Matching (pick the correct definition) ---
+
+  Widget _buildMeaningMatch() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(_current.promptText ?? '', style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.xxl),
+        ..._current.choices.map(_buildChoiceTile),
       ],
     );
   }
