@@ -6,6 +6,7 @@ import '../services/sound_service.dart';
 import '../widgets/celebration.dart';
 import '../widgets/handwriting_canvas.dart';
 import '../services/speech_recognition_service.dart';
+import '../utils/chinese_pronunciation.dart';
 import '../utils/exercise_content_parser.dart';
 import '../main.dart' show gameProvider;
 import 'lesson_overview_screen.dart' show StudySessionArgs;
@@ -91,6 +92,7 @@ class _StudyScreenState extends State<StudyScreen>
   bool _isRecording = false;
   bool _voiceUnsupported = false;
   int _traceVersion = 0; // bumped by "Clear" to reset the handwriting canvas
+  int? _voiceStars; // 1-3 rating for the last voiceRead attempt (see _check)
 
   // Session stats
   int _totalWords = 0;
@@ -414,6 +416,7 @@ class _StudyScreenState extends State<StudyScreen>
     _voiceTranscript = null;
     _isRecording = false;
     _voiceUnsupported = false;
+    _voiceStars = null;
     final blanks = _current.slots.where((s) => s == null).length;
     _blankFill = List<int?>.filled(blanks, null);
   }
@@ -476,12 +479,19 @@ class _StudyScreenState extends State<StudyScreen>
   }
 
   void _check() {
-    final correct = _current.type == ExerciseType.voiceRead
-        // Speech-recognition transcripts can carry extra punctuation/noise
-        // around the character, so a lenient contains-check avoids
-        // penalizing a correct reading over transcription noise.
-        ? (_voiceTranscript ?? '').contains(_targetAnswer)
-        : _assembledAnswer().toLowerCase() == _targetAnswer.toLowerCase();
+    if (_current.type == ExerciseType.voiceRead) {
+      // Graded by pronunciation, not text equality: a homophone of the
+      // target (same pinyin + tone) is a correct reading even if speech
+      // recognition wrote down a different character.
+      final stars = rateChineseReading(_targetAnswer, _voiceTranscript);
+      _voiceStars = stars;
+      _applyResult(
+        stars >= 2, // homophone or merely similar both count as a pass
+        qualityOverride: stars == 3 ? 5 : (stars == 2 ? 3 : 1),
+      );
+      return;
+    }
+    final correct = _assembledAnswer().toLowerCase() == _targetAnswer.toLowerCase();
     _applyResult(correct);
   }
 
@@ -507,7 +517,7 @@ class _StudyScreenState extends State<StudyScreen>
     });
   }
 
-  void _applyResult(bool correct) {
+  void _applyResult(bool correct, {int? qualityOverride}) {
     setState(() {
       _checked = true;
       _wasCorrect = correct;
@@ -547,7 +557,8 @@ class _StudyScreenState extends State<StudyScreen>
 
     // Update spaced-repetition state on the backend so lesson mastery/stars
     // (computed from ReviewState on next /lessons fetch) advance for real.
-    final quality = correct ? (_current.isRetry ? 3 : 5) : 1;
+    final quality =
+        qualityOverride ?? (correct ? (_current.isRetry ? 3 : 5) : 1);
     gameProvider.submitReview(_current.word.id, quality);
   }
 
@@ -1521,6 +1532,19 @@ class _StudyScreenState extends State<StudyScreen>
                       style: DuolingoTextStyles.sectionTitle
                           .copyWith(color: accent, fontSize: 17),
                     ),
+                    if (_voiceStars != null)
+                      Padding(
+                        padding: EdgeInsets.only(top: DuolingoSpacing.xs),
+                        child: Row(
+                          children: List.generate(
+                            3,
+                            (i) => Text(
+                              i < _voiceStars! ? '⭐' : '☆',
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                          ),
+                        ),
+                      ),
                     if (!_wasCorrect)
                       Text(
                         'Correct answer: $_targetAnswer',
