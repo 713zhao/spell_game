@@ -41,11 +41,15 @@ class Word {
   final int id;
   final String text;
   final String language;
+  final String? backCard;
+  final String? quiz;
 
   Word({
     required this.id,
     required this.text,
     required this.language,
+    this.backCard,
+    this.quiz,
   });
 
   factory Word.fromJson(Map<String, dynamic> json) => _$WordFromJson(json);
@@ -148,6 +152,46 @@ class Challenge {
   factory Challenge.fromJson(Map<String, dynamic> json) =>
       _$ChallengeFromJson(json);
   Map<String, dynamic> toJson() => _$ChallengeToJson(this);
+}
+
+/// One lesson entry from the backend's `/lessons/{user}` endpoint: a group
+/// of teacher/MOE tags for the user's grade, with real word count and
+/// mastery/star progress computed from ReviewState. Plain class (parsed
+/// manually, like DeckCard).
+class LessonSummary {
+  final String lessonKey;
+  final String displayName;
+  final String labelType; // TEACHER | MOE
+  final List<String> tags;
+  final List<String> skills;
+  final int wordCount;
+  final double masteryPct;
+  final int stars;
+  final String status; // completed | current | locked
+
+  LessonSummary({
+    required this.lessonKey,
+    required this.displayName,
+    required this.labelType,
+    required this.tags,
+    required this.skills,
+    required this.wordCount,
+    required this.masteryPct,
+    required this.stars,
+    required this.status,
+  });
+
+  factory LessonSummary.fromJson(Map<String, dynamic> json) => LessonSummary(
+        lessonKey: json['lesson_key'] as String,
+        displayName: json['display_name'] as String,
+        labelType: json['label_type'] as String? ?? 'TEACHER',
+        tags: (json['tags'] as List).cast<String>(),
+        skills: (json['skills'] as List).cast<String>(),
+        wordCount: json['word_count'] as int,
+        masteryPct: (json['mastery_pct'] as num).toDouble(),
+        stars: json['stars'] as int,
+        status: json['status'] as String,
+      );
 }
 
 @JsonSerializable()

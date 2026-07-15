@@ -27,10 +27,16 @@ class ApiClient {
   }
 
   /// Fetch the user's study deck (their real assigned words) including
-  /// spaced-repetition state used for adaptive difficulty.
-  Future<List<DeckCard>> getDeckCards() async {
+  /// spaced-repetition state used for adaptive difficulty. When [tags] is
+  /// given, the deck is scoped to those tags (joined for the backend to
+  /// split); a lesson spanning multiple tag variants (e.g. Chinese
+  /// ::read + ::write) is passed as a multi-element list.
+  Future<List<DeckCard>> getDeckCards({List<String>? tags, int limit = 10}) async {
+    final tagParam = (tags != null && tags.isNotEmpty)
+        ? '&tag=${Uri.encodeComponent(tags.join(","))}'
+        : '';
     final response = await http.get(
-      Uri.parse('$_baseUrl/users/$userName/deck'),
+      Uri.parse('$_baseUrl/users/$userName/deck?limit=$limit$tagParam'),
     );
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
@@ -42,6 +48,8 @@ class ApiClient {
             id: c['word_id'] as int,
             text: c['text'] as String,
             language: (c['language'] ?? 'english') as String,
+            backCard: c['back_card'] as String?,
+            quiz: c['quiz'] as String?,
           ),
           repetitions: (state['repetitions'] ?? 0) as int,
           status: (state['status'] ?? 'new') as String,
@@ -49,6 +57,36 @@ class ApiClient {
       }).toList();
     }
     throw Exception('Failed to load deck');
+  }
+
+  /// List the user's grade-filtered lessons for a subject (EN or CN), built
+  /// from teacher/MOE tags on the backend.
+  Future<List<LessonSummary>> getLessons(String subject) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/lessons/$userName?subject=$subject'),
+    );
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final lessons = json['lessons'] as List;
+      return lessons
+          .map((l) => LessonSummary.fromJson(l as Map<String, dynamic>))
+          .toList();
+    }
+    throw Exception('Failed to load lessons');
+  }
+
+  /// Submit a single word's review outcome (SM-2 quality 0/1/3/5) so the
+  /// backend's spaced-repetition state — and therefore lesson mastery/stars
+  /// on next fetch — advances.
+  Future<void> submitReview(int wordId, int quality) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/$userName/review'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'word_id': wordId, 'quality': quality}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to submit review');
+    }
   }
 
   Future<List<Level>> getLevelList() async {
