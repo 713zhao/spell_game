@@ -216,25 +216,15 @@ class _StudyScreenState extends State<StudyScreen>
   /// Adaptive learning ladder (SpellQuest design):
   /// low mastery = recognition, mid = missing letters / building,
   /// high = full typing.
+  /// English ladder: recognition (tap to choose) for a brand-new word,
+  /// then typed whole-word input for everything after that - sentence
+  /// context when available, plain typed word otherwise. Never
+  /// letter-dragging (missingLetters/buildWord blank out individual
+  /// characters within a word, not the whole missing word).
   ExerciseType _typeForMastery(int mastery, {required bool hasSentence}) {
-    // A word with usable sentence data always gets the typed Sentence
-    // Fill-in exercise instead of any letter-dragging exercise
-    // (missingLetters/buildWord), at every mastery tier - not just once
-    // a word reaches the highest tier.
     if (hasSentence) return ExerciseType.sentenceBlank;
-    if (mastery <= 1) {
-      return _random.nextBool()
-          ? ExerciseType.chooseSpelling
-          : ExerciseType.missingLetters;
-    }
-    if (mastery <= 3) {
-      return _random.nextBool()
-          ? ExerciseType.missingLetters
-          : ExerciseType.buildWord;
-    }
-    return _random.nextBool()
-        ? ExerciseType.typeWord
-        : ExerciseType.buildWord;
+    if (mastery <= 1) return ExerciseType.chooseSpelling;
+    return ExerciseType.typeWord;
   }
 
   /// Recognition -> production ladder for the read/listen side of a
