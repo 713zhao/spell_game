@@ -66,11 +66,21 @@ class MyApp extends StatelessWidget {
                 builder: (context) => const ProfileScreen(),
               );
             case '/study':
-              final levelId = settings.arguments as int?;
+              // Lesson selection passes a StudySessionArgs; a few shortcuts
+              // (Boss Battle weak-word review, Leaderboard, Rewards Shop)
+              // still push '/study' with no arguments for a full-deck
+              // practice session.
+              final rawArgs = settings.arguments;
+              final studyArgs = rawArgs is StudySessionArgs
+                  ? rawArgs
+                  : const StudySessionArgs(
+                      tags: [],
+                      lessonKey: 'practice',
+                      displayName: 'Quick Practice',
+                      subject: 'EN',
+                    );
               return MaterialPageRoute(
-                builder: (context) => StudyScreen(
-                  levelId: levelId ?? 1,
-                ),
+                builder: (context) => StudyScreen(args: studyArgs),
               );
             case '/lesson-overview':
               final overviewArgs = settings.arguments as LessonOverviewArgs;

@@ -15,6 +15,21 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
   List<Level> levels = [];
 
   @override
+  List<DeckCard> deckCards = [];
+
+  @override
+  List<Word> get deckWords => deckCards.map((c) => c.word).toList();
+
+  @override
+  List<LessonSummary> englishLessons = [];
+
+  @override
+  List<LessonSummary> chineseLessons = [];
+
+  @override
+  bool isLoggedIn = false;
+
+  @override
   Level? currentLevel;
 
   @override
@@ -50,6 +65,18 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
   // Implement required methods with no-op or test implementations
   @override
   void init(String userName) {}
+
+  @override
+  Future<bool> login(String password) async => true;
+
+  @override
+  Future<void> loadDeck({List<String>? tags}) async {}
+
+  @override
+  Future<void> loadLessons(String subject) async {}
+
+  @override
+  Future<void> submitReview(int wordId, int quality) async {}
 
   @override
   Future<void> loadLevels() async {}

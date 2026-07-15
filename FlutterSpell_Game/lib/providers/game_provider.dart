@@ -12,6 +12,8 @@ class GameProvider extends ChangeNotifier {
 
   List<Level> levels = [];
   List<DeckCard> deckCards = [];
+  List<LessonSummary> englishLessons = [];
+  List<LessonSummary> chineseLessons = [];
   bool isLoggedIn = false;
 
   List<Word> get deckWords => deckCards.map((c) => c.word).toList();
@@ -72,14 +74,41 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Load the user's real word deck from the backend.
-  Future<void> loadDeck() async {
+  /// Load the user's real word deck from the backend, optionally scoped to
+  /// a lesson's tags (see [ApiClient.getDeckCards]).
+  Future<void> loadDeck({List<String>? tags}) async {
     try {
-      deckCards = await apiClient.getDeckCards();
+      deckCards = await apiClient.getDeckCards(tags: tags);
       notifyListeners();
     } catch (e) {
       errorMessage = e.toString();
       notifyListeners();
+    }
+  }
+
+  /// Load the user's grade-filtered lessons for a subject ('EN' or 'CN').
+  Future<void> loadLessons(String subject) async {
+    try {
+      final result = await apiClient.getLessons(subject);
+      if (subject.toUpperCase() == 'EN') {
+        englishLessons = result;
+      } else {
+        chineseLessons = result;
+      }
+      notifyListeners();
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  /// Submit one word's review outcome. Fire-and-forget from the study
+  /// screen's perspective: a failed submission shouldn't block gameplay.
+  Future<void> submitReview(int wordId, int quality) async {
+    try {
+      await apiClient.submitReview(wordId, quality);
+    } catch (e) {
+      errorMessage = e.toString();
     }
   }
 

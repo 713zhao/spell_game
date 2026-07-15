@@ -4,7 +4,10 @@ import '../design_system/design_system.dart';
 import '../models/game_models.dart';
 import '../services/sound_service.dart';
 import '../widgets/celebration.dart';
+import '../widgets/handwriting_canvas.dart';
+import '../services/speech_recognition_service.dart';
 import '../main.dart' show gameProvider;
+import 'lesson_overview_screen.dart' show StudySessionArgs;
 
 /// SpellQuest study session — a sequence of mini-games:
 /// - Learn card (new words), Listen & Choose, Missing Letters,
@@ -14,15 +17,28 @@ import '../main.dart' show gameProvider;
 /// - Missed words re-queued with an easier exercise
 /// - Summary with stars, XP, coins and weak words
 class StudyScreen extends StatefulWidget {
-  final int levelId;
+  final StudySessionArgs args;
 
-  const StudyScreen({Key? key, required this.levelId}) : super(key: key);
+  const StudyScreen({Key? key, required this.args}) : super(key: key);
 
   @override
   State<StudyScreen> createState() => _StudyScreenState();
 }
 
-enum ExerciseType { learn, chooseSpelling, missingLetters, buildWord, typeWord }
+enum ExerciseType {
+  learn,
+  chooseSpelling,
+  missingLetters,
+  buildWord,
+  typeWord,
+  // Chinese-specific: single hanzi aren't decomposable into letters, so
+  // these replace the letter-tile/typing exercises above for Chinese words.
+  listenChoose,
+  handwriteTrace,
+  voiceRead,
+}
+
+bool _isChineseWord(String text) => RegExp(r'[一-鿿]').hasMatch(text);
 
 enum SessionPhase { loading, empty, exercising, complete }
 
@@ -59,6 +75,13 @@ class _StudyScreenState extends State<StudyScreen>
   List<int?> _blankFill = []; // per blank: index into bank, or null
   bool _checked = false;
   bool _wasCorrect = false;
+
+  // Chinese-specific exercise state
+  List<String> _chineseDistractorPool = [];
+  String? _voiceTranscript;
+  bool _isRecording = false;
+  bool _voiceUnsupported = false;
+  int _traceVersion = 0; // bumped by "Clear" to reset the handwriting canvas
 
   // Session stats
   int _totalWords = 0;
@@ -123,18 +146,8 @@ class _StudyScreenState extends State<StudyScreen>
 
   Future<void> _loadWords() async {
     try {
-      if (gameProvider.deckCards.isEmpty) {
-        await gameProvider.loadDeck();
-      }
+      await gameProvider.loadDeck(tags: widget.args.tags);
       var cards = gameProvider.deckCards;
-
-      // Prefer English words for spelling practice
-      final english = cards
-          .where((c) =>
-              c.word.language.toLowerCase() == 'english' ||
-              c.word.language.toLowerCase() == 'en')
-          .toList();
-      if (english.isNotEmpty) cards = english;
 
       if (cards.isEmpty) {
         setState(() => _phase = SessionPhase.empty);
@@ -144,16 +157,25 @@ class _StudyScreenState extends State<StudyScreen>
       cards = List<DeckCard>.from(cards)..shuffle(_random);
       _totalWords = cards.length;
 
+      // Chinese exercises pick distractor characters from this lesson's own
+      // words instead of letter-misspelling (a single hanzi has no letters).
+      _chineseDistractorPool = cards
+          .where((c) => _isChineseWord(c.word.text))
+          .map((c) => c.word.text)
+          .toSet()
+          .toList();
+
       // Interleave: new words get a Learn card right before their exercise
       _queue = [];
       for (final card in cards) {
         if (card.repetitions == 0) {
           _queue.add(_Exercise(word: card.word, type: ExerciseType.learn));
         }
-        _queue.add(_buildExercise(
-          card.word,
-          _typeForMastery(card.repetitions),
-        ));
+        final isChinese = _isChineseWord(card.word.text);
+        final type = isChinese
+            ? _typeForMasteryChinese(card.repetitions)
+            : _typeForMastery(card.repetitions);
+        _queue.add(_buildExercise(card.word, type));
       }
 
       setState(() => _phase = SessionPhase.exercising);
@@ -183,6 +205,15 @@ class _StudyScreenState extends State<StudyScreen>
         : ExerciseType.buildWord;
   }
 
+  /// Adaptive ladder for single Chinese characters: recognition (listen &
+  /// choose), then production via tracing, then full recall by reading
+  /// aloud. There's no letter-tile equivalent for a single hanzi.
+  ExerciseType _typeForMasteryChinese(int mastery) {
+    if (mastery <= 1) return ExerciseType.listenChoose;
+    if (mastery <= 3) return ExerciseType.handwriteTrace;
+    return ExerciseType.voiceRead;
+  }
+
   _Exercise _buildExercise(Word word, ExerciseType type,
       {bool isRetry = false}) {
     switch (type) {
@@ -191,6 +222,13 @@ class _StudyScreenState extends State<StudyScreen>
           word: word,
           type: type,
           choices: _buildChoices(word.text),
+          isRetry: isRetry,
+        );
+      case ExerciseType.listenChoose:
+        return _Exercise(
+          word: word,
+          type: type,
+          choices: _buildCharacterChoices(word.text),
           isRetry: isRetry,
         );
       case ExerciseType.missingLetters:
@@ -242,6 +280,30 @@ class _StudyScreenState extends State<StudyScreen>
     }
     bank.shuffle(_random);
     return (slots, bank);
+  }
+
+  static const List<String> _fallbackCharacters = [
+    '的', '一', '是', '了', '我', '不', '人', '在', '他', '有',
+    '这', '个', '上', '们', '来', '到', '时', '大', '地', '为',
+  ];
+
+  /// Distractor characters for Listen & Choose: prefer sibling characters
+  /// from this lesson so choices stay visually plausible; pad with common
+  /// characters if the lesson is too small to have three others.
+  List<String> _buildCharacterChoices(String target) {
+    final distractors = _chineseDistractorPool
+        .where((t) => t != target)
+        .toList()
+      ..shuffle(_random);
+    final picked = distractors.take(3).toList();
+    var guard = 0;
+    while (picked.length < 3 && guard < 30) {
+      guard++;
+      final c = _fallbackCharacters[_random.nextInt(_fallbackCharacters.length)];
+      if (c != target && !picked.contains(c)) picked.add(c);
+    }
+    final options = <String>[target, ...picked]..shuffle(_random);
+    return options;
   }
 
   List<String> _buildChoices(String word) {
@@ -298,6 +360,9 @@ class _StudyScreenState extends State<StudyScreen>
     _wasCorrect = false;
     _selectedChoice = null;
     _typingController.clear();
+    _voiceTranscript = null;
+    _isRecording = false;
+    _voiceUnsupported = false;
     final blanks = _current.slots.where((s) => s == null).length;
     _blankFill = List<int?>.filled(blanks, null);
   }
@@ -313,9 +378,12 @@ class _StudyScreenState extends State<StudyScreen>
   String _assembledAnswer() {
     switch (_current.type) {
       case ExerciseType.chooseSpelling:
+      case ExerciseType.listenChoose:
         return _selectedChoice ?? '';
       case ExerciseType.typeWord:
         return _typingController.text.trim();
+      case ExerciseType.voiceRead:
+        return _voiceTranscript ?? '';
       case ExerciseType.missingLetters:
       case ExerciseType.buildWord:
         final buffer = StringBuffer();
@@ -338,9 +406,12 @@ class _StudyScreenState extends State<StudyScreen>
     if (_checked) return false;
     switch (_current.type) {
       case ExerciseType.chooseSpelling:
+      case ExerciseType.listenChoose:
         return _selectedChoice != null;
       case ExerciseType.typeWord:
         return _typingController.text.trim().isNotEmpty;
+      case ExerciseType.voiceRead:
+        return _voiceTranscript != null && _voiceTranscript!.isNotEmpty;
       case ExerciseType.missingLetters:
       case ExerciseType.buildWord:
         return !_blankFill.contains(null);
@@ -350,9 +421,38 @@ class _StudyScreenState extends State<StudyScreen>
   }
 
   void _check() {
-    final correct = _assembledAnswer().toLowerCase() ==
-        _current.word.text.toLowerCase();
+    final correct = _current.type == ExerciseType.voiceRead
+        // Speech-recognition transcripts can carry extra punctuation/noise
+        // around the character, so a lenient contains-check avoids
+        // penalizing a correct reading over transcription noise.
+        ? (_voiceTranscript ?? '').contains(_current.word.text)
+        : _assembledAnswer().toLowerCase() == _current.word.text.toLowerCase();
+    _applyResult(correct);
+  }
 
+  /// Handwriting trace has no auto-gradable input (no OCR) — the child
+  /// self-reports whether they wrote it correctly, and that feeds the same
+  /// reward/retry/SRS pipeline as an auto-graded answer.
+  void _selfGrade(bool gotIt) => _applyResult(gotIt);
+
+  Future<void> _recordVoiceAnswer() async {
+    setState(() {
+      _isRecording = true;
+      _voiceTranscript = null;
+    });
+    final result = await recognizeSpeech(lang: 'zh-CN');
+    if (!mounted) return;
+    setState(() {
+      _isRecording = false;
+      if (result == null) {
+        _voiceUnsupported = true;
+      } else {
+        _voiceTranscript = result;
+      }
+    });
+  }
+
+  void _applyResult(bool correct) {
     setState(() {
       _checked = true;
       _wasCorrect = correct;
@@ -371,9 +471,12 @@ class _StudyScreenState extends State<StudyScreen>
       } else {
         _weakWords.add(_current.word.text);
         // Missed word returns later with an easier exercise
+        final retryType = _isChineseWord(_current.word.text)
+            ? ExerciseType.listenChoose
+            : ExerciseType.chooseSpelling;
         _queue.add(_buildExercise(
           _current.word,
-          ExerciseType.chooseSpelling,
+          retryType,
           isRetry: true,
         ));
         _soundService.playIncorrectAnswer();
@@ -386,6 +489,11 @@ class _StudyScreenState extends State<StudyScreen>
         });
       }
     });
+
+    // Update spaced-repetition state on the backend so lesson mastery/stars
+    // (computed from ReviewState on next /lessons fetch) advance for real.
+    final quality = correct ? (_current.isRetry ? 3 : 5) : 1;
+    gameProvider.submitReview(_current.word.id, quality);
   }
 
   void _continue() {
@@ -404,8 +512,9 @@ class _StudyScreenState extends State<StudyScreen>
     setState(() => _phase = SessionPhase.complete);
     _celebrationController.forward(from: 0);
     Celebration.lessonComplete(context);
-    final accuracy = _totalWords == 0 ? 0.0 : _firstTryCorrect / _totalWords;
-    await gameProvider.completeLevel(widget.levelId, accuracy);
+    // Per-word /review calls already advanced ReviewState (and each earned
+    // a point); refresh the cached stats so points/streak reflect them.
+    await gameProvider.loadUserStats();
   }
 
   int get _stars {
@@ -548,6 +657,12 @@ class _StudyScreenState extends State<StudyScreen>
         return _buildLetterGame('Build the word you hear');
       case ExerciseType.typeWord:
         return _buildTypeWord();
+      case ExerciseType.listenChoose:
+        return _buildListenChoose();
+      case ExerciseType.handwriteTrace:
+        return _buildHandwriteTrace();
+      case ExerciseType.voiceRead:
+        return _buildVoiceRead();
     }
   }
 
@@ -753,6 +868,220 @@ class _StudyScreenState extends State<StudyScreen>
           ),
         ),
       ),
+    );
+  }
+
+  // --- Chinese: Listen & Choose (audio -> pick the matching character) ---
+
+  Widget _buildListenChoose() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Tap the character you hear',
+            style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.xxl),
+        Center(child: _buildAudioButton()),
+        SizedBox(height: DuolingoSpacing.sm),
+        Center(
+          child: Text(
+            'Tap to hear it again',
+            style: DuolingoTextStyles.label
+                .copyWith(color: DuolingoColors.bodyText),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.xxl),
+        Center(
+          child: Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            alignment: WrapAlignment.center,
+            children: _current.choices.map(_buildCharacterChoiceTile).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCharacterChoiceTile(String choice) {
+    final selected = _selectedChoice == choice;
+    final isCorrectChoice = choice == _current.word.text;
+
+    Color border = const Color(0xFFE5E5E5);
+    Color fill = DuolingoColors.backgroundWhite;
+    Color textColor = DuolingoColors.darkText;
+
+    if (_checked && isCorrectChoice) {
+      border = DuolingoColors.primaryGreen;
+      fill = const Color(0xFFD7FFB8);
+      textColor = const Color(0xFF58A700);
+    } else if (_checked && selected && !isCorrectChoice) {
+      border = DuolingoColors.mistakeRed;
+      fill = const Color(0xFFFFDFE0);
+      textColor = const Color(0xFFEA2B2B);
+    } else if (selected) {
+      border = DuolingoColors.informationBlue;
+      fill = const Color(0xFFDDF4FF);
+      textColor = const Color(0xFF1899D6);
+    }
+
+    return GestureDetector(
+      onTap: _checked ? null : () => setState(() => _selectedChoice = choice),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 130,
+        height: 100,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: fill,
+          border: Border.all(color: border, width: 2),
+          borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+          boxShadow: [
+            BoxShadow(
+              color: border.withOpacity(selected || _checked ? 0.4 : 1),
+              offset: const Offset(0, 3),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Text(
+          choice,
+          style: DuolingoTextStyles.cardTitle.copyWith(
+            color: textColor,
+            fontSize: 36,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Chinese: Handwriting trace (self-graded, no OCR) ---
+
+  Widget _buildHandwriteTrace() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Trace the character', style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.lg),
+        Center(child: _buildAudioButton(size: 56, iconSize: 28)),
+        SizedBox(height: DuolingoSpacing.lg),
+        Center(
+          child: Container(
+            width: 220,
+            height: 220,
+            decoration: BoxDecoration(
+              color: DuolingoColors.neutralGray,
+              border: Border.all(color: const Color(0xFFE5E5E5), width: 2),
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Text(
+                    _current.word.text,
+                    style: TextStyle(
+                      fontSize: 160,
+                      fontWeight: FontWeight.bold,
+                      color: DuolingoColors.darkText.withOpacity(0.15),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: HandwritingCanvas(
+                    key: ValueKey('trace-$_index-$_traceVersion'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.sm),
+        Center(
+          child: TextButton(
+            onPressed:
+                _checked ? null : () => setState(() => _traceVersion++),
+            child: Text(
+              'Clear',
+              style:
+                  DuolingoTextStyles.label.copyWith(color: DuolingoColors.bodyText),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Chinese: Voice input (read the character aloud) ---
+
+  Widget _buildVoiceRead() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Read it aloud', style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.xxl),
+        Center(
+          child: Text(
+            _current.word.text,
+            style: DuolingoTextStyles.pageTitle
+                .copyWith(fontSize: 72, color: DuolingoColors.darkText),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.xxl),
+        Center(
+          child: GestureDetector(
+            onTap: _checked || _isRecording ? null : _recordVoiceAnswer,
+            child: Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: _isRecording
+                    ? DuolingoColors.mistakeRed
+                    : DuolingoColors.informationBlue,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: _isRecording
+                        ? const Color(0xFFC22B2B)
+                        : const Color(0xFF1876BF),
+                    offset: const Offset(0, 4),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: Icon(_isRecording ? Icons.stop : Icons.mic,
+                  color: Colors.white, size: 40),
+            ),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.sm),
+        Center(
+          child: Text(
+            _isRecording
+                ? 'Listening...'
+                : (_voiceTranscript == null
+                    ? 'Tap the mic and say the word'
+                    : 'Heard: "$_voiceTranscript" — tap CHECK, or tap the mic to try again'),
+            textAlign: TextAlign.center,
+            style: DuolingoTextStyles.label
+                .copyWith(color: DuolingoColors.bodyText),
+          ),
+        ),
+        if (_voiceUnsupported) ...[
+          SizedBox(height: DuolingoSpacing.lg),
+          Center(
+            child: TextButton(
+              onPressed: _checked
+                  ? null
+                  : () => setState(() => _voiceTranscript = _current.word.text),
+              child: Text(
+                "Can't record? Tap here if you read it correctly",
+                textAlign: TextAlign.center,
+                style: DuolingoTextStyles.label
+                    .copyWith(color: DuolingoColors.informationBlue),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -966,6 +1295,41 @@ class _StudyScreenState extends State<StudyScreen>
           color: DuolingoColors.primaryGreen,
           shadowColor: const Color(0xFF58A700),
           onTap: _continue,
+        ),
+      );
+    }
+
+    // Handwriting trace has no auto-gradable input (no OCR) — the child
+    // self-reports instead of hitting a CHECK button.
+    if (_current.type == ExerciseType.handwriteTrace && !_checked) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(DuolingoSpacing.xl),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFE5E5E5), width: 2)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildBigButton(
+                label: 'NEED PRACTICE',
+                enabled: true,
+                color: DuolingoColors.secondaryButtonGray,
+                shadowColor: const Color(0xFFAAAAAA),
+                onTap: () => _selfGrade(false),
+              ),
+            ),
+            SizedBox(width: DuolingoSpacing.md),
+            Expanded(
+              child: _buildBigButton(
+                label: 'I WROTE IT!',
+                enabled: true,
+                color: DuolingoColors.primaryGreen,
+                shadowColor: const Color(0xFF58A700),
+                onTap: () => _selfGrade(true),
+              ),
+            ),
+          ],
         ),
       );
     }

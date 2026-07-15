@@ -6,7 +6,6 @@ import '../widgets/cards/journey_card.dart';
 import '../widgets/cards/treasure_chest_card.dart';
 import '../widgets/cards/boss_battle_card.dart';
 import '../widgets/cards/stat_card.dart';
-import 'lesson_overview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -204,13 +203,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     total: 10,
                     stars: 2,
                     onTap: () {
-                      Navigator.of(context).pushNamed(
-                        '/lesson-overview',
-                        arguments: const LessonOverviewArgs(
-                          levelId: 1,
-                          kingdom: KingdomTheme.english,
-                        ),
-                      );
+                      Navigator.of(context).pushNamed('/english-castle');
                     },
                   ),
                   SizedBox(height: DuolingoSpacing.lg),

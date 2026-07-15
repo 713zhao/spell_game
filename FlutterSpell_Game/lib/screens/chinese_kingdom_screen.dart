@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:spell_game/data/chinese_stages.dart';
 import 'package:spell_game/design_system/design_system.dart';
+import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/models/stage_data.dart';
 import 'package:spell_game/widgets/journey_path.dart';
+import '../main.dart' show gameProvider;
 import 'lesson_overview_screen.dart';
 
 /// SpellQuest Journey Selection (Duolingo-style winding path) for the
-/// Chinese Kingdom. Same [JourneyPath] widget as English Kingdom, themed
-/// with Forest/River/Mountain lesson nicknames.
+/// Chinese Kingdom. Same [JourneyPath] widget as English Kingdom, fed by
+/// lessons from the backend's `/lessons/{user}?subject=CN` endpoint (each
+/// lesson combines its ::read and ::write tag variants).
 class ChineseKingdomScreen extends StatefulWidget {
   const ChineseKingdomScreen({Key? key}) : super(key: key);
 
@@ -17,13 +19,24 @@ class ChineseKingdomScreen extends StatefulWidget {
 }
 
 class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
-  final List<StageData> stages = buildChineseStages();
   bool _allowSkipLock = true;
 
   @override
   void initState() {
     super.initState();
     _loadParentMode();
+    gameProvider.addListener(_onChanged);
+    gameProvider.loadLessons('CN');
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    gameProvider.removeListener(_onChanged);
+    super.dispose();
   }
 
   Future<void> _loadParentMode() async {
@@ -32,12 +45,27 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
     setState(() => _allowSkipLock = !(prefs.getBool('parent_mode') ?? false));
   }
 
+  List<LessonSummary> get _lessons => gameProvider.chineseLessons;
+
+  List<StageData> get _stages => [
+        for (var i = 0; i < _lessons.length; i++)
+          StageData(
+            stageNumber: i + 1,
+            title: _lessons[i].displayName,
+            progress: _lessons[i].masteryPct,
+            stars: _lessons[i].stars,
+            isLocked: _lessons[i].status == 'locked',
+          ),
+      ];
+
   void _openLesson(int stageNumber) {
+    final lesson = _lessons[stageNumber - 1];
     Navigator.pushNamed(
       context,
       '/lesson-overview',
       arguments: LessonOverviewArgs(
-        levelId: stageNumber,
+        lesson: lesson,
+        subject: 'CN',
         kingdom: KingdomTheme.chinese,
       ),
     );
@@ -97,14 +125,20 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
                 ),
               ),
               SizedBox(height: DuolingoSpacing.xl),
-              JourneyPath(
-                stages: stages,
-                kingdomEmoji: '🐉',
-                kingdomLabel: 'Kingdom',
-                gradientColors: DuolingoColors.chineseKingdomGradient,
-                allowSkipLock: _allowSkipLock,
-                onSelectLesson: _openLesson,
-              ),
+              if (_lessons.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                JourneyPath(
+                  stages: _stages,
+                  kingdomEmoji: '🐉',
+                  kingdomLabel: 'Kingdom',
+                  gradientColors: DuolingoColors.chineseKingdomGradient,
+                  allowSkipLock: _allowSkipLock,
+                  onSelectLesson: _openLesson,
+                ),
               SizedBox(height: DuolingoSpacing.xl),
             ],
           ),

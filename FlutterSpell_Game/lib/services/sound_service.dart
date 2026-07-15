@@ -43,11 +43,14 @@ class SoundService {
     _initTts();
   }
 
+  static final RegExp _chineseChar = RegExp(r'[一-鿿]');
+
   /// Initialize TTS settings
   Future<void> _initTts() async {
     if (_flutterTts == null) return;
     try {
-      // Set default language to English (US)
+      // Set default language to English (US); playWordPronunciation swaps
+      // to zh-CN per-utterance for Chinese text.
       await _flutterTts!.setLanguage("en-US");
       // Set speech rate (0.0 to 2.0, where 1.0 is normal)
       await _flutterTts!.setSpeechRate(0.5);
@@ -111,10 +114,14 @@ class SoundService {
     await _playSound('pop');
   }
 
-  /// Play word pronunciation using Text-to-Speech
+  /// Play word pronunciation using Text-to-Speech. Detects Chinese text and
+  /// switches the TTS voice to zh-CN first — an en-US voice silently
+  /// produces no audio for Chinese characters.
   Future<void> playWordPronunciation(String word) async {
     if (!_soundEnabled || !_ttsInitialized || _flutterTts == null) return;
     try {
+      final isChinese = _chineseChar.hasMatch(word);
+      await _flutterTts!.setLanguage(isChinese ? "zh-CN" : "en-US");
       await _flutterTts!.speak(word);
     } catch (e) {
       // TTS playback failed, but app continues gracefully

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spell_game/design_system/design_system.dart';
+import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/models/stage_data.dart';
 import 'package:spell_game/widgets/journey_path.dart';
+import '../main.dart' show gameProvider;
 import 'lesson_overview_screen.dart';
 
 /// SpellQuest Journey Selection (Duolingo-style winding path) for the
-/// English Kingdom. Renders the shared [JourneyPath] widget over this
-/// kingdom's stage data.
+/// English Kingdom. Renders the shared [JourneyPath] widget over lessons
+/// fetched from the backend's `/lessons/{user}?subject=EN` endpoint (built
+/// from the user's grade-matched Teacher/MOE tags).
 class EnglishCastleScreen extends StatefulWidget {
   const EnglishCastleScreen({Key? key}) : super(key: key);
 
@@ -16,46 +19,24 @@ class EnglishCastleScreen extends StatefulWidget {
 }
 
 class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
-  // Mock stage data
-  final List<StageData> stages = [
-    StageData(
-        stageNumber: 1,
-        title: 'Week 1: Vowels',
-        progress: 1.0,
-        stars: 3,
-        isLocked: false),
-    StageData(
-        stageNumber: 2,
-        title: 'Week 2: Consonants',
-        progress: 0.66,
-        stars: 2,
-        isLocked: false),
-    StageData(
-        stageNumber: 3,
-        title: 'Week 3: Blends',
-        progress: 0.33,
-        stars: 1,
-        isLocked: false),
-    StageData(
-        stageNumber: 4,
-        title: 'Week 4: Digraphs',
-        progress: 0.0,
-        stars: 0,
-        isLocked: true),
-    StageData(
-        stageNumber: 5,
-        title: 'Week 5: Review',
-        progress: 0.0,
-        stars: 0,
-        isLocked: true),
-  ];
-
   bool _allowSkipLock = true;
 
   @override
   void initState() {
     super.initState();
     _loadParentMode();
+    gameProvider.addListener(_onChanged);
+    gameProvider.loadLessons('EN');
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    gameProvider.removeListener(_onChanged);
+    super.dispose();
   }
 
   Future<void> _loadParentMode() async {
@@ -64,12 +45,27 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
     setState(() => _allowSkipLock = !(prefs.getBool('parent_mode') ?? false));
   }
 
+  List<LessonSummary> get _lessons => gameProvider.englishLessons;
+
+  List<StageData> get _stages => [
+        for (var i = 0; i < _lessons.length; i++)
+          StageData(
+            stageNumber: i + 1,
+            title: _lessons[i].displayName,
+            progress: _lessons[i].masteryPct,
+            stars: _lessons[i].stars,
+            isLocked: _lessons[i].status == 'locked',
+          ),
+      ];
+
   void _openLesson(int stageNumber) {
+    final lesson = _lessons[stageNumber - 1];
     Navigator.pushNamed(
       context,
       '/lesson-overview',
       arguments: LessonOverviewArgs(
-        levelId: stageNumber,
+        lesson: lesson,
+        subject: 'EN',
         kingdom: KingdomTheme.english,
       ),
     );
@@ -129,14 +125,20 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
                 ),
               ),
               SizedBox(height: DuolingoSpacing.xl),
-              JourneyPath(
-                stages: stages,
-                kingdomEmoji: '🏰',
-                kingdomLabel: 'Castle',
-                gradientColors: DuolingoColors.englishKingdomGradient,
-                allowSkipLock: _allowSkipLock,
-                onSelectLesson: _openLesson,
-              ),
+              if (_lessons.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                JourneyPath(
+                  stages: _stages,
+                  kingdomEmoji: '🏰',
+                  kingdomLabel: 'Castle',
+                  gradientColors: DuolingoColors.englishKingdomGradient,
+                  allowSkipLock: _allowSkipLock,
+                  onSelectLesson: _openLesson,
+                ),
               SizedBox(height: DuolingoSpacing.xl),
             ],
           ),
