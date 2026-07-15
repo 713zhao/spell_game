@@ -215,6 +215,11 @@ class _StudyScreenState extends State<StudyScreen>
   /// low mastery = recognition, mid = missing letters / building,
   /// high = full typing.
   ExerciseType _typeForMastery(int mastery, {required bool hasSentence}) {
+    // A word with usable sentence data always gets the typed Sentence
+    // Fill-in exercise instead of any letter-dragging exercise
+    // (missingLetters/buildWord), at every mastery tier - not just once
+    // a word reaches the highest tier.
+    if (hasSentence) return ExerciseType.sentenceBlank;
     if (mastery <= 1) {
       return _random.nextBool()
           ? ExerciseType.chooseSpelling
@@ -225,7 +230,6 @@ class _StudyScreenState extends State<StudyScreen>
           ? ExerciseType.missingLetters
           : ExerciseType.buildWord;
     }
-    if (hasSentence) return ExerciseType.sentenceBlank;
     return _random.nextBool()
         ? ExerciseType.typeWord
         : ExerciseType.buildWord;
