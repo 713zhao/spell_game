@@ -12,54 +12,58 @@ class AccountAvatarButton extends StatelessWidget {
   const AccountAvatarButton({super.key});
 
   static const double _size = DuolingoSpacing.miniTouchTarget;
+  static const double _initialFontSize = 18;
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<GameProvider>();
 
-    if (!provider.isLoggedIn) {
-      return Padding(
-        padding: EdgeInsets.only(right: DuolingoSpacing.md),
-        child: IconButton(
-          icon: Container(
-            width: _size,
-            height: _size,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: DuolingoColors.neutralGray,
-            ),
-            child: const Icon(
-              Icons.person_outline,
-              color: DuolingoColors.bodyText,
-            ),
-          ),
-          tooltip: 'Sign in',
-          onPressed: () => Navigator.of(context).pushNamed('/login'),
-        ),
-      );
-    }
+    return Padding(
+      padding: EdgeInsets.only(right: DuolingoSpacing.md),
+      child: provider.isLoggedIn
+          ? _buildLoggedInCircle(context, provider)
+          : _buildLoggedOutButton(context),
+    );
+  }
 
+  Widget _buildLoggedOutButton(BuildContext context) {
+    return IconButton(
+      icon: Container(
+        width: _size,
+        height: _size,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: DuolingoColors.neutralGray,
+        ),
+        child: const Icon(
+          Icons.person_outline,
+          color: DuolingoColors.bodyText,
+        ),
+      ),
+      tooltip: 'Sign in',
+      onPressed: () => Navigator.of(context).pushNamed('/login'),
+    );
+  }
+
+  Widget _buildLoggedInCircle(BuildContext context, GameProvider provider) {
     final initial =
         provider.userName.isNotEmpty ? provider.userName[0].toUpperCase() : '?';
 
-    return Padding(
-      padding: EdgeInsets.only(right: DuolingoSpacing.md),
-      child: GestureDetector(
-        onTap: () => _showAccountMenu(context),
-        child: Container(
-          width: _size,
-          height: _size,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: DuolingoColors.primaryGreen,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            initial,
-            style: DuolingoTextStyles.cardTitle.copyWith(
-              color: DuolingoColors.backgroundWhite,
-              fontSize: 18,
-            ),
+    return GestureDetector(
+      onTap: () => _showAccountMenu(context),
+      child: Container(
+        width: _size,
+        height: _size,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: DuolingoColors.primaryGreen,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          initial,
+          style: DuolingoTextStyles.cardTitle.copyWith(
+            color: DuolingoColors.backgroundWhite,
+            fontSize: _initialFontSize,
           ),
         ),
       ),
@@ -67,16 +71,19 @@ class AccountAvatarButton extends StatelessWidget {
   }
 
   Future<void> _showAccountMenu(BuildContext context) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final box = context.findRenderObject() as RenderBox;
-    final offset = box.localToGlobal(Offset.zero);
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset(0, box.size.height), ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
     final selection = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        offset.dx,
-        offset.dy + box.size.height,
-        offset.dx,
-        0,
-      ),
+      position: position,
       items: const [
         PopupMenuItem(value: 'profile', child: Text('View Profile')),
         PopupMenuItem(value: 'switch', child: Text('Switch User')),
