@@ -26,6 +26,32 @@ class ApiClient {
     await http.post(Uri.parse('$_baseUrl/users/$userName/login'));
   }
 
+  /// Creates a new account. Only [name] is required - the backend defaults
+  /// everything else. Throws with the backend's error detail on failure,
+  /// notably a 409 when the username is already taken.
+  Future<void> createUser({
+    required String name,
+    String? password,
+    String? grade,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name,
+        if (password != null && password.isNotEmpty) 'password': password,
+        if (grade != null && grade.isNotEmpty) 'grade': grade,
+      }),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String detail = 'Failed to create account';
+      try {
+        detail = jsonDecode(response.body)['detail'] as String? ?? detail;
+      } catch (_) {}
+      throw Exception(detail);
+    }
+  }
+
   /// Fetch the user's study deck (their real assigned words) including
   /// spaced-repetition state used for adaptive difficulty. When [tags] is
   /// given, the deck is scoped to those tags (joined for the backend to
