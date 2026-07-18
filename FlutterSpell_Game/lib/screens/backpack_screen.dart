@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:spell_game/design_system/design_system.dart';
 
 class BackpackScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
         backgroundColor: DuolingoColors.backgroundWhite,
         elevation: 0,
         centerTitle: true,
+        actions: const [AccountAvatarButton()],
       ),
       body: Column(
         children: [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:spell_game/design_system/design_system.dart';
 
 class ReviewCaveScreen extends StatelessWidget {
@@ -17,6 +18,7 @@ class ReviewCaveScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: DuolingoColors.darkText),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: const [AccountAvatarButton()],
       ),
       body: SingleChildScrollView(
         child: Padding(

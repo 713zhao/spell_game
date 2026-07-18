@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/account_avatar_button.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../models/game_models.dart';
@@ -110,6 +111,7 @@ class _RewardsShopScreenState extends State<RewardsShopScreen> {
       appBar: AppBar(
         title: const Text('Rewards Shop'),
         centerTitle: true,
+        actions: const [AccountAvatarButton()],
       ),
       body: Consumer<GameProvider>(
         builder: (context, provider, _) {

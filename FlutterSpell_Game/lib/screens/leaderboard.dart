@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/account_avatar_button.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../widgets/player_card.dart';
@@ -132,6 +133,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       appBar: AppBar(
         title: const Text('Leaderboard'),
         centerTitle: true,
+        actions: const [AccountAvatarButton()],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

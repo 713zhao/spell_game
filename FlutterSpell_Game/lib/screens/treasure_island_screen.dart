@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/account_avatar_button.dart';
 import '../widgets/celebration.dart';
 
 class Cosmetic {
@@ -93,6 +94,7 @@ class _TreasureIslandScreenState extends State<TreasureIslandScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: const [AccountAvatarButton()],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

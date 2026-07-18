@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:spell_game/design_system/design_system.dart';
 
 class ProgressScreen extends StatelessWidget {
@@ -13,6 +14,7 @@ class ProgressScreen extends StatelessWidget {
         backgroundColor: DuolingoColors.backgroundWhite,
         elevation: 0,
         centerTitle: true,
+        actions: const [AccountAvatarButton()],
       ),
       body: SingleChildScrollView(
         child: Padding(

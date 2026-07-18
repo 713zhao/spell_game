@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/account_avatar_button.dart';
 import '../design_system/design_system.dart';
 import '../main.dart' show gameProvider;
 import '../models/game_models.dart';
@@ -115,6 +116,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
           icon: const Icon(Icons.arrow_back, color: DuolingoColors.darkText),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: const [AccountAvatarButton()],
       ),
       body: SafeArea(
         child: Padding(

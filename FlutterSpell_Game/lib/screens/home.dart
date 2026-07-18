@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/account_avatar_button.dart';
 import '../design_system/design_system.dart';
 import '../widgets/celebration.dart';
 import '../main.dart' show gameProvider;
@@ -74,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         centerTitle: true,
         backgroundColor: DuolingoColors.backgroundWhite,
         elevation: 0,
+        actions: const [AccountAvatarButton()],
       ),
       body: Builder(
         builder: (context) {

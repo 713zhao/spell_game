@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/game_models.dart';
@@ -85,6 +86,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
           icon: const Icon(Icons.arrow_back, color: DuolingoColors.darkText),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: const [AccountAvatarButton()],
       ),
       body: SingleChildScrollView(
         child: Padding(
