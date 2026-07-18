@@ -119,7 +119,8 @@ class GameProvider extends ChangeNotifier {
   Future<void> restoreSession(String userName) async {
     await _onAuthenticated(userName);
     // Fire-and-forget: a failed streak-tracking call shouldn't block
-    // startup or undo an otherwise-valid restored session.
+    // startup or undo an otherwise-valid restored session. The error is
+    // intentionally swallowed here rather than surfaced via errorMessage.
     unawaited(apiClient.logLogin().catchError((_) {}));
   }
 
@@ -132,8 +133,9 @@ class GameProvider extends ChangeNotifier {
     String? grade,
   }) async {
     try {
+      await ApiClient(userName: name)
+          .createUser(name: name, password: password, grade: grade);
       init(name);
-      await apiClient.createUser(name: name, password: password, grade: grade);
       await _onAuthenticated(name);
       return true;
     } catch (e) {
