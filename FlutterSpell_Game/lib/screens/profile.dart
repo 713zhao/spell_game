@@ -6,6 +6,7 @@ import '../models/game_models.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/achievement_badge.dart';
 import '../services/sound_service.dart';
+import '../widgets/user_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -164,13 +165,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 16.0),
                       child: Column(
                         children: [
-                          // Avatar/Cosmetic Display
+                          // Avatar
                           Container(
-                            width: 80,
-                            height: 80,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white,
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.1),
@@ -178,11 +176,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ],
                             ),
-                            child: Center(
-                              child: Text(
-                                stats?.equippedCosmetic ?? '👤',
-                                style: const TextStyle(fontSize: 50),
-                              ),
+                            child: UserAvatar(
+                              name: username,
+                              size: 80,
+                              cosmeticEmoji: stats?.equippedCosmetic,
                             ),
                           ),
                           const SizedBox(height: 12),
