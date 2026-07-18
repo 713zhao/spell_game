@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/game_models.dart';
@@ -15,6 +16,7 @@ class GameProvider extends ChangeNotifier {
   List<LessonSummary> englishLessons = [];
   List<LessonSummary> chineseLessons = [];
   bool isLoggedIn = false;
+  List<String> recentUsers = [];
 
   List<Word> get deckWords => deckCards.map((c) => c.word).toList();
   Level? currentLevel;
@@ -58,20 +60,109 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Login with password verification, then record the login event.
+  /// Login with password verification, then record the login event and
+  /// persist the session (see [_onAuthenticated]).
   Future<bool> login(String password) async {
     try {
-      isLoggedIn = await apiClient.verifyPassword(password);
-      if (isLoggedIn) {
+      final verified = await apiClient.verifyPassword(password);
+      isLoggedIn = verified;
+      if (verified) {
+        await _onAuthenticated(_userName);
         await apiClient.logLogin();
       }
       notifyListeners();
-      return isLoggedIn;
+      return verified;
     } catch (e) {
       errorMessage = 'Login failed: $e';
       notifyListeners();
       return false;
     }
+  }
+
+  /// Loads the up-to-5 most-recently-used usernames on this device, most
+  /// recent first, for the login screen's quick-pick list.
+  Future<void> loadRecentUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    recentUsers = prefs.getStringList('recent_users') ?? [];
+    notifyListeners();
+  }
+
+  Future<void> _addRecentUser(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getStringList('recent_users') ?? [];
+    existing.remove(name);
+    existing.insert(0, name);
+    final trimmed = existing.take(5).toList();
+    await prefs.setStringList('recent_users', trimmed);
+    recentUsers = trimmed;
+  }
+
+  Future<void> _persistSession(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_user', name);
+  }
+
+  /// Marks the current user as authenticated: persists the session so the
+  /// next app open restores it automatically, and records the username for
+  /// the login screen's quick-pick list. Shared by [login], [signup], and
+  /// [restoreSession] so all three authentication paths stay in sync.
+  Future<void> _onAuthenticated(String name) async {
+    isLoggedIn = true;
+    await _persistSession(name);
+    await _addRecentUser(name);
+    notifyListeners();
+  }
+
+  /// Restores a session persisted from a previous app open. Trusts the
+  /// stored username without re-verifying a password (none is stored
+  /// client-side) - [init] must be called with the same name first.
+  Future<void> restoreSession(String userName) async {
+    await _onAuthenticated(userName);
+    // Fire-and-forget: a failed streak-tracking call shouldn't block
+    // startup or undo an otherwise-valid restored session.
+    unawaited(apiClient.logLogin().catchError((_) {}));
+  }
+
+  /// Creates a new account, then signs it in. Returns false (with
+  /// [errorMessage] set) on failure - most commonly a 409 because the
+  /// username is already taken.
+  Future<bool> signup({
+    required String name,
+    String? password,
+    String? grade,
+  }) async {
+    try {
+      init(name);
+      await apiClient.createUser(name: name, password: password, grade: grade);
+      await _onAuthenticated(name);
+      return true;
+    } catch (e) {
+      errorMessage = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Ends the current session: clears cached per-user data so a new user's
+  /// screens never flash the previous user's data, and forgets the
+  /// persisted session (but keeps the recent-users list - that's "who's
+  /// used this browser," independent of who's currently signed in).
+  Future<void> logout() async {
+    isLoggedIn = false;
+    levels = [];
+    deckCards = [];
+    englishLessons = [];
+    chineseLessons = [];
+    currentLevel = null;
+    currentProgress = null;
+    userStats = null;
+    unlockables = [];
+    leaderboard = [];
+    challenges = [];
+    errorMessage = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('last_user');
+    notifyListeners();
   }
 
   /// Load the user's real word deck from the backend, optionally scoped to

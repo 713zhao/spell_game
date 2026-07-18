@@ -30,6 +30,9 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
   bool isLoggedIn = false;
 
   @override
+  List<String> recentUsers = [];
+
+  @override
   Level? currentLevel;
 
   @override
@@ -68,6 +71,18 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
 
   @override
   Future<bool> login(String password) async => true;
+
+  @override
+  Future<bool> signup({required String name, String? password, String? grade}) async => true;
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<void> restoreSession(String userName) async {}
+
+  @override
+  Future<void> loadRecentUsers() async {}
 
   @override
   Future<void> loadDeck({List<String>? tags}) async {}
