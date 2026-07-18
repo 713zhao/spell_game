@@ -138,6 +138,22 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
     notifyListeners();
   }
 
+  bool loginQuickCalled = false;
+  String? lastLoginQuickName;
+  bool loginQuickResult = false;
+
+  @override
+  Future<bool> loginQuick(String name) async {
+    loginQuickCalled = true;
+    lastLoginQuickName = name;
+    if (loginQuickResult) {
+      _userName = name;
+      isLoggedIn = true;
+    }
+    notifyListeners();
+    return loginQuickResult;
+  }
+
   @override
   Future<void> loadDeck({List<String>? tags}) async {}
 

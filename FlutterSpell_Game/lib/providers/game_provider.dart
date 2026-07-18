@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/game_models.dart';
@@ -68,6 +69,7 @@ class GameProvider extends ChangeNotifier {
       isLoggedIn = verified;
       if (verified) {
         await _onAuthenticated(_userName);
+        await _savePassword(_userName, password);
         await apiClient.logLogin();
       }
       notifyListeners();
@@ -95,6 +97,46 @@ class GameProvider extends ChangeNotifier {
     final trimmed = existing.take(5).toList();
     await prefs.setStringList('recent_users', trimmed);
     recentUsers = trimmed;
+
+    // Evict saved passwords for anyone who fell out of the trimmed list,
+    // so storage doesn't grow unbounded for names no longer reachable
+    // from the quick-pick list.
+    final saved = _readSavedPasswords(prefs);
+    saved.removeWhere((key, _) => !trimmed.contains(key));
+    await prefs.setString('saved_passwords', jsonEncode(saved));
+  }
+
+  Map<String, String> _readSavedPasswords(SharedPreferences prefs) {
+    final raw = prefs.getString('saved_passwords');
+    if (raw == null) return {};
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    return decoded.map((key, value) => MapEntry(key, value as String));
+  }
+
+  Future<void> _savePassword(String name, String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = _readSavedPasswords(prefs);
+    saved[name] = password;
+    await prefs.setString('saved_passwords', jsonEncode(saved));
+  }
+
+  Future<String?> _getSavedPassword(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    return _readSavedPasswords(prefs)[name];
+  }
+
+  /// Attempts to log in [name] using a password saved locally from a
+  /// previous successful login/signup (see [_savePassword]). Returns
+  /// false without any network call if there's no saved password - the
+  /// caller (the login screen's quick-pick) should fall back to asking
+  /// for one manually. A saved-but-now-stale password (e.g. changed via
+  /// the admin panel) is caught the same way a manually-typed wrong
+  /// password is, via the real verification inside [login].
+  Future<bool> loginQuick(String name) async {
+    final saved = await _getSavedPassword(name);
+    if (saved == null) return false;
+    init(name);
+    return await login(saved);
   }
 
   Future<void> _persistSession(String name) async {
@@ -137,6 +179,9 @@ class GameProvider extends ChangeNotifier {
           .createUser(name: name, password: password, grade: grade);
       init(name);
       await _onAuthenticated(name);
+      if (password != null && password.isNotEmpty) {
+        await _savePassword(name, password);
+      }
       return true;
     } catch (e) {
       errorMessage = e.toString().replaceFirst('Exception: ', '');

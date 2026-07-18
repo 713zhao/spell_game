@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/providers/game_provider.dart';
@@ -95,6 +96,37 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('last_user'), isNull);
       expect(prefs.getStringList('recent_users'), ['ERIC']);
+    });
+
+    test('loginQuick returns false and does not touch identity when there is no saved password',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = GameProvider();
+      provider.init('ERIC');
+
+      final result = await provider.loginQuick('HELLEN');
+
+      expect(result, false);
+      expect(provider.userName, 'ERIC');
+    });
+
+    test('recent-user eviction also removes the evicted name\'s saved password',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'recent_users': ['A', 'B', 'C', 'D', 'E'],
+        'saved_passwords': '{"A":"pwA","B":"pwB","C":"pwC","D":"pwD","E":"pwE"}',
+      });
+      final provider = GameProvider();
+      provider.init('F');
+
+      await provider.restoreSession('F');
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('recent_users'), ['F', 'A', 'B', 'C', 'D']);
+      final saved =
+          jsonDecode(prefs.getString('saved_passwords')!) as Map<String, dynamic>;
+      expect(saved.containsKey('E'), false);
+      expect(saved.containsKey('A'), true);
     });
   });
 }
