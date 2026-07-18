@@ -25,12 +25,19 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _checkSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastUser = prefs.getString('last_user');
-    if (lastUser != null && lastUser.isNotEmpty) {
-      gameProvider.init(lastUser);
-      await gameProvider.restoreSession(lastUser);
-      _restoredUser = lastUser;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastUser = prefs.getString('last_user');
+      if (lastUser != null && lastUser.isNotEmpty) {
+        gameProvider.init(lastUser);
+        await gameProvider.restoreSession(lastUser);
+        _restoredUser = lastUser;
+      }
+    } catch (_) {
+      // If restoring the session fails for any reason, fall through to
+      // the login screen rather than leaving the user stuck on the
+      // loading spinner forever.
+      _restoredUser = null;
     }
     if (!mounted) return;
     setState(() => _checking = false);
