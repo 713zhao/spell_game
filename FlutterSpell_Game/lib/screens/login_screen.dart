@@ -154,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: recentUsers.map((name) {
                   final selected = _selectedRecentUser == name;
                   return GestureDetector(
-                    onTap: () => _quickLogin(name),
+                    onTap: _isSubmitting ? null : () => _quickLogin(name),
                     child: Column(
                       children: [
                         Container(
