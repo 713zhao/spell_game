@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
+import 'screens/auth_gate.dart';
 import 'screens/home.dart';
+import 'screens/login_screen.dart';
+import 'screens/signup_screen.dart';
 import 'screens/study.dart';
 import 'screens/rewards_shop.dart';
 import 'screens/leaderboard.dart';
@@ -22,9 +25,6 @@ final gameProvider = GameProvider();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  gameProvider.init('ERIC');
-  // Login to backend (fire-and-forget; screens react via notifyListeners)
-  gameProvider.login('123');
   runApp(const MyApp());
 }
 
@@ -41,13 +41,21 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.blue,
           useMaterial3: true,
         ),
-        home: const HomeScreen(userName: 'ERIC'),
+        home: const AuthGate(),
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/':
             case '/home':
               return MaterialPageRoute(
-                builder: (context) => const HomeScreen(userName: 'ERIC'),
+                builder: (context) => HomeScreen(userName: gameProvider.userName),
+              );
+            case '/login':
+              return MaterialPageRoute(
+                builder: (context) => const LoginScreen(),
+              );
+            case '/signup':
+              return MaterialPageRoute(
+                builder: (context) => const SignupScreen(),
               );
             case '/world-map':
               return MaterialPageRoute(
