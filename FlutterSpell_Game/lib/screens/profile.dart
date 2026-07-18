@@ -92,9 +92,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.of(context).pushReplacementNamed('/');
+              await context.read<GameProvider>().logout();
+              if (!mounted) return;
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/login', (route) => false);
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),
