@@ -256,16 +256,32 @@ class _JourneyPathState extends State<JourneyPath>
         top: center.dy + _nodeSize / 2 + 6,
         left: (center.dx - 70).clamp(0, width - 140),
         width: 140,
-        child: Text(
-          stage.title,
-          textAlign: TextAlign.center,
-          style: DuolingoTextStyles.label.copyWith(
-            color: state == NodeState.locked
-                ? DuolingoColors.bodyText.withOpacity(0.5)
-                : DuolingoColors.darkText,
-            fontWeight:
-                state == NodeState.current ? FontWeight.bold : FontWeight.w600,
-          ),
+        child: Column(
+          children: [
+            Text(
+              stage.title,
+              textAlign: TextAlign.center,
+              style: DuolingoTextStyles.label.copyWith(
+                color: state == NodeState.locked
+                    ? DuolingoColors.bodyText.withOpacity(0.5)
+                    : DuolingoColors.darkText,
+                fontWeight: state == NodeState.current
+                    ? FontWeight.bold
+                    : FontWeight.w600,
+              ),
+            ),
+            if (stage.spellDate != null && stage.spellDate!.isNotEmpty)
+              Text(
+                stage.spellDate!,
+                textAlign: TextAlign.center,
+                style: DuolingoTextStyles.label.copyWith(
+                  fontSize: 11,
+                  color: DuolingoColors.bodyText.withOpacity(
+                    state == NodeState.locked ? 0.4 : 0.8,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     ];

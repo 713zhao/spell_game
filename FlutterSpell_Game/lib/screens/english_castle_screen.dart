@@ -55,6 +55,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
             progress: _lessons[i].masteryPct,
             stars: _lessons[i].stars,
             isLocked: _lessons[i].status == 'locked',
+            spellDate: _lessons[i].spellDate,
           ),
       ];
 

@@ -55,6 +55,7 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
             progress: _lessons[i].masteryPct,
             stars: _lessons[i].stars,
             isLocked: _lessons[i].status == 'locked',
+            spellDate: _lessons[i].spellDate,
           ),
       ];
 

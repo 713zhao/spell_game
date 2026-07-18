@@ -5,6 +5,7 @@ class StageData {
   final double progress; // 0.0 to 1.0
   final int stars; // 0 to 3
   bool isLocked;
+  final String? spellDate; // raw text, e.g. "七月十四日"; null when unset
 
   StageData({
     required this.stageNumber,
@@ -12,6 +13,7 @@ class StageData {
     required this.progress,
     required this.stars,
     required this.isLocked,
+    this.spellDate,
   });
 }
 

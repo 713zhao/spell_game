@@ -168,6 +168,7 @@ class LessonSummary {
   final double masteryPct;
   final int stars;
   final String status; // completed | current | locked
+  final String? spellDate; // raw text, e.g. "七月十四日"; null when unset
 
   LessonSummary({
     required this.lessonKey,
@@ -179,6 +180,7 @@ class LessonSummary {
     required this.masteryPct,
     required this.stars,
     required this.status,
+    this.spellDate,
   });
 
   factory LessonSummary.fromJson(Map<String, dynamic> json) => LessonSummary(
@@ -191,6 +193,7 @@ class LessonSummary {
         masteryPct: (json['mastery_pct'] as num).toDouble(),
         stars: json['stars'] as int,
         status: json['status'] as String,
+        spellDate: json['spell_date'] as String?,
       );
 }
 
