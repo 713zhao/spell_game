@@ -21,13 +21,20 @@ class EnglishCastleScreen extends StatefulWidget {
 
 class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
   bool _allowSkipLock = true;
+  bool _loadingLessons = true;
 
   @override
   void initState() {
     super.initState();
     _loadParentMode();
     gameProvider.addListener(_onChanged);
-    gameProvider.loadLessons('EN');
+    _loadLessons();
+  }
+
+  Future<void> _loadLessons() async {
+    await gameProvider.loadLessons('EN');
+    if (!mounted) return;
+    setState(() => _loadingLessons = false);
   }
 
   void _onChanged() {
@@ -128,10 +135,21 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
                 ),
               ),
               SizedBox(height: DuolingoSpacing.xl),
-              if (_lessons.isEmpty)
+              if (_loadingLessons)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
                   child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_lessons.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text(
+                      'No lessons assigned yet.\nCheck back soon!',
+                      textAlign: TextAlign.center,
+                      style: DuolingoTextStyles.body,
+                    ),
+                  ),
                 )
               else
                 JourneyPath(
