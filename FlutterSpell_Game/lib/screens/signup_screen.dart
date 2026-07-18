@@ -54,54 +54,90 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: DuolingoColors.neutralGray,
+      contentPadding: EdgeInsets.all(DuolingoSpacing.lg),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+        borderSide:
+            const BorderSide(color: DuolingoColors.informationBlue, width: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
       appBar: AppBar(
-        title: Text('Sign Up', style: DuolingoTextStyles.pageTitle),
         backgroundColor: DuolingoColors.backgroundWhite,
         elevation: 0,
-        centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(DuolingoSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Center(child: Text('🎒', style: TextStyle(fontSize: 64))),
+            SizedBox(height: DuolingoSpacing.md),
+            Text(
+              'Create Your Account',
+              textAlign: TextAlign.center,
+              style: DuolingoTextStyles.pageTitle,
+            ),
+            SizedBox(height: DuolingoSpacing.xxl),
             TextField(
               controller: _usernameController,
-              decoration: InputDecoration(
-                labelText: 'Username',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
-                ),
-              ),
+              decoration: _inputDecoration('Username'),
             ),
             SizedBox(height: DuolingoSpacing.lg),
             TextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Password (optional)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
-                ),
-              ),
+              decoration: _inputDecoration('Password (optional)'),
             ),
             SizedBox(height: DuolingoSpacing.lg),
-            DropdownButtonFormField<String>(
-              value: _selectedGrade,
-              decoration: InputDecoration(
-                labelText: 'Grade (optional)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
-                ),
-              ),
-              items: _grades
-                  .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                  .toList(),
-              onChanged: (value) => setState(() => _selectedGrade = value),
+            Text('Grade (optional)', style: DuolingoTextStyles.sectionTitle),
+            SizedBox(height: DuolingoSpacing.sm),
+            Wrap(
+              spacing: DuolingoSpacing.sm,
+              runSpacing: DuolingoSpacing.sm,
+              children: _grades.map((grade) {
+                final selected = _selectedGrade == grade;
+                return GestureDetector(
+                  onTap: () => setState(
+                    () => _selectedGrade = selected ? null : grade,
+                  ),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: DuolingoSpacing.lg,
+                      vertical: DuolingoSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? DuolingoColors.primaryGreen
+                          : DuolingoColors.neutralGray,
+                      borderRadius:
+                          BorderRadius.circular(DuolingoSpacing.radiusButton),
+                    ),
+                    child: Text(
+                      grade,
+                      style: DuolingoTextStyles.cardTitle.copyWith(
+                        color: selected
+                            ? DuolingoColors.backgroundWhite
+                            : DuolingoColors.darkText,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
             SizedBox(height: DuolingoSpacing.xl),
             ElevatedButton(
@@ -112,6 +148,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
                 ),
+                elevation: 0,
               ),
               child: _isSubmitting
                   ? const SizedBox(
@@ -120,7 +157,11 @@ class _SignupScreenState extends State<SignupScreen> {
                       child:
                           CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Create Account'),
+                  : Text(
+                      'Create Account',
+                      style:
+                          DuolingoTextStyles.cardTitle.copyWith(color: Colors.white),
+                    ),
             ),
             if (_errorText != null) ...[
               SizedBox(height: DuolingoSpacing.lg),
