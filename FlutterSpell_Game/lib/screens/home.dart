@@ -7,6 +7,7 @@ import '../widgets/cards/journey_card.dart';
 import '../widgets/cards/treasure_chest_card.dart';
 import '../widgets/cards/boss_battle_card.dart';
 import '../widgets/cards/stat_card.dart';
+import '../utils/kingdom_progress.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -30,6 +31,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       gameProvider.loadLevels();
       gameProvider.loadUserStats();
+      gameProvider.loadLessons('EN');
+      gameProvider.loadLessons('CN');
     });
   }
 
@@ -93,6 +96,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final coins = 85;
           final gems = 12;
           final userName = gameProvider.userName;
+          final englishProgress =
+              summarizeKingdomProgress(gameProvider.englishLessons);
+          final chineseProgress =
+              summarizeKingdomProgress(gameProvider.chineseLessons);
 
           // Check if weak words exist for boss battle
           final hasWeakWords = gameProvider.userStats?.accuracy != null &&
@@ -200,10 +207,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     kingdom: 'english',
                     icon: '🏰',
                     label: 'English Kingdom',
-                    current: 'Stage 5',
-                    completed: 8,
-                    total: 10,
-                    stars: 2,
+                    current: englishProgress.current,
+                    completed: englishProgress.completed,
+                    total: englishProgress.total,
+                    stars: englishProgress.stars,
                     onTap: () {
                       Navigator.of(context).pushNamed('/english-castle');
                     },
@@ -215,10 +222,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     kingdom: 'chinese',
                     icon: '🐉',
                     label: 'Chinese Kingdom',
-                    current: 'Forest Stage 7',
-                    completed: 7,
-                    total: 10,
-                    stars: 2,
+                    current: chineseProgress.current,
+                    completed: chineseProgress.completed,
+                    total: chineseProgress.total,
+                    stars: chineseProgress.stars,
                     onTap: () {
                       Navigator.of(context).pushNamed('/chinese-kingdom');
                     },

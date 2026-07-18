@@ -93,7 +93,7 @@ class JourneyCard extends StatelessWidget {
               ),
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
-                widthFactor: completed / total,
+                widthFactor: total > 0 ? completed / total : 0.0,
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
