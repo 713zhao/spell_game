@@ -83,4 +83,38 @@ void main() {
     expect(find.text('Incorrect username or password'), findsOneWidget);
     expect(find.text('Home Screen'), findsNothing);
   });
+
+  testWidgets(
+      'tapping a quick-pick avatar with a saved password logs in immediately',
+      (tester) async {
+    final provider = FakeGameProvider();
+    provider.recentUsers = ['ERIC'];
+    provider.loginQuickResult = true;
+
+    await tester.pumpWidget(wrap(provider));
+    await tester.pump();
+    await tester.tap(find.text('ERIC'));
+    await tester.pumpAndSettle();
+
+    expect(provider.loginQuickCalled, true);
+    expect(provider.lastLoginQuickName, 'ERIC');
+    expect(find.text('Home Screen'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping a quick-pick avatar with no saved password falls back to a password field',
+      (tester) async {
+    final provider = FakeGameProvider();
+    provider.recentUsers = ['ERIC'];
+    provider.loginQuickResult = false;
+
+    await tester.pumpWidget(wrap(provider));
+    await tester.pump();
+    await tester.tap(find.text('ERIC'));
+    await tester.pumpAndSettle();
+
+    expect(provider.loginQuickCalled, true);
+    expect(find.text('Home Screen'), findsNothing);
+    expect(find.widgetWithText(TextField, 'Password for ERIC'), findsOneWidget);
+  });
 }

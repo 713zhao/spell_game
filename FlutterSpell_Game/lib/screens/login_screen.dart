@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../design_system/design_system.dart';
 import '../providers/game_provider.dart';
+import '../widgets/user_avatar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,6 +37,24 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// Tapping a quick-pick avatar tries to log in immediately using a
+  /// locally-saved password (see GameProvider.loginQuick). If there's no
+  /// saved password, or it's stale, this falls back to showing a
+  /// password field for that user instead of a dead end.
+  Future<void> _quickLogin(String name) async {
+    setState(() {
+      _selectedRecentUser = name;
+      _isSubmitting = true;
+      _errorText = null;
+    });
+    final ok = await context.read<GameProvider>().loginQuick(name);
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+    if (ok) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+    }
+  }
+
   Future<void> _submit(String name, String password) async {
     if (name.isEmpty) {
       setState(() => _errorText = 'Enter a username');
@@ -57,6 +76,51 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: DuolingoColors.neutralGray,
+      contentPadding: EdgeInsets.all(DuolingoSpacing.lg),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+        borderSide:
+            const BorderSide(color: DuolingoColors.informationBlue, width: 2),
+      ),
+    );
+  }
+
+  Widget _primaryButton({
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: DuolingoColors.primaryGreen,
+        padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.lg),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+        ),
+        elevation: 0,
+      ),
+      child: _isSubmitting
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+          : Text(
+              label,
+              style: DuolingoTextStyles.cardTitle.copyWith(color: Colors.white),
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final recentUsers = context.watch<GameProvider>().recentUsers;
@@ -65,16 +129,22 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
       appBar: AppBar(
-        title: Text('Welcome Back', style: DuolingoTextStyles.pageTitle),
         backgroundColor: DuolingoColors.backgroundWhite,
         elevation: 0,
-        centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(DuolingoSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Center(child: Text('🐕', style: TextStyle(fontSize: 64))),
+            SizedBox(height: DuolingoSpacing.md),
+            Text(
+              'Welcome Back!',
+              textAlign: TextAlign.center,
+              style: DuolingoTextStyles.pageTitle,
+            ),
+            SizedBox(height: DuolingoSpacing.xxl),
             if (showQuickPick) ...[
               Text("Who's playing?", style: DuolingoTextStyles.sectionTitle),
               SizedBox(height: DuolingoSpacing.lg),
@@ -84,36 +154,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: recentUsers.map((name) {
                   final selected = _selectedRecentUser == name;
                   return GestureDetector(
-                    onTap: () => setState(() {
-                      _selectedRecentUser = name;
-                      _errorText = null;
-                    }),
+                    onTap: () => _quickLogin(name),
                     child: Column(
                       children: [
                         Container(
-                          width: 56,
-                          height: 56,
+                          padding: const EdgeInsets.all(3),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: selected
-                                ? DuolingoColors.primaryGreen
-                                : DuolingoColors.neutralGray,
                             border: selected
                                 ? Border.all(
-                                    color: DuolingoColors.primaryGreenLight,
-                                    width: 3)
+                                    color: DuolingoColors.primaryGreen, width: 3)
                                 : null,
+                            boxShadow: DuolingoShadows.cardShadow,
                           ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: DuolingoTextStyles.cardTitle.copyWith(
-                              color: selected
-                                  ? DuolingoColors.backgroundWhite
-                                  : DuolingoColors.darkText,
-                              fontSize: 20,
-                            ),
-                          ),
+                          child: UserAvatar(name: name, size: 64),
                         ),
                         SizedBox(height: DuolingoSpacing.xs),
                         Text(name, style: DuolingoTextStyles.label),
@@ -124,45 +178,29 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               if (_selectedRecentUser != null) ...[
                 SizedBox(height: DuolingoSpacing.xl),
+                Text(
+                  'Enter your password to continue',
+                  style: DuolingoTextStyles.body,
+                ),
+                SizedBox(height: DuolingoSpacing.sm),
                 TextField(
                   controller: _quickPickPasswordController,
                   obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Password for $_selectedRecentUser',
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(DuolingoSpacing.radiusButton),
-                    ),
-                  ),
+                  decoration: _inputDecoration('Password for $_selectedRecentUser'),
                   onSubmitted: (_) => _submit(
                     _selectedRecentUser!,
                     _quickPickPasswordController.text,
                   ),
                 ),
                 SizedBox(height: DuolingoSpacing.lg),
-                ElevatedButton(
+                _primaryButton(
+                  label: 'Log In',
                   onPressed: _isSubmitting
                       ? null
                       : () => _submit(
                             _selectedRecentUser!,
                             _quickPickPasswordController.text,
                           ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: DuolingoColors.primaryGreen,
-                    padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.lg),
-                    shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(DuolingoSpacing.radiusButton),
-                    ),
-                  ),
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('Log In'),
                 ),
               ],
               SizedBox(height: DuolingoSpacing.lg),
@@ -179,54 +217,27 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: DuolingoSpacing.lg),
               TextField(
                 controller: _usernameController,
-                decoration: InputDecoration(
-                  labelText: 'Username',
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(DuolingoSpacing.radiusButton),
-                  ),
-                ),
+                decoration: _inputDecoration('Username'),
               ),
               SizedBox(height: DuolingoSpacing.lg),
               TextField(
                 controller: _manualPasswordController,
                 obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(DuolingoSpacing.radiusButton),
-                  ),
-                ),
+                decoration: _inputDecoration('Password'),
                 onSubmitted: (_) => _submit(
                   _usernameController.text.trim(),
                   _manualPasswordController.text,
                 ),
               ),
               SizedBox(height: DuolingoSpacing.lg),
-              ElevatedButton(
+              _primaryButton(
+                label: 'Log In',
                 onPressed: _isSubmitting
                     ? null
                     : () => _submit(
                           _usernameController.text.trim(),
                           _manualPasswordController.text,
                         ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: DuolingoColors.primaryGreen,
-                  padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.lg),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(DuolingoSpacing.radiusButton),
-                  ),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Log In'),
               ),
               if (recentUsers.isNotEmpty) ...[
                 SizedBox(height: DuolingoSpacing.lg),
@@ -249,9 +260,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
             SizedBox(height: DuolingoSpacing.xxl),
-            TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/signup'),
-              child: const Text('New here? Sign Up'),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pushNamed('/signup'),
+                child: Text(
+                  'New here? Sign Up',
+                  style: DuolingoTextStyles.cardTitle
+                      .copyWith(color: DuolingoColors.informationBlue),
+                ),
+              ),
             ),
           ],
         ),
