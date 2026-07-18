@@ -61,6 +61,20 @@ void main() {
       expect(provider.recentUsers, ['ERIC', 'HELLEN']);
     });
 
+    test('loginAsGuest sets userName to GUEST without marking isLoggedIn or persisting a session',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = GameProvider();
+
+      await provider.loginAsGuest();
+
+      expect(provider.userName, 'GUEST');
+      expect(provider.isLoggedIn, false);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('last_user'), isNull);
+      expect(prefs.getStringList('recent_users'), isNull);
+    });
+
     test('logout clears session and cached data but keeps recent_users',
         () async {
       SharedPreferences.setMockInitialValues({

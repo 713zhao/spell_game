@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show gameProvider;
 import 'home.dart';
-import 'login_screen.dart';
 
 /// Startup gate: silently restores a previously-persisted session (see
 /// GameProvider.restoreSession) if one exists on this device, otherwise
-/// shows the login screen. Replaces the old hardcoded-ERIC startup.
+/// enters as Guest (see GameProvider.loginAsGuest) so Home is always the
+/// default screen - never a forced login. The account button on Home
+/// (and every other main screen) is how a Guest actually signs in.
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
@@ -16,7 +17,7 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   bool _checking = true;
-  String? _restoredUser;
+  String _homeUser = 'GUEST';
 
   @override
   void initState() {
@@ -31,13 +32,20 @@ class _AuthGateState extends State<AuthGate> {
       if (lastUser != null && lastUser.isNotEmpty) {
         gameProvider.init(lastUser);
         await gameProvider.restoreSession(lastUser);
-        _restoredUser = lastUser;
+        _homeUser = lastUser;
+      } else {
+        await gameProvider.loginAsGuest();
       }
     } catch (_) {
-      // If restoring the session fails for any reason, fall through to
-      // the login screen rather than leaving the user stuck on the
-      // loading spinner forever.
-      _restoredUser = null;
+      // Restoring the previous session (or setting up Guest) failed for
+      // some reason - fall back to Guest either way, so the user always
+      // lands on Home instead of being stuck on the loading spinner.
+      try {
+        await gameProvider.loginAsGuest();
+      } catch (_) {
+        // Even Guest setup failed (e.g. backend unreachable) - still show
+        // Home; its own data loads will surface the underlying error.
+      }
     }
     if (!mounted) return;
     setState(() => _checking = false);
@@ -48,9 +56,6 @@ class _AuthGateState extends State<AuthGate> {
     if (_checking) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_restoredUser != null) {
-      return HomeScreen(userName: _restoredUser!);
-    }
-    return const LoginScreen();
+    return HomeScreen(userName: _homeUser);
   }
 }

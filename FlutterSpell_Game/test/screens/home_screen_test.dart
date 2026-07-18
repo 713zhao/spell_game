@@ -85,6 +85,9 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
   Future<void> loadRecentUsers() async {}
 
   @override
+  Future<void> loginAsGuest() async {}
+
+  @override
   Future<void> loadDeck({List<String>? tags}) async {}
 
   @override

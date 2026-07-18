@@ -128,6 +128,16 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
     notifyListeners();
   }
 
+  bool loginAsGuestCalled = false;
+
+  @override
+  Future<void> loginAsGuest() async {
+    loginAsGuestCalled = true;
+    _userName = 'GUEST';
+    isLoggedIn = false;
+    notifyListeners();
+  }
+
   @override
   Future<void> loadDeck({List<String>? tags}) async {}
 

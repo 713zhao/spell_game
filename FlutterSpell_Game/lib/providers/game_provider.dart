@@ -145,6 +145,32 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  /// Enters the app as a shared "Guest" identity when there's no session
+  /// to restore, so Home works immediately instead of forcing a login.
+  /// Guest is a fallback, not a remembered account: unlike [login]/[signup]/
+  /// [restoreSession], this never touches `last_user`/`recent_users`, and
+  /// leaves [isLoggedIn] false so the account button keeps inviting the
+  /// user to sign in for real.
+  Future<void> loginAsGuest() async {
+    init('GUEST');
+    // Explicit, not just relying on the default: guards against being
+    // called as a fallback after a partially-failed restoreSession that
+    // already flipped isLoggedIn to true before throwing.
+    isLoggedIn = false;
+    try {
+      // Idempotent: the backend only needs a name to create a user, and
+      // treats a repeat call as "already exists" - either way, GUEST ends
+      // up present so the data-loading calls below don't 404.
+      await apiClient.createUser(name: 'GUEST');
+    } catch (_) {
+      // Already exists, or a transient error - proceed regardless; if
+      // GUEST truly isn't reachable server-side, the screens' own data
+      // loads will surface that the same way any other backend hiccup
+      // would.
+    }
+    notifyListeners();
+  }
+
   /// Ends the current session: clears cached per-user data so a new user's
   /// screens never flash the previous user's data, and forgets the
   /// persisted session (but keeps the recent-users list - that's "who's

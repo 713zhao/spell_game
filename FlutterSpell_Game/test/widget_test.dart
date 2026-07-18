@@ -25,4 +25,20 @@ void main() {
     expect(find.byType(Scaffold), findsOneWidget);
     expect(find.byType(BottomNavigationBar), findsOneWidget);
   });
+
+  testWidgets('with no persisted session, the app still lands on Home as Guest',
+      (WidgetTester tester) async {
+    // No last_user persisted - AuthGate should fall back to Guest and show
+    // Home directly, never a forced login screen.
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Scaffold), findsOneWidget);
+    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    // The account button shows the logged-out sign-in icon while browsing
+    // as Guest, confirming this is Home-as-Guest and not a real session.
+    expect(find.byIcon(Icons.person_outline), findsOneWidget);
+  });
 }
