@@ -123,7 +123,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final recentUsers = context.watch<GameProvider>().recentUsers;
+    final provider = context.watch<GameProvider>();
+    // Exclude whoever this session just switched away from - after
+    // GameProvider.logout(), userName still holds the previous user (logout
+    // doesn't reset identity), so this keeps them out of their own
+    // "switch user" picker without needing a separate flag.
+    final recentUsers =
+        provider.recentUsers.where((name) => name != provider.userName).toList();
     final showQuickPick = recentUsers.isNotEmpty && !_useManualEntry;
 
     return Scaffold(

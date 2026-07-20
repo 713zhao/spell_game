@@ -30,6 +30,19 @@ void main() {
     expect(find.text('HELLEN'), findsOneWidget);
   });
 
+  testWidgets('excludes whoever this session just switched away from',
+      (tester) async {
+    final provider = FakeGameProvider();
+    provider.init('ERIC');
+    provider.recentUsers = ['ERIC', 'HELLEN'];
+
+    await tester.pumpWidget(wrap(provider));
+    await tester.pump();
+
+    expect(find.text('ERIC'), findsNothing);
+    expect(find.text('HELLEN'), findsOneWidget);
+  });
+
   testWidgets('manual entry toggle shows username and password fields',
       (tester) async {
     final provider = FakeGameProvider();
