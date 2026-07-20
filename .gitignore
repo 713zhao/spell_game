@@ -1,0 +1,23 @@
+# Editor / IDE
+.vscode/
+.idea/
+
+# Claude Code local config
+.claude/
+
+# Old app, superseded by FlutterSpell_Game/
+FlutterSpell/
+
+# Credentials - never commit service account keys or env files
+gen-lang-client-*.json
+*-service-account*.json
+*.pem
+.env
+.env.*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
