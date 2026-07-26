@@ -54,5 +54,14 @@ void main() {
       expect(find.text('87654321'), findsOneWidget);
       expect(find.text('—'), findsOneWidget); // empty email
     });
+
+    testWidgets('loads the profile when the screen opens', (tester) async {
+      final provider = FakeGameProvider();
+
+      await tester.pumpWidget(createTestWidget(provider));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(provider.loadUserProfileCalled, true);
+    });
   });
 }

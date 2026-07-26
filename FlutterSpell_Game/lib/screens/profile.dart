@@ -45,6 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final provider = context.read<GameProvider>();
       provider.loadUserStats();
       provider.loadUnlockables();
+      provider.loadUserProfile();
     });
   }
 
