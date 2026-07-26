@@ -1016,43 +1016,67 @@ class _StudyScreenState extends State<StudyScreen>
   // --- Chinese: Handwriting trace (self-graded, no OCR) ---
 
   Widget _buildHandwriteTrace() {
+    // word.text can be a single hanzi ("的") or a multi-character word,
+    // phrase, or whole dictation sentence ("螃蟹米粉", "我们必须靠自己的
+    // 力量捍卫新加坡。") — trace one box per character instead of cramming
+    // the whole string into a single box sized for one glyph.
+    final characters = _current.word.text.split('');
+    final isSingle = characters.length == 1;
+    final title = isSingle
+        ? 'Trace the character'
+        : 'Trace these ${characters.length} characters';
+
+    Widget traceBox(String char, int index, double size, double fontSize) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: DuolingoColors.neutralGray,
+          border: Border.all(color: const Color(0xFFE5E5E5), width: 2),
+          borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Text(
+                char,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: DuolingoColors.darkText.withOpacity(0.15),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: HandwritingCanvas(
+                key: ValueKey('trace-$_index-$_traceVersion-$index'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Trace the character', style: DuolingoTextStyles.sectionTitle),
+        Text(title, style: DuolingoTextStyles.sectionTitle),
         SizedBox(height: DuolingoSpacing.lg),
         Center(child: _buildAudioButton(size: 56, iconSize: 28)),
         SizedBox(height: DuolingoSpacing.lg),
-        Center(
-          child: Container(
-            width: 220,
-            height: 220,
-            decoration: BoxDecoration(
-              color: DuolingoColors.neutralGray,
-              border: Border.all(color: const Color(0xFFE5E5E5), width: 2),
-              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Text(
-                    _current.word.text,
-                    style: TextStyle(
-                      fontSize: 160,
-                      fontWeight: FontWeight.bold,
-                      color: DuolingoColors.darkText.withOpacity(0.15),
-                    ),
-                  ),
+        isSingle
+            ? Center(child: traceBox(characters.first, 0, 220, 160))
+            : SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < characters.length; i++) ...[
+                      if (i > 0) SizedBox(width: DuolingoSpacing.sm),
+                      traceBox(characters[i], i, 140, 100),
+                    ],
+                  ],
                 ),
-                Positioned.fill(
-                  child: HandwritingCanvas(
-                    key: ValueKey('trace-$_index-$_traceVersion'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+              ),
         SizedBox(height: DuolingoSpacing.sm),
         Center(
           child: TextButton(

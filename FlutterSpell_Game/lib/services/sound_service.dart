@@ -1,6 +1,8 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'web_tts_service.dart';
 
 /// Service to manage all sound effects in the app
 class SoundService {
@@ -114,11 +116,21 @@ class SoundService {
     await _playSound('pop');
   }
 
-  /// Play word pronunciation using Text-to-Speech. Detects Chinese text and
-  /// switches the TTS voice to zh-CN first — an en-US voice silently
-  /// produces no audio for Chinese characters.
+  /// Play word pronunciation using Text-to-Speech.
+  ///
+  /// On web, flutter_tts just wraps the browser's speechSynthesis, which is
+  /// unreliable on iOS Safari (missing/robotic voices, especially for
+  /// Chinese) — so web uses Google Cloud TTS via the backend instead, with
+  /// speechSynthesis only as a fallback (see web_tts_web.dart). Native
+  /// Android/iOS apps keep using flutter_tts directly since they have
+  /// proper OS-level TTS engines.
   Future<void> playWordPronunciation(String word) async {
-    if (!_soundEnabled || !_ttsInitialized || _flutterTts == null) return;
+    if (!_soundEnabled) return;
+    if (kIsWeb) {
+      await speakOnWeb(word);
+      return;
+    }
+    if (!_ttsInitialized || _flutterTts == null) return;
     try {
       final isChinese = _chineseChar.hasMatch(word);
       await _flutterTts!.setLanguage(isChinese ? "zh-CN" : "en-US");
