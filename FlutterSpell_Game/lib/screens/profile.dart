@@ -306,10 +306,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // TODO(Task 8): no-op placeholder only - does not validate input or call
-  // provider.updateProfile() yet. The Save button above references it so
-  // the form compiles, but pressing Save currently does nothing.
-  Future<void> _saveProfileDetails(GameProvider provider) async {}
+  Future<void> _saveProfileDetails(GameProvider provider) async {
+    setState(() {
+      _ageError = null;
+      _passwordError = null;
+    });
+
+    final ageText = _ageController.text.trim();
+    int? age;
+    if (ageText.isNotEmpty) {
+      age = int.tryParse(ageText);
+      if (age == null) {
+        setState(() => _ageError = 'Age must be a number');
+        return;
+      }
+    }
+
+    final newPassword = _newPasswordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+    if (newPassword.isNotEmpty || confirmPassword.isNotEmpty) {
+      if (newPassword.isEmpty || confirmPassword.isEmpty || newPassword != confirmPassword) {
+        setState(() => _passwordError = 'Passwords must match and not be empty');
+        return;
+      }
+    }
+
+    final data = <String, dynamic>{
+      if (ageText.isNotEmpty) 'age': age,
+      if (_gradeController.text.trim().isNotEmpty) 'grade': _gradeController.text.trim(),
+      if (_schoolController.text.trim().isNotEmpty) 'school': _schoolController.text.trim(),
+      if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim(),
+      if (_phoneController.text.trim().isNotEmpty) 'phone': _phoneController.text.trim(),
+      if (newPassword.isNotEmpty) 'password': newPassword,
+    };
+
+    setState(() => _savingProfileDetails = true);
+    final success = await provider.updateProfile(data);
+    if (!mounted) return;
+    setState(() => _savingProfileDetails = false);
+
+    if (success) {
+      setState(() => _editingProfileDetails = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update profile: ${provider.errorMessage}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   // Helper method to calculate level from points
   int _calculateLevel(int points) {
