@@ -52,6 +52,39 @@ class ApiClient {
     }
   }
 
+  /// Fetch the full account profile (age, grade, school, email, phone) -
+  /// separate from [getUserStats], which only has game-relevant fields.
+  Future<Map<String, dynamic>> getUserProfile() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/users/$userName/profile'),
+    );
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      throw Exception('Invalid response format from getUserProfile');
+    }
+    throw Exception('Failed to load profile');
+  }
+
+  /// Update account profile fields. Only include keys that should change -
+  /// the backend leaves omitted fields untouched.
+  Future<void> updateUserProfile(Map<String, dynamic> data) async {
+    final response = await http.put(
+      Uri.parse('$_baseUrl/users/$userName/profile'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+    if (response.statusCode != 200) {
+      String detail = 'Failed to update profile';
+      try {
+        detail = jsonDecode(response.body)['detail'] as String? ?? detail;
+      } catch (_) {}
+      throw Exception(detail);
+    }
+  }
+
   /// Fetch the user's study deck (their real assigned words) including
   /// spaced-repetition state used for adaptive difficulty. When [tags] is
   /// given, the deck is scoped to those tags (joined for the backend to
