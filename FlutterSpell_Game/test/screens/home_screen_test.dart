@@ -42,6 +42,9 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
   UserStats? userStats;
 
   @override
+  Map<String, dynamic>? userProfile;
+
+  @override
   List<Unlockable> unlockables = [];
 
   @override
@@ -110,6 +113,12 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
 
   @override
   Future<void> loadUserStats() async {}
+
+  @override
+  Future<void> loadUserProfile() async {}
+
+  @override
+  Future<bool> updateProfile(Map<String, dynamic> data) async => true;
 
   @override
   Future<void> loadUnlockables() async {}

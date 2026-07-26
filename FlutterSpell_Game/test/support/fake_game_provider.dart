@@ -43,6 +43,9 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
   UserStats? userStats;
 
   @override
+  Map<String, dynamic>? userProfile;
+
+  @override
   List<Unlockable> unlockables = [];
 
   @override
@@ -195,6 +198,31 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
 
   @override
   Future<bool> completeChallenge(int challengeId, double accuracy) async => true;
+
+  bool loadUserProfileCalled = false;
+
+  @override
+  Future<void> loadUserProfile() async {
+    loadUserProfileCalled = true;
+    notifyListeners();
+  }
+
+  bool updateProfileCalled = false;
+  Map<String, dynamic>? lastUpdateProfileData;
+  bool updateProfileResult = true;
+
+  @override
+  Future<bool> updateProfile(Map<String, dynamic> data) async {
+    updateProfileCalled = true;
+    lastUpdateProfileData = data;
+    if (updateProfileResult) {
+      userProfile = {...(userProfile ?? {}), ...data};
+    } else {
+      errorMessage = 'Failed to update profile: simulated failure';
+    }
+    notifyListeners();
+    return updateProfileResult;
+  }
 
   @override
   Future<void> setSoundEnabled(bool enabled) async {}
