@@ -103,7 +103,7 @@ void main() {
       // fit in the default 800x600 test surface, and scrolling interacts
       // awkwardly with the floating SliverAppBar. Use a taller surface so
       // the Cancel button is directly hit-testable without scrolling.
-      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.reset);
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
 

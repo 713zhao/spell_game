@@ -207,7 +207,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: _editingProfileDetails
-                  ? _buildProfileDetailsForm()
+                  ? _buildProfileDetailsForm(provider)
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -225,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileDetailsForm() {
+  Widget _buildProfileDetailsForm(GameProvider provider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -290,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton(
-                onPressed: _savingProfileDetails ? null : () => _saveProfileDetails(context.read<GameProvider>()),
+                onPressed: _savingProfileDetails ? null : () => _saveProfileDetails(provider),
                 child: _savingProfileDetails
                     ? const SizedBox(
                         height: 16,
@@ -306,8 +306,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Placeholder wired up fully in the next task - Cancel/the form itself
-  // don't need it yet, but the Save button above references it.
+  // TODO(Task 8): no-op placeholder only - does not validate input or call
+  // provider.updateProfile() yet. The Save button above references it so
+  // the form compiles, but pressing Save currently does nothing.
   Future<void> _saveProfileDetails(GameProvider provider) async {}
 
   // Helper method to calculate level from points
