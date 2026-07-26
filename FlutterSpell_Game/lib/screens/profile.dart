@@ -107,6 +107,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildProfileDetailsRow(String label, dynamic value) {
+    final display =
+        (value == null || value.toString().trim().isEmpty) ? '—' : value.toString();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          Expanded(child: Text(display)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileDetailsCard(GameProvider provider) {
+    final profile = provider.userProfile;
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Profile Details', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildProfileDetailsRow('Age', profile?['age']),
+                  _buildProfileDetailsRow('Grade', profile?['grade']),
+                  _buildProfileDetailsRow('School', profile?['school']),
+                  _buildProfileDetailsRow('Email', profile?['email']),
+                  _buildProfileDetailsRow('Phone', profile?['phone']),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Helper method to calculate level from points
   int _calculateLevel(int points) {
     return (points / 100).floor() + 1;
@@ -203,6 +250,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
+                ),
+
+                // Profile Details Section
+                SliverToBoxAdapter(
+                  child: _buildProfileDetailsCard(provider),
                 ),
 
                 // Stats Grid Section
