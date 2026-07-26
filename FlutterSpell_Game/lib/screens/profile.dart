@@ -22,6 +22,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationsEnabled = true;
   bool _parentMode = false;
   bool _editingProfileDetails = false;
+  final _ageController = TextEditingController();
+  final _gradeController = TextEditingController();
+  final _schoolController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  String? _ageError;
+  String? _passwordError;
+  bool _savingProfileDetails = false;
 
   @override
   void initState() {
@@ -48,6 +58,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       provider.loadUnlockables();
       provider.loadUserProfile();
     });
+  }
+
+  @override
+  void dispose() {
+    _ageController.dispose();
+    _gradeController.dispose();
+    _schoolController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   void _updateSoundSetting(bool value) async {
@@ -78,7 +100,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       return;
     }
-    setState(() => _editingProfileDetails = true);
+    final profile = context.read<GameProvider>().userProfile;
+    _ageController.text = profile?['age']?.toString() ?? '';
+    _gradeController.text = profile?['grade']?.toString() ?? '';
+    _schoolController.text = profile?['school']?.toString() ?? '';
+    _emailController.text = profile?['email']?.toString() ?? '';
+    _phoneController.text = profile?['phone']?.toString() ?? '';
+    _newPasswordController.clear();
+    _confirmPasswordController.clear();
+    setState(() {
+      _ageError = null;
+      _passwordError = null;
+      _editingProfileDetails = true;
+    });
+  }
+
+  void _cancelEditingProfileDetails() {
+    setState(() {
+      _editingProfileDetails = false;
+      _ageError = null;
+      _passwordError = null;
+    });
   }
 
   Future<void> _equipCosmetic(GameProvider provider, int cosmeticId) async {
@@ -183,22 +225,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Minimal placeholder pulled forward from Task 7 of the editable-profile-
-  // details plan, just enough for this task's "Edit opens the form" test to
-  // pass without leaving the suite red. Task 7 replaces this wholesale with
-  // the full form (grade/school/email/phone/password fields, controllers,
-  // dispose(), Cancel/Save buttons, validation) - nothing here needs to be
-  // "ripped out" first, only the method body swapped, same as this file's
-  // existing pattern for placeholder methods.
   Widget _buildProfileDetailsForm() {
-    return const TextField(
-      decoration: InputDecoration(
-        labelText: 'Age',
-        border: OutlineInputBorder(),
-      ),
-      keyboardType: TextInputType.number,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _ageController,
+          decoration: InputDecoration(
+            labelText: 'Age',
+            errorText: _ageError,
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _gradeController,
+          decoration: const InputDecoration(labelText: 'Grade', border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _schoolController,
+          decoration: const InputDecoration(labelText: 'School', border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _emailController,
+          decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _phoneController,
+          decoration: const InputDecoration(labelText: 'Phone', border: OutlineInputBorder()),
+          keyboardType: TextInputType.phone,
+        ),
+        const SizedBox(height: 20),
+        const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _newPasswordController,
+          decoration: InputDecoration(
+            labelText: 'New Password',
+            errorText: _passwordError,
+            border: const OutlineInputBorder(),
+          ),
+          obscureText: true,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _confirmPasswordController,
+          decoration: const InputDecoration(labelText: 'Confirm Password', border: OutlineInputBorder()),
+          obscureText: true,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _savingProfileDetails ? null : _cancelEditingProfileDetails,
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _savingProfileDetails ? null : () => _saveProfileDetails(context.read<GameProvider>()),
+                child: _savingProfileDetails
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
+
+  // Placeholder wired up fully in the next task - Cancel/the form itself
+  // don't need it yet, but the Save button above references it.
+  Future<void> _saveProfileDetails(GameProvider provider) async {}
 
   // Helper method to calculate level from points
   int _calculateLevel(int points) {

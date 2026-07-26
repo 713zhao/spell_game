@@ -96,5 +96,34 @@ void main() {
 
       expect(find.widgetWithText(TextField, 'Age'), findsOneWidget);
     });
+
+    testWidgets('Cancel discards changes and returns to read-only view',
+        (tester) async {
+      // The full edit form (7 fields + password section + buttons) doesn't
+      // fit in the default 800x600 test surface, and scrolling interacts
+      // awkwardly with the floating SliverAppBar. Use a taller surface so
+      // the Cancel button is directly hit-testable without scrolling.
+      addTearDown(tester.view.resetPhysicalSize);
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+
+      SharedPreferences.setMockInitialValues({'parent_mode': true});
+      final provider = FakeGameProvider();
+      provider.userProfile = {'age': 6, 'grade': 'P1'};
+
+      await tester.pumpWidget(createTestWidget(provider));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('Edit'));
+      await tester.pump();
+
+      await tester.enterText(find.widgetWithText(TextField, 'Age'), '99');
+      await tester.tap(find.text('Cancel'));
+      await tester.pump();
+
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('6'), findsOneWidget); // original value still shown
+      expect(provider.updateProfileCalled, false);
+    });
   });
 }
