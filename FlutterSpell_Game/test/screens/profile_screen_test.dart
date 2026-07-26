@@ -63,5 +63,38 @@ void main() {
 
       expect(provider.loadUserProfileCalled, true);
     });
+
+    testWidgets('Edit is blocked with a message when Parent Mode is off',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({'parent_mode': false});
+      final provider = FakeGameProvider();
+      provider.userProfile = {'age': 6, 'grade': 'P1'};
+
+      await tester.pumpWidget(createTestWidget(provider));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('Edit'));
+      await tester.pump();
+
+      expect(
+        find.text('Enable Parent Mode in Settings to edit profile details.'),
+        findsOneWidget,
+      );
+      expect(find.byType(TextField), findsNothing);
+    });
+
+    testWidgets('Edit opens the form when Parent Mode is on', (tester) async {
+      SharedPreferences.setMockInitialValues({'parent_mode': true});
+      final provider = FakeGameProvider();
+      provider.userProfile = {'age': 6, 'grade': 'P1'};
+
+      await tester.pumpWidget(createTestWidget(provider));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.text('Edit'));
+      await tester.pump();
+
+      expect(find.widgetWithText(TextField, 'Age'), findsOneWidget);
+    });
   });
 }

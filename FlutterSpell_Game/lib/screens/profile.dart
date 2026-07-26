@@ -21,6 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _soundEnabled = true;
   bool _notificationsEnabled = true;
   bool _parentMode = false;
+  bool _editingProfileDetails = false;
 
   @override
   void initState() {
@@ -65,6 +66,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _updateParentModeSetting(bool value) async {
     setState(() => _parentMode = value);
     await _prefs.setBool('parent_mode', value);
+  }
+
+  void _onEditProfileDetailsPressed() {
+    if (!_parentMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Enable Parent Mode in Settings to edit profile details.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _editingProfileDetails = true);
   }
 
   Future<void> _equipCosmetic(GameProvider provider, int cosmeticId) async {
@@ -133,25 +147,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Profile Details', style: Theme.of(context).textTheme.titleLarge),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Profile Details',
+                  style: Theme.of(context).textTheme.titleLarge),
+              if (!_editingProfileDetails)
+                TextButton.icon(
+                  onPressed: _onEditProfileDetailsPressed,
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Edit'),
+                ),
+            ],
+          ),
           const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildProfileDetailsRow('Age', profile?['age']),
-                  _buildProfileDetailsRow('Grade', profile?['grade']),
-                  _buildProfileDetailsRow('School', profile?['school']),
-                  _buildProfileDetailsRow('Email', profile?['email']),
-                  _buildProfileDetailsRow('Phone', profile?['phone']),
-                ],
-              ),
+              child: _editingProfileDetails
+                  ? _buildProfileDetailsForm()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildProfileDetailsRow('Age', profile?['age']),
+                        _buildProfileDetailsRow('Grade', profile?['grade']),
+                        _buildProfileDetailsRow('School', profile?['school']),
+                        _buildProfileDetailsRow('Email', profile?['email']),
+                        _buildProfileDetailsRow('Phone', profile?['phone']),
+                      ],
+                    ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // Minimal placeholder pulled forward from Task 7 of the editable-profile-
+  // details plan, just enough for this task's "Edit opens the form" test to
+  // pass without leaving the suite red. Task 7 replaces this wholesale with
+  // the full form (grade/school/email/phone/password fields, controllers,
+  // dispose(), Cancel/Save buttons, validation) - nothing here needs to be
+  // "ripped out" first, only the method body swapped, same as this file's
+  // existing pattern for placeholder methods.
+  Widget _buildProfileDetailsForm() {
+    return const TextField(
+      decoration: InputDecoration(
+        labelText: 'Age',
+        border: OutlineInputBorder(),
+      ),
+      keyboardType: TextInputType.number,
     );
   }
 
