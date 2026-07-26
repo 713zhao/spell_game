@@ -23,6 +23,7 @@ class GameProvider extends ChangeNotifier {
   Level? currentLevel;
   LevelProgress? currentProgress;
   UserStats? userStats;
+  Map<String, dynamic>? userProfile;
   List<Unlockable> unlockables = [];
   List<LeaderboardEntry> leaderboard = [];
   List<Challenge> challenges = [];
@@ -333,6 +334,35 @@ class GameProvider extends ChangeNotifier {
     } catch (e) {
       errorMessage = e.toString();
       notifyListeners();
+    }
+  }
+
+  /// Fetch the full account profile (age/grade/school/email/phone) shown
+  /// on the Profile tab's editable "Profile Details" card.
+  Future<void> loadUserProfile() async {
+    try {
+      userProfile = await apiClient.getUserProfile();
+      notifyListeners();
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  /// Save edited profile fields, then reload so [userProfile] reflects
+  /// what the backend actually stored (e.g. its upper-casing of some
+  /// fields). Returns success/failure instead of throwing, matching
+  /// [redeemUnlockable]/[createChallenge]'s convention - callers check the
+  /// bool and read [errorMessage] on failure.
+  Future<bool> updateProfile(Map<String, dynamic> data) async {
+    try {
+      await apiClient.updateUserProfile(data);
+      await loadUserProfile();
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+      return false;
     }
   }
 
