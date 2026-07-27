@@ -85,4 +85,58 @@ void main() {
 
     expect(selected, isNull);
   });
+
+  testWidgets('a partially-mastered current node shows a progress ring matching its progress',
+      (tester) async {
+    final stages = [
+      StageData(stageNumber: 1, title: 'Stage 1', progress: 0.6, stars: 1, isLocked: false),
+      StageData(stageNumber: 2, title: 'Stage 2', progress: 0.0, stars: 0, isLocked: true),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JourneyPath(
+            stages: stages,
+            kingdomEmoji: '🏰',
+            kingdomLabel: 'Castle',
+            gradientColors: const [Color(0xFFE6F5FF), Color(0xFFCCE6FF)],
+            allowSkipLock: true,
+            onSelectLesson: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final ring = tester.widget<CircularProgressIndicator>(
+      find.byType(CircularProgressIndicator),
+    );
+    expect(ring.value, 0.6);
+  });
+
+  testWidgets('a locked node shows no progress ring', (tester) async {
+    final stages = [
+      StageData(stageNumber: 1, title: 'Stage 1', progress: 1.0, stars: 3, isLocked: false),
+      StageData(stageNumber: 2, title: 'Stage 2', progress: 0.0, stars: 0, isLocked: true),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JourneyPath(
+            stages: stages,
+            kingdomEmoji: '🏰',
+            kingdomLabel: 'Castle',
+            gradientColors: const [Color(0xFFE6F5FF), Color(0xFFCCE6FF)],
+            allowSkipLock: true,
+            onSelectLesson: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Only the completed node (stage 1) should have a ring; the locked
+    // node (stage 2) must not.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
 }

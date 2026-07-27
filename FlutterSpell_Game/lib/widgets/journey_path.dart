@@ -241,6 +241,7 @@ class _JourneyPathState extends State<JourneyPath>
         top: center.dy - _nodeSize / 2,
         child: _LessonNode(
           state: state,
+          progress: stage.progress,
           pulse: _pulseController,
           onTap: () => _handleNodeTap(index),
         ),
@@ -314,11 +315,13 @@ class _StarRow extends StatelessWidget {
 
 class _LessonNode extends StatelessWidget {
   final NodeState state;
+  final double progress;
   final AnimationController pulse;
   final VoidCallback onTap;
 
   const _LessonNode({
     required this.state,
+    required this.progress,
     required this.pulse,
     required this.onTap,
   });
@@ -368,6 +371,25 @@ class _LessonNode extends StatelessWidget {
       alignment: Alignment.center,
       child: icon,
     );
+
+    if (state != NodeState.locked) {
+      node = Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: size + 10,
+            height: size + 10,
+            child: CircularProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              strokeWidth: 4,
+              backgroundColor: DuolingoColors.secondaryButtonGray.withOpacity(0.4),
+              valueColor: const AlwaysStoppedAnimation<Color>(DuolingoColors.primaryGreen),
+            ),
+          ),
+          node,
+        ],
+      );
+    }
 
     if (state == NodeState.current) {
       node = AnimatedBuilder(
