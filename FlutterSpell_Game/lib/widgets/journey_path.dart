@@ -235,10 +235,17 @@ class _JourneyPathState extends State<JourneyPath>
     final stage = widget.stages[index];
     final state = deriveNodeState(widget.stages, index);
 
+    // _LessonNode's outer footprint is always _nodeSize + 10 (it reserves
+    // room for the progress ring on every non-locked node so the ring
+    // doesn't grow the widget's bounding box relative to the locked case).
+    // Center the enlarged footprint on `center` so the node — ring or no
+    // ring — stays visually aligned with the trail, star row, and label.
+    const outerSize = _nodeSize + 10;
+
     return [
       Positioned(
-        left: center.dx - _nodeSize / 2,
-        top: center.dy - _nodeSize / 2,
+        left: center.dx - outerSize / 2,
+        top: center.dy - outerSize / 2,
         child: _LessonNode(
           state: state,
           progress: stage.progress,
@@ -383,13 +390,24 @@ class _LessonNode extends StatelessWidget {
               value: progress.clamp(0.0, 1.0),
               strokeWidth: 4,
               backgroundColor: DuolingoColors.secondaryButtonGray.withOpacity(0.4),
-              valueColor: const AlwaysStoppedAnimation<Color>(DuolingoColors.primaryGreen),
+              valueColor: const AlwaysStoppedAnimation<Color>(DuolingoColors.treasureGold),
             ),
           ),
           node,
         ],
       );
     }
+
+    // Keep the node's outer footprint state-invariant (always size + 10, the
+    // same box the ring occupies) so `Positioned` offsets computed by the
+    // caller for the enlarged footprint stay centered on `center` whether or
+    // not a ring is actually drawn (locked nodes have no ring but must still
+    // report/occupy the same bounding box).
+    node = SizedBox(
+      width: size + 10,
+      height: size + 10,
+      child: Center(child: node),
+    );
 
     if (state == NodeState.current) {
       node = AnimatedBuilder(
