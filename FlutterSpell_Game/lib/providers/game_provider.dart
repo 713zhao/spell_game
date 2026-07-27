@@ -241,9 +241,9 @@ class GameProvider extends ChangeNotifier {
 
   /// Load the user's real word deck from the backend, optionally scoped to
   /// a lesson's tags (see [ApiClient.getDeckCards]).
-  Future<void> loadDeck({List<String>? tags}) async {
+  Future<void> loadDeck({List<String>? tags, int limit = 10}) async {
     try {
-      deckCards = await apiClient.getDeckCards(tags: tags);
+      deckCards = await apiClient.getDeckCards(tags: tags, limit: limit);
       notifyListeners();
     } catch (e) {
       errorMessage = e.toString();

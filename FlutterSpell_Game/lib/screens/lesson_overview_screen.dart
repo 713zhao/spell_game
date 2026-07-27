@@ -80,11 +80,34 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   void initState() {
     super.initState();
     gameProvider.addListener(_onChanged);
-    gameProvider.loadDeck(tags: widget.args.lesson.tags);
+    gameProvider.loadDeck(
+      tags: widget.args.lesson.tags,
+      limit: widget.args.lesson.wordCount,
+    );
   }
 
   void _onChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _showResetRuleInfo() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('How mastery works'),
+        content: const Text(
+          'Each word needs 5 correct answers in a row, and '
+          'a mistake resets that word to 0 - that\'s why it can '
+          'feel like starting over.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -194,6 +217,57 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                     ),
                   ),
                 ],
+              ),
+              SizedBox(height: DuolingoSpacing.xl),
+
+              // Mastery
+              Container(
+                padding: EdgeInsets.all(DuolingoSpacing.lg),
+                decoration: BoxDecoration(
+                  color: DuolingoColors.neutralGray,
+                  borderRadius:
+                      BorderRadius.circular(DuolingoSpacing.radiusCard),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Mastery: ${(lesson.masteryPct * 100).round()}%',
+                          style: DuolingoTextStyles.label.copyWith(
+                            color: DuolingoColors.darkText,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _showResetRuleInfo,
+                          child: const Icon(Icons.info_outline, size: 18),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: DuolingoSpacing.xs),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: lesson.masteryPct.clamp(0.0, 1.0),
+                        minHeight: 8,
+                        backgroundColor: DuolingoColors.backgroundWhite,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            DuolingoColors.primaryGreen),
+                      ),
+                    ),
+                    SizedBox(height: DuolingoSpacing.xs),
+                    Text(
+                      '100% needed to unlock the next lesson',
+                      style: DuolingoTextStyles.label.copyWith(
+                        color: DuolingoColors.bodyText,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               SizedBox(height: DuolingoSpacing.xl),
 
