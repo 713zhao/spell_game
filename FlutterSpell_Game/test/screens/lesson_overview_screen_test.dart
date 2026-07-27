@@ -15,7 +15,9 @@ LessonSummary _lesson({required double masteryPct, required int wordCount}) {
     skills: const [],
     wordCount: wordCount,
     masteryPct: masteryPct,
-    stars: masteryPct >= 1.0 ? 3 : (masteryPct >= 0.5 ? 2 : (masteryPct > 0 ? 1 : 0)),
+    stars: masteryPct >= 1.0
+        ? 3
+        : (masteryPct >= 0.5 ? 2 : (masteryPct > 0 ? 1 : 0)),
     status: masteryPct >= 1.0 ? 'completed' : 'current',
   );
 }
@@ -48,8 +50,9 @@ void main() {
     gameProvider.isLoggedIn = false;
   });
 
-  testWidgets('shows the mastery percentage and the 100% unlock hint',
-      (tester) async {
+  testWidgets('shows the mastery percentage and the 100% unlock hint', (
+    tester,
+  ) async {
     // The default 800x600 test surface is too short for this screen's full
     // column of cards (stage header + info row + mastery + rewards +
     // button) and triggers spurious RenderFlex overflow exceptions that
@@ -82,5 +85,69 @@ void main() {
       find.textContaining('a mistake resets that word to 0'),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+    'word detail is hidden until expanded, then shows mastery-colored chips',
+    (tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+
+      gameProvider.deckCards = [
+        DeckCard(
+          word: Word(id: 1, text: 'apple', language: 'english'),
+          repetitions: 5,
+          status: 'review',
+        ),
+        DeckCard(
+          word: Word(id: 2, text: 'banana', language: 'english'),
+          repetitions: 2,
+          status: 'learning',
+        ),
+        DeckCard(
+          word: Word(id: 3, text: 'cherry', language: 'english'),
+          repetitions: 0,
+          status: 'new',
+        ),
+      ];
+
+      await tester.pumpWidget(_screen(_lesson(masteryPct: 0.4, wordCount: 3)));
+      await tester.pump();
+
+      expect(find.text('apple'), findsNothing);
+
+      await tester.tap(find.textContaining('word-by-word'));
+      await tester.pump();
+
+      expect(find.text('apple'), findsOneWidget);
+      expect(find.text('banana'), findsOneWidget);
+      expect(find.text('cherry'), findsOneWidget);
+    },
+  );
+
+  testWidgets('collapsing word detail hides the chips again', (tester) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+
+    gameProvider.deckCards = [
+      DeckCard(
+        word: Word(id: 1, text: 'apple', language: 'english'),
+        repetitions: 5,
+        status: 'review',
+      ),
+    ];
+
+    await tester.pumpWidget(_screen(_lesson(masteryPct: 1.0, wordCount: 1)));
+    await tester.pump();
+
+    await tester.tap(find.textContaining('word-by-word'));
+    await tester.pump();
+    expect(find.text('apple'), findsOneWidget);
+
+    await tester.tap(find.textContaining('word-by-word'));
+    await tester.pump();
+    expect(find.text('apple'), findsNothing);
   });
 }

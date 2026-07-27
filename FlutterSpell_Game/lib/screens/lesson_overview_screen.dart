@@ -76,6 +76,8 @@ class LessonOverviewScreen extends StatefulWidget {
 }
 
 class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
+  bool _showWordDetail = false;
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +108,47 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
             child: const Text('Got it'),
           ),
         ],
+      ),
+    );
+  }
+
+  Color _masteryChipColor(int repetitions) {
+    if (repetitions >= 5) return DuolingoColors.primaryGreen;
+    if (repetitions >= 1) return const Color(0xFFFFC107);
+    return DuolingoColors.secondaryButtonGray;
+  }
+
+  Widget _buildWordDetailGrid() {
+    if (gameProvider.deckCards.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.only(top: DuolingoSpacing.sm),
+        child: Text(
+          'Loading word details...',
+          style: DuolingoTextStyles.label.copyWith(
+            color: DuolingoColors.bodyText,
+            fontSize: 11,
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.only(top: DuolingoSpacing.sm),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: gameProvider.deckCards.map((card) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _masteryChipColor(card.repetitions),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              card.word.text,
+              style: const TextStyle(color: Colors.white, fontSize: 11),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -290,6 +333,26 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                                 fontSize: 11,
                               ),
                             ),
+                            GestureDetector(
+                              onTap: () => setState(
+                                () => _showWordDetail = !_showWordDetail,
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  top: DuolingoSpacing.xs,
+                                ),
+                                child: Text(
+                                  _showWordDetail
+                                      ? 'Hide word-by-word progress ▴'
+                                      : 'Show word-by-word progress ▾',
+                                  style: DuolingoTextStyles.label.copyWith(
+                                    color: DuolingoColors.informationBlue,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_showWordDetail) _buildWordDetailGrid(),
                           ],
                         ),
                       ),
