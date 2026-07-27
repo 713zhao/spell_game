@@ -1,10 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/main.dart' show gameProvider;
 import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/providers/game_provider.dart';
 import 'package:spell_game/screens/lesson_overview_screen.dart';
+
+/// Reads the background color of the nearest chip [Container] wrapping the
+/// given word text - used to lock down _masteryChipColor's tier mapping
+/// without depending on _MasteryChip, which is private to
+/// lesson_overview_screen.dart's library.
+Color _chipColorFor(WidgetTester tester, String word) {
+  final container = tester.widget<Container>(
+    find.ancestor(of: find.text(word), matching: find.byType(Container)).first,
+  );
+  return (container.decoration as BoxDecoration).color!;
+}
 
 LessonSummary _lesson({required double masteryPct, required int wordCount}) {
   return LessonSummary(
@@ -94,6 +106,14 @@ void main() {
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
 
+      await tester.pumpWidget(_screen(_lesson(masteryPct: 0.4, wordCount: 3)));
+      await tester.pump();
+
+      // GameProvider.loadDeck (called from initState) now synchronously
+      // clears deckCards before its awaited network fetch, so a fresh deck
+      // must be seeded (and listeners notified to trigger a rebuild) after
+      // the screen has mounted, not before pumpWidget - otherwise the
+      // screen's own mount-time loadDeck call would immediately wipe it.
       gameProvider.deckCards = [
         DeckCard(
           word: Word(id: 1, text: 'apple', language: 'english'),
@@ -111,8 +131,7 @@ void main() {
           status: 'new',
         ),
       ];
-
-      await tester.pumpWidget(_screen(_lesson(masteryPct: 0.4, wordCount: 3)));
+      gameProvider.notifyListeners();
       await tester.pump();
 
       expect(find.text('apple'), findsNothing);
@@ -123,6 +142,17 @@ void main() {
       expect(find.text('apple'), findsOneWidget);
       expect(find.text('banana'), findsOneWidget);
       expect(find.text('cherry'), findsOneWidget);
+
+      // Lock down the mastery-tier -> chip-color mapping so a future
+      // off-by-one in _masteryChipColor's thresholds fails a test, not just
+      // a visual review. apple=5 reps (mastered), banana=2 reps (in
+      // progress), cherry=0 reps (not started).
+      expect(_chipColorFor(tester, 'apple'), DuolingoColors.primaryGreen);
+      expect(_chipColorFor(tester, 'banana'), DuolingoColors.rewardYellow);
+      expect(
+        _chipColorFor(tester, 'cherry'),
+        DuolingoColors.secondaryButtonGray,
+      );
     },
   );
 
@@ -131,6 +161,12 @@ void main() {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
 
+    await tester.pumpWidget(_screen(_lesson(masteryPct: 1.0, wordCount: 1)));
+    await tester.pump();
+
+    // See the note in the previous test: seed deckCards after mount so the
+    // screen's own loadDeck call (which now clears deckCards eagerly)
+    // doesn't wipe it out first.
     gameProvider.deckCards = [
       DeckCard(
         word: Word(id: 1, text: 'apple', language: 'english'),
@@ -138,8 +174,7 @@ void main() {
         status: 'review',
       ),
     ];
-
-    await tester.pumpWidget(_screen(_lesson(masteryPct: 1.0, wordCount: 1)));
+    gameProvider.notifyListeners();
     await tester.pump();
 
     await tester.tap(find.textContaining('word-by-word'));

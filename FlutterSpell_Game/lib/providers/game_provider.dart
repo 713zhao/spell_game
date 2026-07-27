@@ -176,8 +176,9 @@ class GameProvider extends ChangeNotifier {
     String? grade,
   }) async {
     try {
-      await ApiClient(userName: name)
-          .createUser(name: name, password: password, grade: grade);
+      await ApiClient(
+        userName: name,
+      ).createUser(name: name, password: password, grade: grade);
       init(name);
       await _onAuthenticated(name);
       if (password != null && password.isNotEmpty) {
@@ -241,7 +242,14 @@ class GameProvider extends ChangeNotifier {
 
   /// Load the user's real word deck from the backend, optionally scoped to
   /// a lesson's tags (see [ApiClient.getDeckCards]).
+  ///
+  /// Clears [deckCards] synchronously before the awaited fetch so that any
+  /// screen reading it mid-flight (e.g. Lesson Overview's word-detail grid)
+  /// sees an empty/loading state instead of a previous lesson's stale cards
+  /// while this one is still in flight.
   Future<void> loadDeck({List<String>? tags, int limit = 10}) async {
+    deckCards = [];
+    notifyListeners();
     try {
       deckCards = await apiClient.getDeckCards(tags: tags, limit: limit);
       notifyListeners();
@@ -311,7 +319,10 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>?> completeLevel(int levelId, double accuracy) async {
+  Future<Map<String, dynamic>?> completeLevel(
+    int levelId,
+    double accuracy,
+  ) async {
     try {
       final result = await apiClient.completeLevelStudy(levelId, accuracy);
 

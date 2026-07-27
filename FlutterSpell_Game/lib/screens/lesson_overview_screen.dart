@@ -112,9 +112,15 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     );
   }
 
+  // Chip background per mastery tier. Text color is always
+  // DuolingoColors.darkText (#333333) rather than white - computed WCAG
+  // contrast ratios (see docstring on _MasteryChip) showed white text fails
+  // the ~4.5:1 floor for small text on every one of these backgrounds,
+  // including primaryGreen, so darkText is used uniformly instead of
+  // assuming white works on the "dark-looking" green tier.
   Color _masteryChipColor(int repetitions) {
     if (repetitions >= 5) return DuolingoColors.primaryGreen;
-    if (repetitions >= 1) return const Color(0xFFFFC107);
+    if (repetitions >= 1) return DuolingoColors.rewardYellow;
     return DuolingoColors.secondaryButtonGray;
   }
 
@@ -137,16 +143,9 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
         spacing: 6,
         runSpacing: 6,
         children: gameProvider.deckCards.map((card) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _masteryChipColor(card.repetitions),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              card.word.text,
-              style: const TextStyle(color: Colors.white, fontSize: 11),
-            ),
+          return _MasteryChip(
+            text: card.word.text,
+            color: _masteryChipColor(card.repetitions),
           );
         }).toList(),
       ),
@@ -443,6 +442,45 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One word chip in the per-word mastery grid, colored by mastery tier.
+///
+/// Text is always [DuolingoColors.darkText] (#333333), never white, on
+/// every tier's background. Computed WCAG 2.x contrast ratios (relative
+/// luminance formula from the W3C spec) for darkText vs. each tier's
+/// background:
+///   - green  (primaryGreen      #58CC02): ~6.05:1
+///   - yellow (rewardYellow      #FFD700): ~9.01:1
+///   - grey   (secondaryButtonGray #CCCCCC): ~7.87:1
+/// All three clear the ~4.5:1 AA floor for small text (grey and yellow
+/// clear the 7:1 AAA floor too). White text was checked against every one
+/// of these backgrounds and rejected because it fails on all three,
+/// including the green tier: white-on-primaryGreen is only ~2.09:1,
+/// white-on-rewardYellow ~1.40:1, white-on-secondaryButtonGray ~1.61:1 (and
+/// white-on-streakOrange, the other candidate yellow token, was ~1.98:1 -
+/// also rejected, and rewardYellow gives a better ratio with darkText
+/// besides).
+class _MasteryChip extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _MasteryChip({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(color: DuolingoColors.darkText, fontSize: 11),
       ),
     );
   }
