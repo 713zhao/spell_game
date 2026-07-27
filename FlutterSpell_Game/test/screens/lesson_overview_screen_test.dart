@@ -45,6 +45,7 @@ void main() {
     // fields before each test so state doesn't leak between tests.
     gameProvider.deckCards = [];
     gameProvider.errorMessage = null;
+    gameProvider.isLoggedIn = false;
   });
 
   testWidgets('shows the mastery percentage and the 100% unlock hint',

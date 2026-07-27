@@ -123,11 +123,14 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     final stars = lesson.stars; // mastery earned so far (0-3)
 
     final wordCount = lesson.wordCount;
-    final newWords =
-        gameProvider.deckCards.where((c) => c.repetitions == 0).length;
+    final newWords = gameProvider.deckCards
+        .where((c) => c.repetitions == 0)
+        .length;
     // Learn cards ~8s, exercises ~20s each
-    final estMinutes =
-        ((newWords * 8 + wordCount * 20) / 60).ceil().clamp(1, 30);
+    final estMinutes = ((newWords * 8 + wordCount * 20) / 60).ceil().clamp(
+      1,
+      30,
+    );
     final rewards = computeLessonRewards(wordCount);
 
     return Scaffold(
@@ -147,159 +150,192 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Stage header card
-              Container(
-                padding: EdgeInsets.all(DuolingoSpacing.xxl),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: widget.args.kingdom.gradientColors,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(DuolingoSpacing.radiusCard),
-                  border: Border.all(
-                      color: DuolingoColors.informationBlue, width: 2),
-                  boxShadow: DuolingoShadows.cardShadow,
-                ),
-                child: Column(
-                  children: [
-                    Text(widget.args.kingdom.emoji,
-                        style: const TextStyle(fontSize: 64)),
-                    SizedBox(height: DuolingoSpacing.md),
-                    Text(
-                      widget.args.kingdom.label.toUpperCase(),
-                      style: DuolingoTextStyles.label.copyWith(
-                        color: DuolingoColors.bodyText,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: DuolingoSpacing.xs),
-                    Text(
-                      levelName,
-                      textAlign: TextAlign.center,
-                      style: DuolingoTextStyles.pageTitle
-                          .copyWith(color: DuolingoColors.darkText),
-                    ),
-                    SizedBox(height: DuolingoSpacing.md),
-                    // Mastery stars earned so far
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        3,
-                        (i) => Text(
-                          i < stars ? '⭐' : '☆',
-                          style: const TextStyle(fontSize: 20),
+              // Scrollable content: on short screens (small phones) this
+              // card stack can exceed the available height, so it scrolls
+              // independently while the Start Adventure button below stays
+              // pinned and reachable without depending on a Spacer to push
+              // it to the bottom of a fixed-height column.
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Stage header card
+                      Container(
+                        padding: EdgeInsets.all(DuolingoSpacing.xxl),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: widget.args.kingdom.gradientColors,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            DuolingoSpacing.radiusCard,
+                          ),
+                          border: Border.all(
+                            color: DuolingoColors.informationBlue,
+                            width: 2,
+                          ),
+                          boxShadow: DuolingoShadows.cardShadow,
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              widget.args.kingdom.emoji,
+                              style: const TextStyle(fontSize: 64),
+                            ),
+                            SizedBox(height: DuolingoSpacing.md),
+                            Text(
+                              widget.args.kingdom.label.toUpperCase(),
+                              style: DuolingoTextStyles.label.copyWith(
+                                color: DuolingoColors.bodyText,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: DuolingoSpacing.xs),
+                            Text(
+                              levelName,
+                              textAlign: TextAlign.center,
+                              style: DuolingoTextStyles.pageTitle.copyWith(
+                                color: DuolingoColors.darkText,
+                              ),
+                            ),
+                            SizedBox(height: DuolingoSpacing.md),
+                            // Mastery stars earned so far
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(
+                                3,
+                                (i) => Text(
+                                  i < stars ? '⭐' : '☆',
+                                  style: const TextStyle(fontSize: 20),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: DuolingoSpacing.xl),
+                      SizedBox(height: DuolingoSpacing.xl),
 
-              // Info row: words + time
-              Row(
-                children: [
-                  Expanded(
-                    child: _InfoTile(
-                      emoji: '📚',
-                      value: '$wordCount',
-                      label: 'WORDS',
-                    ),
-                  ),
-                  SizedBox(width: DuolingoSpacing.md),
-                  Expanded(
-                    child: _InfoTile(
-                      emoji: '⏱️',
-                      value: '~$estMinutes min',
-                      label: 'TIME',
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: DuolingoSpacing.xl),
+                      // Info row: words + time
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _InfoTile(
+                              emoji: '📚',
+                              value: '$wordCount',
+                              label: 'WORDS',
+                            ),
+                          ),
+                          SizedBox(width: DuolingoSpacing.md),
+                          Expanded(
+                            child: _InfoTile(
+                              emoji: '⏱️',
+                              value: '~$estMinutes min',
+                              label: 'TIME',
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: DuolingoSpacing.xl),
 
-              // Mastery
-              Container(
-                padding: EdgeInsets.all(DuolingoSpacing.lg),
-                decoration: BoxDecoration(
-                  color: DuolingoColors.neutralGray,
-                  borderRadius:
-                      BorderRadius.circular(DuolingoSpacing.radiusCard),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Mastery: ${(lesson.masteryPct * 100).round()}%',
-                          style: DuolingoTextStyles.label.copyWith(
-                            color: DuolingoColors.darkText,
-                            fontWeight: FontWeight.bold,
+                      // Mastery
+                      Container(
+                        padding: EdgeInsets.all(DuolingoSpacing.lg),
+                        decoration: BoxDecoration(
+                          color: DuolingoColors.neutralGray,
+                          borderRadius: BorderRadius.circular(
+                            DuolingoSpacing.radiusCard,
                           ),
                         ),
-                        GestureDetector(
-                          onTap: _showResetRuleInfo,
-                          child: const Icon(Icons.info_outline, size: 18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Mastery: ${(lesson.masteryPct * 100).round()}%',
+                                  style: DuolingoTextStyles.label.copyWith(
+                                    color: DuolingoColors.darkText,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: _showResetRuleInfo,
+                                  child: const Icon(
+                                    Icons.info_outline,
+                                    size: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: DuolingoSpacing.xs),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: lesson.masteryPct.clamp(0.0, 1.0),
+                                minHeight: 8,
+                                backgroundColor: DuolingoColors.backgroundWhite,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  DuolingoColors.primaryGreen,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: DuolingoSpacing.xs),
+                            Text(
+                              '100% needed to unlock the next lesson',
+                              style: DuolingoTextStyles.label.copyWith(
+                                color: DuolingoColors.bodyText,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    SizedBox(height: DuolingoSpacing.xs),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: lesson.masteryPct.clamp(0.0, 1.0),
-                        minHeight: 8,
-                        backgroundColor: DuolingoColors.backgroundWhite,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            DuolingoColors.primaryGreen),
                       ),
-                    ),
-                    SizedBox(height: DuolingoSpacing.xs),
-                    Text(
-                      '100% needed to unlock the next lesson',
-                      style: DuolingoTextStyles.label.copyWith(
-                        color: DuolingoColors.bodyText,
-                        fontSize: 11,
+                      SizedBox(height: DuolingoSpacing.xl),
+
+                      // Rewards
+                      Container(
+                        padding: EdgeInsets.all(DuolingoSpacing.lg),
+                        decoration: BoxDecoration(
+                          color: DuolingoColors.neutralGray,
+                          borderRadius: BorderRadius.circular(
+                            DuolingoSpacing.radiusCard,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'REWARDS',
+                              style: DuolingoTextStyles.label.copyWith(
+                                color: DuolingoColors.bodyText,
+                              ),
+                            ),
+                            SizedBox(height: DuolingoSpacing.md),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _RewardChip(
+                                  emoji: '⚡',
+                                  label: 'up to ${rewards.xp} XP',
+                                ),
+                                _RewardChip(
+                                  emoji: '💰',
+                                  label: '${rewards.coins} Coins',
+                                ),
+                                const _RewardChip(emoji: '🎁', label: 'Chest'),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               SizedBox(height: DuolingoSpacing.xl),
-
-              // Rewards
-              Container(
-                padding: EdgeInsets.all(DuolingoSpacing.lg),
-                decoration: BoxDecoration(
-                  color: DuolingoColors.neutralGray,
-                  borderRadius:
-                      BorderRadius.circular(DuolingoSpacing.radiusCard),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('REWARDS',
-                        style: DuolingoTextStyles.label
-                            .copyWith(color: DuolingoColors.bodyText)),
-                    SizedBox(height: DuolingoSpacing.md),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _RewardChip(
-                            emoji: '⚡', label: 'up to ${rewards.xp} XP'),
-                        _RewardChip(
-                            emoji: '💰', label: '${rewards.coins} Coins'),
-                        const _RewardChip(emoji: '🎁', label: 'Chest'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
 
               // Start Adventure
               GestureDetector(
@@ -320,8 +356,9 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                   height: DuolingoSpacing.largeButton,
                   decoration: BoxDecoration(
                     color: DuolingoColors.primaryGreen,
-                    borderRadius:
-                        BorderRadius.circular(DuolingoSpacing.radiusButton),
+                    borderRadius: BorderRadius.circular(
+                      DuolingoSpacing.radiusButton,
+                    ),
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0xFF58A700),
@@ -372,12 +409,18 @@ class _InfoTile extends StatelessWidget {
         children: [
           Text(emoji, style: const TextStyle(fontSize: 28)),
           SizedBox(height: DuolingoSpacing.xs),
-          Text(value,
-              style: DuolingoTextStyles.cardTitle
-                  .copyWith(color: DuolingoColors.darkText)),
-          Text(label,
-              style: DuolingoTextStyles.label
-                  .copyWith(color: DuolingoColors.bodyText)),
+          Text(
+            value,
+            style: DuolingoTextStyles.cardTitle.copyWith(
+              color: DuolingoColors.darkText,
+            ),
+          ),
+          Text(
+            label,
+            style: DuolingoTextStyles.label.copyWith(
+              color: DuolingoColors.bodyText,
+            ),
+          ),
         ],
       ),
     );
@@ -396,9 +439,12 @@ class _RewardChip extends StatelessWidget {
       children: [
         Text(emoji, style: const TextStyle(fontSize: 28)),
         SizedBox(height: DuolingoSpacing.xs),
-        Text(label,
-            style: DuolingoTextStyles.label
-                .copyWith(color: DuolingoColors.darkText)),
+        Text(
+          label,
+          style: DuolingoTextStyles.label.copyWith(
+            color: DuolingoColors.darkText,
+          ),
+        ),
       ],
     );
   }
