@@ -126,10 +126,15 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
 
   Widget _buildWordDetailGrid() {
     if (gameProvider.deckCards.isEmpty) {
+      // An empty deck means either the fetch hasn't resolved yet, or it
+      // resolved as a failure - loadDeck's catch branch only sets
+      // errorMessage, it never touches deckCards. Distinguish the two so a
+      // failed fetch doesn't show "Loading..." forever.
+      final failed = gameProvider.errorMessage != null;
       return Padding(
         padding: EdgeInsets.only(top: DuolingoSpacing.sm),
         child: Text(
-          'Loading word details...',
+          failed ? "Couldn't load word details" : 'Loading word details...',
           style: DuolingoTextStyles.label.copyWith(
             color: DuolingoColors.bodyText,
             fontSize: 11,

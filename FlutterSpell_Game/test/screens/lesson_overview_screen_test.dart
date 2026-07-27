@@ -185,4 +185,30 @@ void main() {
     await tester.pump();
     expect(find.text('apple'), findsNothing);
   });
+
+  testWidgets(
+    "shows an error message when the deck fetch failed instead of chips",
+    (tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(_screen(_lesson(masteryPct: 0.4, wordCount: 3)));
+      await tester.pump();
+
+      // Simulate loadDeck's fetch failing: deckCards stays empty (its catch
+      // branch never touches deckCards) but errorMessage is set. The grid
+      // should distinguish this from "still loading" and say so instead of
+      // showing "Loading word details..." forever.
+      gameProvider.errorMessage = 'Network error';
+      gameProvider.notifyListeners();
+      await tester.pump();
+
+      await tester.tap(find.textContaining('word-by-word'));
+      await tester.pump();
+
+      expect(find.textContaining("Couldn't load word details"), findsOneWidget);
+      expect(find.textContaining('Loading word details'), findsNothing);
+    },
+  );
 }
