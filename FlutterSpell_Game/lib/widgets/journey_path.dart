@@ -390,7 +390,14 @@ class _LessonNode extends StatelessWidget {
               value: progress.clamp(0.0, 1.0),
               strokeWidth: 4,
               backgroundColor: DuolingoColors.secondaryButtonGray.withOpacity(0.4),
-              valueColor: const AlwaysStoppedAnimation<Color>(DuolingoColors.treasureGold),
+              // darkText (0x333333) verified via WCAG relative-luminance
+              // contrast: 6.05:1 vs primaryGreen, 6.40:1 vs streakOrange,
+              // 4.41:1 vs informationBlue, 7.87:1 vs secondaryButtonGray
+              // (the track's own background color) -- comfortably clears a
+              // ~3:1 legibility floor against every node fill and the track,
+              // unlike treasureGold (1.08-1.65:1 against all four) or
+              // primaryGreen (identical to the completed fill).
+              valueColor: const AlwaysStoppedAnimation<Color>(DuolingoColors.darkText),
             ),
           ),
           node,
