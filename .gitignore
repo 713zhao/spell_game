@@ -15,6 +15,9 @@ gen-lang-client-*.json
 .env
 .env.*
 
+# Brainstorming visual-companion mockups
+.superpowers/
+
 # OS junk
 .DS_Store
 Thumbs.db
