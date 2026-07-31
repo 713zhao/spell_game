@@ -1,0 +1,3 @@
+[submodule "SpellBackend"]
+	path = SpellBackend
+	url = https://github.com/816eric/SpellBackend.git
