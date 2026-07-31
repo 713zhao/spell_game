@@ -1,3 +1,6 @@
 [submodule "SpellBackend"]
 	path = SpellBackend
 	url = https://github.com/816eric/SpellBackend.git
+[submodule "FlutterSpell"]
+	path = FlutterSpell
+	url = https://github.com/816eric/FlutterSpell.git
