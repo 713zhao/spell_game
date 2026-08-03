@@ -247,11 +247,15 @@ class GameProvider extends ChangeNotifier {
   /// screen reading it mid-flight (e.g. Lesson Overview's word-detail grid)
   /// sees an empty/loading state instead of a previous lesson's stale cards
   /// while this one is still in flight.
-  Future<void> loadDeck({List<String>? tags, int limit = 10}) async {
+  Future<void> loadDeck({List<String>? tags, int limit = 10, int? checkpoint}) async {
     deckCards = [];
     notifyListeners();
     try {
-      deckCards = await apiClient.getDeckCards(tags: tags, limit: limit);
+      deckCards = await apiClient.getDeckCards(
+        tags: tags,
+        limit: limit,
+        checkpoint: checkpoint,
+      );
       notifyListeners();
     } catch (e) {
       errorMessage = e.toString();

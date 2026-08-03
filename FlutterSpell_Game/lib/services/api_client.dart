@@ -90,12 +90,13 @@ class ApiClient {
   /// given, the deck is scoped to those tags (joined for the backend to
   /// split); a lesson spanning multiple tag variants (e.g. Chinese
   /// ::read + ::write) is passed as a multi-element list.
-  Future<List<DeckCard>> getDeckCards({List<String>? tags, int limit = 10}) async {
+  Future<List<DeckCard>> getDeckCards({List<String>? tags, int limit = 10, int? checkpoint}) async {
     final tagParam = (tags != null && tags.isNotEmpty)
         ? '&tag=${Uri.encodeComponent(tags.join(","))}'
         : '';
+    final checkpointParam = checkpoint != null ? '&checkpoint=$checkpoint' : '';
     final response = await http.get(
-      Uri.parse('$_baseUrl/users/$userName/deck?limit=$limit$tagParam'),
+      Uri.parse('$_baseUrl/users/$userName/deck?limit=$limit$tagParam$checkpointParam'),
     );
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
