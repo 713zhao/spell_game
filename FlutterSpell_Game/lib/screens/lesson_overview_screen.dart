@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import '../widgets/account_avatar_button.dart';
 import '../design_system/design_system.dart';
@@ -124,6 +126,8 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     return DuolingoColors.secondaryButtonGray;
   }
 
+  static const int _checkpointSize = 5;
+
   Widget _buildWordDetailGrid() {
     if (gameProvider.deckCards.isEmpty) {
       // An empty deck means either the fetch hasn't resolved yet, or it
@@ -142,17 +146,51 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
         ),
       );
     }
+
+    final sorted = List<DeckCard>.from(gameProvider.deckCards)
+      ..sort((a, b) => a.word.id.compareTo(b.word.id));
+    final chunks = <List<DeckCard>>[];
+    for (var i = 0; i < sorted.length; i += _checkpointSize) {
+      chunks.add(sorted.sublist(i, min(i + _checkpointSize, sorted.length)));
+    }
+    final currentCheckpoint = widget.args.lesson.checkpointIndex;
+
     return Padding(
       padding: EdgeInsets.only(top: DuolingoSpacing.sm),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: gameProvider.deckCards.map((card) {
-          return _MasteryChip(
-            text: card.word.text,
-            color: _masteryChipColor(card.repetitions),
-          );
-        }).toList(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < chunks.length; i++)
+            Padding(
+              padding: EdgeInsets.only(bottom: DuolingoSpacing.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Checkpoint ${i + 1}',
+                    style: DuolingoTextStyles.label.copyWith(
+                      color: DuolingoColors.bodyText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: chunks[i].map((card) {
+                      final locked = i > currentCheckpoint;
+                      return _MasteryChip(
+                        text: card.word.text,
+                        color: locked
+                            ? DuolingoColors.secondaryButtonGray
+                            : _masteryChipColor(card.repetitions),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
