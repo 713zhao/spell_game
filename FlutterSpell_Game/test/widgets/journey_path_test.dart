@@ -239,4 +239,53 @@ void main() {
       );
     }
   });
+
+  testWidgets(
+      'two multi-checkpoint lessons render distinct clusters with correct labels and taps',
+      (tester) async {
+    int? selected;
+    final stages = [
+      StageData(
+        stageNumber: 1,
+        title: 'Week 1',
+        progress: 1.0,
+        stars: 3,
+        isLocked: false,
+        checkpointIndex: 2, // fully mastered, parked on last chunk
+        checkpointCount: 3,
+      ),
+      StageData(
+        stageNumber: 2,
+        title: 'Week 2',
+        progress: 0.4,
+        stars: 1,
+        isLocked: false,
+        checkpointIndex: 1,
+        checkpointCount: 3,
+      ),
+    ];
+    await _pump(tester, (n) => selected = n, stages: stages);
+
+    // 6 checkpoint nodes total: Week 1's 3 (all completed) + Week 2's first
+    // (completed) - 4 checkmarks, Week 2's current (fire), Week 2's last
+    // (locked).
+    expect(find.byIcon(Icons.check), findsNWidgets(4));
+    expect(find.text('🔥'), findsOneWidget);
+    expect(find.byIcon(Icons.lock), findsOneWidget);
+
+    // Each lesson's title appears exactly once, not duplicated per
+    // checkpoint and not mixed up with the other lesson's cluster.
+    expect(find.text('Week 1'), findsOneWidget);
+    expect(find.text('Week 2'), findsOneWidget);
+
+    // No per-node progress ring - dropped entirely per the design spec.
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    // Week 2's current (not-yet-mastered) checkpoint is tappable and
+    // reports Week 2's stageNumber, not Week 1's - proving stageIndex (not
+    // path position) drives which lesson gets selected.
+    await tester.tap(find.text('🔥'));
+    await tester.pump();
+    expect(selected, 2);
+  });
 }

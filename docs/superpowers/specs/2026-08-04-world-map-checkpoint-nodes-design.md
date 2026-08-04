@@ -79,7 +79,7 @@ No new network calls, no backend changes. This is a pure client-side rendering/i
 ## Error Handling
 
 - A lesson with `checkpointCount == 0` (shouldn't occur per the backend's existing guard for zero-word lessons, but defensively handled) renders as 1 node via `max(1, checkpointCount)`, same as legacy stages — never zero nodes, which would silently drop a lesson from the path.
-- If `stage.checkpointIndex` is ever out of range for `stage.checkpointCount` (shouldn't happen given how the backend derives it, but not guaranteed by the type system), the locked/completed comparisons degrade gracefully: an index beyond `checkpointCount` just means every unit in that lesson evaluates as "not yet reached" (locked) except none being marked current from this lesson, which simply means the lesson silently has no current node — a display quirk, not a crash. Not worth defensive clamping given the same risk already existed (and was deliberately accepted, with a clamp at the backend/query layer) for the equivalent case in the `/deck` endpoint.
+- If `stage.checkpointIndex` is ever out of range for `stage.checkpointCount` (shouldn't happen given how the backend derives it, but not guaranteed by the type system), `buildPathItems` falls back to an out-of-range sentinel (conceptually treating the lesson as if no checkpoint has been reached yet) before running the locked/completed comparisons. This makes every unit in that lesson evaluate as "not yet reached" (locked), with none marked current from this lesson — a display quirk (the lesson's fire icon doesn't appear anywhere on the map), not a crash, and never the misleading alternative of rendering an unmastered lesson as fully completed.
 
 ## Out of Scope
 

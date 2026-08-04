@@ -66,6 +66,7 @@ class MilestoneItem extends PathItem {
 List<PathItem> buildPathItems(List<StageData> stages) {
   final items = <PathItem>[];
   var firstIncompleteAssigned = false;
+  var unitsSoFar = 0;
 
   for (var i = 0; i < stages.length; i++) {
     final stage = stages[i];
@@ -73,10 +74,25 @@ List<PathItem> buildPathItems(List<StageData> stages) {
     final anchorIndex = (unitCount - 1) ~/ 2;
     final lessonDone = stage.progress >= 1.0;
     final stageHasIncompleteUnit = !stage.isLocked && !lessonDone;
+    // Guard against an out-of-range checkpointIndex (shouldn't happen given
+    // how the backend derives it, but not guaranteed by the type system).
+    // A plain clamp into [0, unitCount - 1] would still leave every
+    // checkpoint below the clamped value marked "completed", which is the
+    // same misleading overshoot this guard exists to prevent - just capped
+    // instead of unbounded. Falling back to an out-of-range sentinel (-1)
+    // instead makes `c > effectiveCheckpointIndex` true for every valid `c`,
+    // so the lesson degrades to "every unit not yet reached (locked)", per
+    // the design spec's intended behavior.
+    final isValidCheckpointIndex =
+        stage.checkpointIndex >= 0 && stage.checkpointIndex < unitCount;
+    final effectiveCheckpointIndex =
+        isValidCheckpointIndex ? stage.checkpointIndex : -1;
 
     for (var c = 0; c < unitCount; c++) {
-      final locked = stage.isLocked || (!lessonDone && c > stage.checkpointIndex);
-      final done = lessonDone || (!stage.isLocked && c < stage.checkpointIndex);
+      final locked =
+          stage.isLocked || (!lessonDone && c > effectiveCheckpointIndex);
+      final done =
+          lessonDone || (!stage.isLocked && c < effectiveCheckpointIndex);
 
       NodeState state;
       if (locked) {
@@ -96,7 +112,8 @@ List<PathItem> buildPathItems(List<StageData> stages) {
         isLabelAnchor: c == anchorIndex,
       ));
 
-      if (items.whereType<LessonItem>().length % 5 == 0) {
+      unitsSoFar++;
+      if (unitsSoFar % 5 == 0) {
         items.add(MilestoneItem(unlocked: state == NodeState.completed));
       }
     }

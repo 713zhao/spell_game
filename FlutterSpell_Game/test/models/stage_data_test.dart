@@ -83,6 +83,30 @@ void main() {
       expect(units.every((u) => u.state == NodeState.completed), isTrue);
     });
 
+    test('an out-of-range checkpointIndex degrades to every unit locked, not every unit completed', () {
+      final stages = [
+        StageData(
+          stageNumber: 1,
+          title: 'Week 1',
+          progress: 0.4,
+          stars: 1,
+          isLocked: false,
+          checkpointIndex: 99, // out of range for checkpointCount: 3
+          checkpointCount: 3,
+        ),
+      ];
+
+      final units = buildPathItems(stages).whereType<LessonItem>().toList();
+
+      expect(units.length, 3);
+      expect(
+        units.every((u) => u.state == NodeState.locked),
+        isTrue,
+        reason: 'an invalid checkpointIndex should never render every '
+            'checkpoint as completed',
+      );
+    });
+
     test('a locked lesson marks every checkpoint locked regardless of checkpointIndex', () {
       final stages = [
         StageData(
