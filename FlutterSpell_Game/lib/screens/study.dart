@@ -574,6 +574,12 @@ class _StudyScreenState extends State<StudyScreen>
     // Per-word /review calls already advanced ReviewState (and each earned
     // a point); refresh the cached stats so points/streak reflect them.
     await gameProvider.loadUserStats();
+    // Also refresh the lesson list so checkpoint/mastery progress from this
+    // session (which may have unlocked the next checkpoint or lesson) is
+    // reflected once the user navigates back to the World Map - otherwise
+    // the kingdom screen's cached LessonSummary still shows the pre-session
+    // checkpointIndex, silently re-serving already-mastered words.
+    await gameProvider.loadLessons(widget.args.subject);
   }
 
   int get _stars {
