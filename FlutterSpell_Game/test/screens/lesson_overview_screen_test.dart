@@ -299,4 +299,61 @@ void main() {
       expect(_chipColorFor(tester, 'word1'), DuolingoColors.primaryGreen);
     },
   );
+
+  testWidgets(
+    'WORDS tile shows the checkpoint-scoped count, not the whole lesson, '
+    'for an in-progress lesson with a partial final checkpoint',
+    (tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+
+      // 18 words chunked into checkpoints of 5 -> checkpoints of
+      // [1-5, 6-10, 11-15, 16-18]. checkpointIndex 3 is the last, partial
+      // chunk (only words 16-18 -> 3 words), so Start Adventure's session
+      // - and thus the WORDS/TIME/REWARDS tiles - should describe 3 words,
+      // not the lesson's full 18.
+      await tester.pumpWidget(
+        _screen(
+          _lesson(
+            masteryPct: 0.5,
+            wordCount: 18,
+            checkpointIndex: 3,
+            checkpointCount: 4,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('18'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'WORDS tile shows the full lesson count once the lesson is completed',
+    (tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+
+      // Completed lessons drop checkpoint scoping (see Issue 1: without
+      // this, a completed lesson would be locked forever to its final 5-
+      // word chunk), so the session - and the WORDS tile - covers the
+      // whole lesson again.
+      await tester.pumpWidget(
+        _screen(
+          _lesson(
+            masteryPct: 1.0,
+            wordCount: 18,
+            checkpointIndex: 3,
+            checkpointCount: 4,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('18'), findsOneWidget);
+    },
+  );
 }

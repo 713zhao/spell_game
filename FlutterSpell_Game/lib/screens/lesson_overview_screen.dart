@@ -213,12 +213,24 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     final newWords = gameProvider.deckCards
         .where((c) => c.repetitions == 0)
         .length;
+    // Start Adventure only launches a session scoped to the current
+    // checkpoint chunk (mirrors _checkpointSize, used below by the
+    // word-detail grid) - except once the lesson is completed, when the
+    // checkpoint scoping is dropped and the session pool is the whole
+    // lesson again (see the checkpoint: argument on StudySessionArgs
+    // below). The WORDS/TIME/REWARDS tiles should describe that session,
+    // not the whole lesson, or they'd overstate what tapping the button
+    // actually gives you.
+    final sessionWordCount = lesson.status == 'completed'
+        ? wordCount
+        : (wordCount - lesson.checkpointIndex * _checkpointSize).clamp(
+            0,
+            _checkpointSize,
+          );
     // Learn cards ~8s, exercises ~20s each
-    final estMinutes = ((newWords * 8 + wordCount * 20) / 60).ceil().clamp(
-      1,
-      30,
-    );
-    final rewards = computeLessonRewards(wordCount);
+    final estMinutes =
+        ((newWords * 8 + sessionWordCount * 20) / 60).ceil().clamp(1, 30);
+    final rewards = computeLessonRewards(sessionWordCount);
 
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
@@ -310,7 +322,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                           Expanded(
                             child: _InfoTile(
                               emoji: '📚',
-                              value: '$wordCount',
+                              value: '$sessionWordCount',
                               label: 'WORDS',
                             ),
                           ),
@@ -456,7 +468,16 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                       displayName: lesson.displayName,
                       subject: widget.args.subject,
                       skills: lesson.skills,
-                      checkpoint: lesson.checkpointIndex,
+                      // Once a lesson is fully completed, checkpointIndex
+                      // stays parked on the final chunk forever (there's no
+                      // "done" sentinel) - passing that through here would
+                      // permanently lock re-practice sessions to only the
+                      // last 5 words. null means "no checkpoint scoping,
+                      // serve from the whole lesson pool" to getDeckCards /
+                      // loadDeck / the backend's /deck route.
+                      checkpoint: lesson.status == 'completed'
+                          ? null
+                          : lesson.checkpointIndex,
                     ),
                   );
                 },
