@@ -139,4 +139,80 @@ void main() {
     // node (stage 2) must not.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
+
+  testWidgets(
+      'shows a checkpoint indicator for an unlocked lesson with multiple checkpoints',
+      (tester) async {
+    final stages = [
+      StageData(
+        stageNumber: 1,
+        title: 'Stage 1',
+        progress: 0.4,
+        stars: 1,
+        isLocked: false,
+        checkpointIndex: 1,
+        checkpointCount: 3,
+      ),
+      StageData(stageNumber: 2, title: 'Stage 2', progress: 0.0, stars: 0, isLocked: true),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JourneyPath(
+            stages: stages,
+            kingdomEmoji: '🏰',
+            kingdomLabel: 'Castle',
+            gradientColors: const [Color(0xFFE6F5FF), Color(0xFFCCE6FF)],
+            allowSkipLock: true,
+            onSelectLesson: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Checkpoint 2/3'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows no checkpoint indicator for a locked node or a single-checkpoint lesson',
+      (tester) async {
+    final stages = [
+      StageData(
+        stageNumber: 1,
+        title: 'Stage 1',
+        progress: 1.0,
+        stars: 3,
+        isLocked: false,
+        checkpointIndex: 0,
+        checkpointCount: 1,
+      ),
+      StageData(
+        stageNumber: 2,
+        title: 'Stage 2',
+        progress: 0.0,
+        stars: 0,
+        isLocked: true,
+        checkpointIndex: 2,
+        checkpointCount: 4,
+      ),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JourneyPath(
+            stages: stages,
+            kingdomEmoji: '🏰',
+            kingdomLabel: 'Castle',
+            gradientColors: const [Color(0xFFE6F5FF), Color(0xFFCCE6FF)],
+            allowSkipLock: true,
+            onSelectLesson: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.textContaining('Checkpoint'), findsNothing);
+  });
 }

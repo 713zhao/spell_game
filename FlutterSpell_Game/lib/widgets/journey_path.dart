@@ -289,6 +289,15 @@ class _JourneyPathState extends State<JourneyPath>
                   ),
                 ),
               ),
+            if (stage.checkpointCount > 1 && state != NodeState.locked)
+              Text(
+                'Checkpoint ${stage.checkpointIndex + 1}/${stage.checkpointCount}',
+                textAlign: TextAlign.center,
+                style: DuolingoTextStyles.label.copyWith(
+                  fontSize: 10,
+                  color: DuolingoColors.bodyText.withOpacity(0.8),
+                ),
+              ),
           ],
         ),
       ),
