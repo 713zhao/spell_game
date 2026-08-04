@@ -195,7 +195,7 @@ class _JourneyPathState extends State<JourneyPath>
                     painter: _TrailPainter(centers: centers),
                   ),
                   for (var i = 0; i < items.length; i++)
-                    ..._buildItemWidgets(items[i], i, centers[i], width),
+                    ..._buildItemWidgets(items[i], centers[i], width),
                 ],
               ),
             );
@@ -207,7 +207,6 @@ class _JourneyPathState extends State<JourneyPath>
 
   List<Widget> _buildItemWidgets(
     PathItem item,
-    int i,
     Offset center,
     double width,
   ) {
@@ -244,21 +243,27 @@ class _JourneyPathState extends State<JourneyPath>
     final stage = widget.stages[lessonItem.stageIndex];
     final state = lessonItem.state;
 
-    // _LessonNode's outer footprint is always _nodeSize + 10 (matches the
-    // fixed bounding box every node reports, regardless of state) so
-    // Positioned offsets computed here stay centered on `center`.
-    const outerSize = _nodeSize + 10;
+    // _LessonNode's outer footprint is always _nodeSize + footprintPadding
+    // (matches the fixed bounding box every node reports, regardless of
+    // state) so Positioned offsets computed here stay centered on `center`.
+    const outerSize = _nodeSize + _LessonNode.footprintPadding;
 
     final labelWidgets = <Widget>[];
     if (lessonItem.isLabelAnchor) {
+      // The label (title/date/stars) reflects the LESSON's overall state,
+      // not the state of the single checkpoint node it happens to be
+      // anchored to - those can differ (e.g. an in-progress lesson's label
+      // anchor may land on a not-yet-reached checkpoint).
+      final lessonLocked = stage.isLocked;
+      final lessonCurrent = !stage.isLocked && stage.progress < 1.0;
+
       if (stage.stars > 0) {
         labelWidgets.add(
           Positioned(
             top: center.dy - _nodeSize / 2 - 22,
             left: (center.dx - 40).clamp(0, width - 80),
             width: 80,
-            child:
-                _StarRow(stars: stage.stars, dimmed: state == NodeState.locked),
+            child: _StarRow(stars: stage.stars, dimmed: lessonLocked),
           ),
         );
       }
@@ -273,12 +278,11 @@ class _JourneyPathState extends State<JourneyPath>
                 stage.title,
                 textAlign: TextAlign.center,
                 style: DuolingoTextStyles.label.copyWith(
-                  color: state == NodeState.locked
+                  color: lessonLocked
                       ? DuolingoColors.bodyText.withOpacity(0.5)
                       : DuolingoColors.darkText,
-                  fontWeight: state == NodeState.current
-                      ? FontWeight.bold
-                      : FontWeight.w600,
+                  fontWeight:
+                      lessonCurrent ? FontWeight.bold : FontWeight.w600,
                 ),
               ),
               if (stage.spellDate != null && stage.spellDate!.isNotEmpty)
@@ -288,7 +292,7 @@ class _JourneyPathState extends State<JourneyPath>
                   style: DuolingoTextStyles.label.copyWith(
                     fontSize: 11,
                     color: DuolingoColors.bodyText.withOpacity(
-                      state == NodeState.locked ? 0.4 : 0.8,
+                      lessonLocked ? 0.4 : 0.8,
                     ),
                   ),
                 ),
@@ -338,6 +342,12 @@ class _StarRow extends StatelessWidget {
 }
 
 class _LessonNode extends StatelessWidget {
+  // Extra footprint padding around the node's visible circle, kept
+  // state-invariant so `Positioned` offsets computed by the caller stay
+  // centered on `center` for every state. Single source of truth shared
+  // with `_JourneyPathState._buildItemWidgets`'s `outerSize` calculation.
+  static const double footprintPadding = 10;
+
   final NodeState state;
   final AnimationController pulse;
   final VoidCallback onTap;
@@ -394,12 +404,12 @@ class _LessonNode extends StatelessWidget {
       child: icon,
     );
 
-    // Keep the node's outer footprint state-invariant (size + 10, matching
-    // the old ring-reserving box) so `Positioned` offsets computed by the
-    // caller stay centered on `center` for every state.
+    // Keep the node's outer footprint state-invariant (matching the old
+    // ring-reserving box) so `Positioned` offsets computed by the caller
+    // stay centered on `center` for every state.
     node = SizedBox(
-      width: size + 10,
-      height: size + 10,
+      width: size + footprintPadding,
+      height: size + footprintPadding,
       child: Center(child: node),
     );
 

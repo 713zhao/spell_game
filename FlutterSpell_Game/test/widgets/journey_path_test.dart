@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/stage_data.dart';
 import 'package:spell_game/widgets/journey_path.dart';
 
@@ -189,5 +190,53 @@ void main() {
 
     expect(find.text('Week 1'), findsOneWidget);
     expect(find.text('七月十四日'), findsOneWidget);
+  });
+
+  testWidgets(
+      'an unlocked in-progress lesson keeps its label bright even when the '
+      "label anchor's own checkpoint hasn't been reached yet",
+      (tester) async {
+    // checkpointCount: 3, checkpointIndex: 0 -> label anchor is
+    // (unitCount - 1) ~/ 2 = checkpoint index 1, which is NOT yet reached
+    // (only checkpoint 0 is current/done) so its own NodeState is `locked`.
+    // The lesson itself, though, is unlocked and in progress - the label
+    // (title/date/stars) must reflect that, not the anchor's locked node
+    // state.
+    final stages = [
+      StageData(
+        stageNumber: 1,
+        title: 'Week 1',
+        progress: 0.3,
+        stars: 2,
+        isLocked: false,
+        checkpointIndex: 0,
+        checkpointCount: 3,
+      ),
+    ];
+    await _pump(tester, (_) {}, stages: stages);
+
+    final title = tester.widget<Text>(find.text('Week 1'));
+    final titleStyle = title.style!;
+    expect(
+      titleStyle.color,
+      isNot(DuolingoColors.bodyText.withOpacity(0.5)),
+      reason: 'title should not use the locked/dimmed color',
+    );
+    expect(titleStyle.color, DuolingoColors.darkText);
+    expect(
+      titleStyle.fontWeight,
+      FontWeight.bold,
+      reason: 'this is the lesson actively being worked on',
+    );
+
+    final stars = tester.widgetList<Text>(find.text('⭐')).toList();
+    expect(stars, hasLength(2));
+    for (final star in stars) {
+      expect(
+        star.style?.color,
+        isNot(Colors.grey),
+        reason: 'earned stars on an unlocked lesson should not be dimmed',
+      );
+    }
   });
 }
