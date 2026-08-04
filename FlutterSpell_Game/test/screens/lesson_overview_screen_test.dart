@@ -219,39 +219,42 @@ void main() {
     },
   );
 
-  testWidgets(
-    'word grid is grouped into checkpoint sections with headers',
-    (tester) async {
-      addTearDown(tester.view.reset);
-      tester.view.physicalSize = const Size(800, 2400);
-      tester.view.devicePixelRatio = 1.0;
+  testWidgets('word grid is grouped into checkpoint sections with headers', (
+    tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
 
-      await tester.pumpWidget(_screen(_lesson(
-        masteryPct: 0.3,
-        wordCount: 7,
-        checkpointIndex: 1,
-        checkpointCount: 2,
-      )));
-      await tester.pump();
+    await tester.pumpWidget(
+      _screen(
+        _lesson(
+          masteryPct: 0.3,
+          wordCount: 7,
+          checkpointIndex: 1,
+          checkpointCount: 2,
+        ),
+      ),
+    );
+    await tester.pump();
 
-      gameProvider.deckCards = [
-        for (var i = 1; i <= 7; i++)
-          DeckCard(
-            word: Word(id: i, text: 'word$i', language: 'english'),
-            repetitions: i <= 5 ? 5 : 0,
-            status: i <= 5 ? 'review' : 'new',
-          ),
-      ];
-      gameProvider.notifyListeners();
-      await tester.pump();
+    gameProvider.deckCards = [
+      for (var i = 1; i <= 7; i++)
+        DeckCard(
+          word: Word(id: i, text: 'word$i', language: 'english'),
+          repetitions: i <= 5 ? 5 : 0,
+          status: i <= 5 ? 'review' : 'new',
+        ),
+    ];
+    gameProvider.notifyListeners();
+    await tester.pump();
 
-      await tester.tap(find.textContaining('word-by-word'));
-      await tester.pump();
+    await tester.tap(find.textContaining('word-by-word'));
+    await tester.pump();
 
-      expect(find.text('Checkpoint 1'), findsOneWidget);
-      expect(find.text('Checkpoint 2'), findsOneWidget);
-    },
-  );
+    expect(find.text('Checkpoint 1'), findsOneWidget);
+    expect(find.text('Checkpoint 2'), findsOneWidget);
+  });
 
   testWidgets(
     'chips in a checkpoint beyond the current one show locked styling regardless of mastery tier',
@@ -260,12 +263,16 @@ void main() {
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
 
-      await tester.pumpWidget(_screen(_lesson(
-        masteryPct: 0.7,
-        wordCount: 7,
-        checkpointIndex: 0,
-        checkpointCount: 2,
-      )));
+      await tester.pumpWidget(
+        _screen(
+          _lesson(
+            masteryPct: 0.7,
+            wordCount: 7,
+            checkpointIndex: 0,
+            checkpointCount: 2,
+          ),
+        ),
+      );
       await tester.pump();
 
       gameProvider.deckCards = [
@@ -284,7 +291,10 @@ void main() {
 
       // word6 is in checkpoint 2 (index 1), beyond currentCheckpoint (0) ->
       // rendered locked-grey even though repetitions=5 would normally be green.
-      expect(_chipColorFor(tester, 'word6'), DuolingoColors.secondaryButtonGray);
+      expect(
+        _chipColorFor(tester, 'word6'),
+        DuolingoColors.secondaryButtonGray,
+      );
       // word1 is in checkpoint 1 (index 0), the current one -> real mastery color.
       expect(_chipColorFor(tester, 'word1'), DuolingoColors.primaryGreen);
     },
