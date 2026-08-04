@@ -3,10 +3,10 @@ import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/stage_data.dart';
 import 'package:spell_game/widgets/celebration.dart';
 
-/// A vertical, zig-zagging Duolingo-style map of lesson nodes connected by a
-/// dashed trail, with a milestone treasure chest every 5 lessons. Shared by
-/// every kingdom's lesson-selection screen so node styling, star ratings,
-/// and the lock dialog stay consistent across kingdoms.
+/// A vertical, zig-zagging Duolingo-style map of checkpoint nodes connected
+/// by a dashed trail, with a milestone treasure chest every 5 checkpoint
+/// nodes. Shared by every kingdom's lesson-selection screen so node styling,
+/// star ratings, and the lock dialog stay consistent across kingdoms.
 class JourneyPath extends StatefulWidget {
   final List<StageData> stages;
   final String kingdomEmoji;
@@ -54,13 +54,22 @@ class _JourneyPathState extends State<JourneyPath>
     super.dispose();
   }
 
-  void _handleNodeTap(int index) {
-    final state = deriveNodeState(widget.stages, index);
-    if (state == NodeState.locked) {
-      _showUnlockDialog(index);
-    } else {
-      widget.onSelectLesson(widget.stages[index].stageNumber);
+  void _handleNodeTap(LessonItem item) {
+    if (item.state != NodeState.locked) {
+      widget.onSelectLesson(widget.stages[item.stageIndex].stageNumber);
+      return;
     }
+    if (widget.stages[item.stageIndex].isLocked) {
+      _showUnlockDialog(item.stageIndex);
+      return;
+    }
+    // The whole lesson is unlocked, but this checkpoint hasn't been reached
+    // yet - there's no "skip a checkpoint" feature, just tell the user why
+    // this node looks locked.
+    final currentCheckpoint = widget.stages[item.stageIndex].checkpointIndex + 1;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Clear checkpoint $currentCheckpoint first!')),
+    );
   }
 
   Future<void> _showUnlockDialog(int index) async {
@@ -231,16 +240,63 @@ class _JourneyPathState extends State<JourneyPath>
       ];
     }
 
-    final index = (item as LessonItem).index;
-    final stage = widget.stages[index];
-    final state = deriveNodeState(widget.stages, index);
+    final lessonItem = item as LessonItem;
+    final stage = widget.stages[lessonItem.stageIndex];
+    final state = lessonItem.state;
 
-    // _LessonNode's outer footprint is always _nodeSize + 10 (it reserves
-    // room for the progress ring on every non-locked node so the ring
-    // doesn't grow the widget's bounding box relative to the locked case).
-    // Center the enlarged footprint on `center` so the node — ring or no
-    // ring — stays visually aligned with the trail, star row, and label.
+    // _LessonNode's outer footprint is always _nodeSize + 10 (matches the
+    // fixed bounding box every node reports, regardless of state) so
+    // Positioned offsets computed here stay centered on `center`.
     const outerSize = _nodeSize + 10;
+
+    final labelWidgets = <Widget>[];
+    if (lessonItem.isLabelAnchor) {
+      if (stage.stars > 0) {
+        labelWidgets.add(
+          Positioned(
+            top: center.dy - _nodeSize / 2 - 22,
+            left: (center.dx - 40).clamp(0, width - 80),
+            width: 80,
+            child:
+                _StarRow(stars: stage.stars, dimmed: state == NodeState.locked),
+          ),
+        );
+      }
+      labelWidgets.add(
+        Positioned(
+          top: center.dy + _nodeSize / 2 + 6,
+          left: (center.dx - 70).clamp(0, width - 140),
+          width: 140,
+          child: Column(
+            children: [
+              Text(
+                stage.title,
+                textAlign: TextAlign.center,
+                style: DuolingoTextStyles.label.copyWith(
+                  color: state == NodeState.locked
+                      ? DuolingoColors.bodyText.withOpacity(0.5)
+                      : DuolingoColors.darkText,
+                  fontWeight: state == NodeState.current
+                      ? FontWeight.bold
+                      : FontWeight.w600,
+                ),
+              ),
+              if (stage.spellDate != null && stage.spellDate!.isNotEmpty)
+                Text(
+                  stage.spellDate!,
+                  textAlign: TextAlign.center,
+                  style: DuolingoTextStyles.label.copyWith(
+                    fontSize: 11,
+                    color: DuolingoColors.bodyText.withOpacity(
+                      state == NodeState.locked ? 0.4 : 0.8,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return [
       Positioned(
@@ -248,59 +304,11 @@ class _JourneyPathState extends State<JourneyPath>
         top: center.dy - outerSize / 2,
         child: _LessonNode(
           state: state,
-          progress: stage.progress,
           pulse: _pulseController,
-          onTap: () => _handleNodeTap(index),
+          onTap: () => _handleNodeTap(lessonItem),
         ),
       ),
-      if (stage.stars > 0)
-        Positioned(
-          top: center.dy - _nodeSize / 2 - 22,
-          left: (center.dx - 40).clamp(0, width - 80),
-          width: 80,
-          child: _StarRow(stars: stage.stars, dimmed: state == NodeState.locked),
-        ),
-      Positioned(
-        top: center.dy + _nodeSize / 2 + 6,
-        left: (center.dx - 70).clamp(0, width - 140),
-        width: 140,
-        child: Column(
-          children: [
-            Text(
-              stage.title,
-              textAlign: TextAlign.center,
-              style: DuolingoTextStyles.label.copyWith(
-                color: state == NodeState.locked
-                    ? DuolingoColors.bodyText.withOpacity(0.5)
-                    : DuolingoColors.darkText,
-                fontWeight: state == NodeState.current
-                    ? FontWeight.bold
-                    : FontWeight.w600,
-              ),
-            ),
-            if (stage.spellDate != null && stage.spellDate!.isNotEmpty)
-              Text(
-                stage.spellDate!,
-                textAlign: TextAlign.center,
-                style: DuolingoTextStyles.label.copyWith(
-                  fontSize: 11,
-                  color: DuolingoColors.bodyText.withOpacity(
-                    state == NodeState.locked ? 0.4 : 0.8,
-                  ),
-                ),
-              ),
-            if (stage.checkpointCount > 1 && state != NodeState.locked)
-              Text(
-                'Checkpoint ${stage.checkpointIndex + 1}/${stage.checkpointCount}',
-                textAlign: TextAlign.center,
-                style: DuolingoTextStyles.label.copyWith(
-                  fontSize: 10,
-                  color: DuolingoColors.bodyText.withOpacity(0.8),
-                ),
-              ),
-          ],
-        ),
-      ),
+      ...labelWidgets,
     ];
   }
 }
@@ -331,13 +339,11 @@ class _StarRow extends StatelessWidget {
 
 class _LessonNode extends StatelessWidget {
   final NodeState state;
-  final double progress;
   final AnimationController pulse;
   final VoidCallback onTap;
 
   const _LessonNode({
     required this.state,
-    required this.progress,
     required this.pulse,
     required this.onTap,
   });
@@ -388,37 +394,9 @@ class _LessonNode extends StatelessWidget {
       child: icon,
     );
 
-    if (state != NodeState.locked) {
-      node = Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox(
-            width: size + 10,
-            height: size + 10,
-            child: CircularProgressIndicator(
-              value: progress.clamp(0.0, 1.0),
-              strokeWidth: 4,
-              backgroundColor: DuolingoColors.secondaryButtonGray.withOpacity(0.4),
-              // darkText (0x333333) verified via WCAG relative-luminance
-              // contrast: 6.05:1 vs primaryGreen, 6.40:1 vs streakOrange,
-              // 4.41:1 vs informationBlue, 7.87:1 vs secondaryButtonGray
-              // (the track's own background color) -- comfortably clears a
-              // ~3:1 legibility floor against every node fill and the track,
-              // unlike treasureGold (1.08-1.65:1 against all four) or
-              // primaryGreen (identical to the completed fill).
-              valueColor: const AlwaysStoppedAnimation<Color>(DuolingoColors.darkText),
-            ),
-          ),
-          node,
-        ],
-      );
-    }
-
-    // Keep the node's outer footprint state-invariant (always size + 10, the
-    // same box the ring occupies) so `Positioned` offsets computed by the
-    // caller for the enlarged footprint stay centered on `center` whether or
-    // not a ring is actually drawn (locked nodes have no ring but must still
-    // report/occupy the same bounding box).
+    // Keep the node's outer footprint state-invariant (size + 10, matching
+    // the old ring-reserving box) so `Positioned` offsets computed by the
+    // caller stay centered on `center` for every state.
     node = SizedBox(
       width: size + 10,
       height: size + 10,
