@@ -210,9 +210,6 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     final stars = lesson.stars; // mastery earned so far (0-3)
 
     final wordCount = lesson.wordCount;
-    final newWords = gameProvider.deckCards
-        .where((c) => c.repetitions == 0)
-        .length;
     // Start Adventure only launches a session scoped to the current
     // checkpoint chunk (mirrors _checkpointSize, used below by the
     // word-detail grid) - except once the lesson is completed, when the
@@ -227,6 +224,23 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
             0,
             _checkpointSize,
           );
+    // newWords must be scoped the same way: counting zero-repetition cards
+    // across the whole deck (rather than just the current checkpoint's
+    // chunk) would inflate the TIME estimate with words that aren't even
+    // part of the session Start Adventure is about to launch. Reuses the
+    // same sort-then-chunk approach as _buildWordDetailGrid.
+    final sortedCards = List<DeckCard>.from(gameProvider.deckCards)
+      ..sort((a, b) => a.word.id.compareTo(b.word.id));
+    final checkpointStart = lesson.status == 'completed'
+        ? 0
+        : lesson.checkpointIndex * _checkpointSize;
+    final checkpointEnd = lesson.status == 'completed'
+        ? sortedCards.length
+        : min(checkpointStart + _checkpointSize, sortedCards.length);
+    final newWords = sortedCards
+        .sublist(checkpointStart.clamp(0, sortedCards.length), checkpointEnd)
+        .where((c) => c.repetitions == 0)
+        .length;
     // Learn cards ~8s, exercises ~20s each
     final estMinutes =
         ((newWords * 8 + sessionWordCount * 20) / 60).ceil().clamp(1, 30);

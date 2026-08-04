@@ -356,4 +356,53 @@ void main() {
       expect(find.text('18'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'TIME estimate scopes the new-word count to the current checkpoint, '
+    'not the whole deck',
+    (tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+
+      // 18 words chunked into checkpoints of 5 -> [1-5, 6-10, 11-15, 16-18].
+      // checkpointIndex 0 is the first checkpoint (words 1-5), all brand new
+      // (repetitions: 0). Words 6-18 belong to later, untouched checkpoints
+      // and are seeded as already mastered (repetitions: 5) - outside the
+      // current checkpoint either way, so they must not factor into the
+      // TIME estimate's new-word count regardless of their repetitions.
+      await tester.pumpWidget(
+        _screen(
+          _lesson(
+            masteryPct: 0.1,
+            wordCount: 18,
+            checkpointIndex: 0,
+            checkpointCount: 4,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      gameProvider.deckCards = [
+        for (var i = 1; i <= 18; i++)
+          DeckCard(
+            word: Word(id: i, text: 'word$i', language: 'english'),
+            repetitions: i <= 5 ? 0 : 5,
+            status: i <= 5 ? 'new' : 'review',
+          ),
+      ];
+      gameProvider.notifyListeners();
+      await tester.pump();
+
+      // sessionWordCount = 5 (checkpoint 0's chunk), newWords = 5 (all of
+      // checkpoint 0's cards are new) -> estMinutes =
+      // ceil((5*8 + 5*20) / 60) = ceil(140/60) = 3. If newWords were still
+      // computed over the whole 18-word deck instead of just the current
+      // checkpoint's slice, an implementation bug elsewhere in the scoping
+      // math would be free to skew this away from 3 without any other test
+      // catching it.
+      expect(find.text('5'), findsOneWidget); // WORDS tile
+      expect(find.text('~3 min'), findsOneWidget); // TIME tile
+    },
+  );
 }
