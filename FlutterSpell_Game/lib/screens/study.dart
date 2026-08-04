@@ -157,7 +157,10 @@ class _StudyScreenState extends State<StudyScreen>
 
   Future<void> _loadWords() async {
     try {
-      await gameProvider.loadDeck(tags: widget.args.tags);
+      await gameProvider.loadDeck(
+        tags: widget.args.tags,
+        checkpoint: widget.args.checkpoint,
+      );
       var cards = gameProvider.deckCards;
 
       if (cards.isEmpty) {

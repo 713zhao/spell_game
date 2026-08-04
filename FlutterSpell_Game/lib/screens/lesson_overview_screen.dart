@@ -55,6 +55,7 @@ class StudySessionArgs {
   final String displayName;
   final String subject;
   final List<String> skills;
+  final int? checkpoint;
 
   const StudySessionArgs({
     required this.tags,
@@ -62,6 +63,7 @@ class StudySessionArgs {
     required this.displayName,
     required this.subject,
     this.skills = const [],
+    this.checkpoint,
   });
 }
 
@@ -454,6 +456,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                       displayName: lesson.displayName,
                       subject: widget.args.subject,
                       skills: lesson.skills,
+                      checkpoint: lesson.checkpointIndex,
                     ),
                   );
                 },
