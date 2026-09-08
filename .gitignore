@@ -24,3 +24,7 @@ Thumbs.db
 
 # Wrangler (Cloudflare) local dev cache
 .wrangler/
+
+# Generated repo-status reports (regenerate with check-repo-status.ps1)
+repo-status-report.*
+repo-status-summary.*
