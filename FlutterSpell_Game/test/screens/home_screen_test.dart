@@ -48,6 +48,12 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
   List<Unlockable> unlockables = [];
 
   @override
+  List<MiniGame> minigames = [];
+
+  @override
+  int coins = 0;
+
+  @override
   List<LeaderboardEntry> leaderboard = [];
 
   @override
@@ -125,6 +131,15 @@ class TestGameProvider extends ChangeNotifier implements GameProvider {
 
   @override
   Future<bool> redeemUnlockable(int unlockableId) async => true;
+
+  @override
+  Future<void> loadMiniGames() async {}
+
+  @override
+  Future<bool> unlockMiniGame(int gameId) async => true;
+
+  @override
+  Future<Map<String, dynamic>?> playMiniGame(int gameId) async => {};
 
   @override
   Future<bool> createChallenge(String challengeeName, int levelId) async => true;

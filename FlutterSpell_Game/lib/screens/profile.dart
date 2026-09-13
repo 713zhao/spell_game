@@ -7,6 +7,7 @@ import '../widgets/stat_card.dart';
 import '../widgets/achievement_badge.dart';
 import '../services/sound_service.dart';
 import '../widgets/user_avatar.dart';
+import '../design_system/design_system.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -697,6 +698,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 4,
         type: BottomNavigationBarType.fixed,
+        backgroundColor: DuolingoColors.backgroundWhite,
+        selectedItemColor: DuolingoColors.primaryGreen,
+        unselectedItemColor: DuolingoColors.navInactiveGray,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),

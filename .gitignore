@@ -24,3 +24,6 @@ Thumbs.db
 
 # Wrangler (Cloudflare) local dev cache
 .wrangler/
+
+# restart-dev.sh runtime state
+.pids/

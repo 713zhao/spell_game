@@ -19,6 +19,8 @@ import 'screens/chinese_kingdom_screen.dart';
 import 'screens/boss_arena_screen.dart';
 import 'screens/boss_battle_screen.dart';
 import 'screens/lesson_overview_screen.dart';
+import 'screens/game_store_screen.dart';
+import 'screens/game_play_screen.dart';
 
 // Global GameProvider instance (singleton)
 final gameProvider = GameProvider();
@@ -129,6 +131,15 @@ class MyApp extends StatelessWidget {
                 builder: (context) => BossBattleScreen(
                   bossId: bossId ?? 1,
                 ),
+              );
+            case '/games':
+              return MaterialPageRoute(
+                builder: (context) => const GameStoreScreen(),
+              );
+            case '/game-play':
+              final playArgs = settings.arguments as GamePlayArgs;
+              return MaterialPageRoute(
+                builder: (context) => GamePlayScreen(args: playArgs),
               );
             default:
               return null;

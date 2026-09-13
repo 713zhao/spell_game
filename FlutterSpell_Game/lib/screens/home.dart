@@ -270,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         type: BottomNavigationBarType.fixed,
         backgroundColor: DuolingoColors.backgroundWhite,
         selectedItemColor: DuolingoColors.primaryGreen,
-        unselectedItemColor: DuolingoColors.neutralGray,
+        unselectedItemColor: DuolingoColors.navInactiveGray,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),

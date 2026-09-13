@@ -87,7 +87,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
         type: BottomNavigationBarType.fixed,
         backgroundColor: DuolingoColors.backgroundWhite,
         selectedItemColor: DuolingoColors.primaryGreen,
-        unselectedItemColor: DuolingoColors.neutralGray,
+        unselectedItemColor: DuolingoColors.navInactiveGray,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),

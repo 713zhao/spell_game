@@ -25,6 +25,8 @@ class GameProvider extends ChangeNotifier {
   UserStats? userStats;
   Map<String, dynamic>? userProfile;
   List<Unlockable> unlockables = [];
+  List<MiniGame> minigames = [];
+  int coins = 0;
   List<LeaderboardEntry> leaderboard = [];
   List<Challenge> challenges = [];
   String currentLeaderboardFilter = 'global';
@@ -232,6 +234,8 @@ class GameProvider extends ChangeNotifier {
     currentProgress = null;
     userStats = null;
     unlockables = [];
+    minigames = [];
+    coins = 0;
     leaderboard = [];
     challenges = [];
     errorMessage = null;
@@ -384,6 +388,46 @@ class GameProvider extends ChangeNotifier {
     } catch (e) {
       errorMessage = e.toString();
       notifyListeners();
+    }
+  }
+
+  Future<void> loadMiniGames() async {
+    try {
+      final result = await apiClient.getMiniGames();
+      minigames = result['games'] as List<MiniGame>;
+      coins = result['coins'] as int;
+      notifyListeners();
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<bool> unlockMiniGame(int gameId) async {
+    try {
+      await apiClient.unlockMiniGame(gameId);
+      await loadMiniGames();
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Spends the per-play cost and returns the backend's play result
+  /// ({gameType, htmlUrl, nativeKey}), or null (with [errorMessage] set)
+  /// if the user can't afford it.
+  Future<Map<String, dynamic>?> playMiniGame(int gameId) async {
+    try {
+      final result = await apiClient.playMiniGame(gameId);
+      coins = result['coins'] as int;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+      return null;
     }
   }
 

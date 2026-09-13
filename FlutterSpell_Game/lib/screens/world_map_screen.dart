@@ -69,12 +69,22 @@ class WorldMapScreen extends StatelessWidget {
                   ],
                 ),
                 SizedBox(height: DuolingoSpacing.xxl),
-                // Boss Arena
-                _LocationNode(
-                  icon: '⚔️',
-                  label: 'Boss Arena',
-                  color: DuolingoColors.bossArenaGradient[0],
-                  onTap: () => Navigator.pushNamed(context, '/boss-arena'),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _LocationNode(
+                      icon: '⚔️',
+                      label: 'Boss Arena',
+                      color: DuolingoColors.bossArenaGradient[0],
+                      onTap: () => Navigator.pushNamed(context, '/boss-arena'),
+                    ),
+                    _LocationNode(
+                      icon: '🕹️',
+                      label: 'Game\nStore',
+                      color: DuolingoColors.gameStoreGradient[0],
+                      onTap: () => Navigator.pushNamed(context, '/games'),
+                    ),
+                  ],
                 ),
                 SizedBox(height: DuolingoSpacing.xl),
               ],
@@ -85,6 +95,9 @@ class WorldMapScreen extends StatelessWidget {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 1,
         type: BottomNavigationBarType.fixed,
+        backgroundColor: DuolingoColors.backgroundWhite,
+        selectedItemColor: DuolingoColors.primaryGreen,
+        unselectedItemColor: DuolingoColors.navInactiveGray,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),

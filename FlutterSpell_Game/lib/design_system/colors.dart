@@ -14,6 +14,7 @@ class DuolingoColors {
   static const Color backgroundWhite = Color(0xFFFFFFFF);
   static const Color neutralGray = Color(0xFFF5F5F5);
   static const Color secondaryButtonGray = Color(0xFFCCCCCC);
+  static const Color navInactiveGray = Color(0xFF9E9E9E); // Unselected nav icons/labels (readable on white)
 
   // Gradients (for cards)
   static const List<Color> streakGradient = [
@@ -47,4 +48,5 @@ class DuolingoColors {
   static const List<Color> reviewCaveGradient = [Color(0xFFF0E6FF), Color(0xFFE6D9FF)];
   static const List<Color> treasureIslandGradient = [Color(0xFFFFFDE6), Color(0xFFFFFFE0)];
   static const List<Color> bossArenaGradient = [Color(0xFFFFE6E6), Color(0xFFFFCCCC)];
+  static const List<Color> gameStoreGradient = [Color(0xFFE6FFF0), Color(0xFFCCFFE0)];
 }

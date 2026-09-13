@@ -241,6 +241,54 @@ class ApiClient {
     }
   }
 
+  /// Game store catalog: coins balance plus each game's unlock status.
+  Future<Map<String, dynamic>> getMiniGames() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/minigames/?user_name=$userName'),
+    );
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'games': (json['games'] as List)
+            .map((g) => MiniGame.fromJson(g as Map<String, dynamic>))
+            .toList(),
+        'coins': json['coins'] as int,
+      };
+    }
+    throw Exception('Failed to load games');
+  }
+
+  /// Spends coins to permanently unlock a game. Throws with the backend's
+  /// message on failure (e.g. "Not enough coins").
+  Future<Map<String, dynamic>> unlockMiniGame(int gameId) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/minigames/$gameId/unlock?user_name=$userName'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(_extractDetail(response.body, 'Failed to unlock game'));
+  }
+
+  /// Spends the per-play cost and returns the game's embeddable URL.
+  Future<Map<String, dynamic>> playMiniGame(int gameId) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/minigames/$gameId/play?user_name=$userName'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(_extractDetail(response.body, 'Failed to start game'));
+  }
+
+  String _extractDetail(String body, String fallback) {
+    try {
+      return jsonDecode(body)['detail'] as String? ?? fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   Future<UserStats> getUserStats() async {
     try {
       final response = await http.get(

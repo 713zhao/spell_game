@@ -215,3 +215,41 @@ class LeaderboardEntry {
       _$LeaderboardEntryFromJson(json);
   Map<String, dynamic> toJson() => _$LeaderboardEntryToJson(this);
 }
+
+/// A game-store catalog entry. Plain class (parsed manually from the
+/// /minigames endpoint) since it's simple enough not to need codegen.
+class MiniGame {
+  final int id;
+  final String name;
+  final String? description;
+  final String icon;
+  final String gameType; // "iframe" | "native"
+  final String? nativeKey;
+  final int unlockCost;
+  final int playCost;
+  final bool unlocked;
+
+  MiniGame({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.icon,
+    required this.gameType,
+    this.nativeKey,
+    required this.unlockCost,
+    required this.playCost,
+    required this.unlocked,
+  });
+
+  factory MiniGame.fromJson(Map<String, dynamic> json) => MiniGame(
+        id: json['id'] as int,
+        name: json['name'] as String,
+        description: json['description'] as String?,
+        icon: json['icon'] as String,
+        gameType: json['gameType'] as String? ?? 'iframe',
+        nativeKey: json['nativeKey'] as String?,
+        unlockCost: json['unlockCost'] as int,
+        playCost: json['playCost'] as int,
+        unlocked: json['unlocked'] as bool,
+      );
+}
