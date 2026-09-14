@@ -118,6 +118,29 @@ class ApiClient {
     throw Exception('Failed to load deck');
   }
 
+  /// All words (any user, global) that have quiz data - most words in the
+  /// database don't, so a given user's own deck may have none even when
+  /// the deck itself isn't empty. Used by Word Snake's Knowledge Stones as
+  /// a fallback so there's always vocab-quiz content available to play.
+  Future<List<Word>> getQuizWordPool({int limit = 100}) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/words/quiz-pool?limit=$limit'),
+    );
+    if (response.statusCode == 200) {
+      final list = jsonDecode(response.body) as List;
+      return list
+          .map((w) => Word(
+                id: w['word_id'] as int,
+                text: w['text'] as String,
+                language: (w['language'] ?? 'english') as String,
+                backCard: w['back_card'] as String?,
+                quiz: w['quiz'] as String?,
+              ))
+          .toList();
+    }
+    throw Exception('Failed to load quiz word pool');
+  }
+
   /// List the user's grade-filtered lessons for a subject (EN or CN), built
   /// from teacher/MOE tags on the backend.
   Future<List<LessonSummary>> getLessons(String subject) async {
