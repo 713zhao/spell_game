@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import '../widgets/account_avatar_button.dart';
 import '../design_system/design_system.dart';
@@ -53,6 +55,7 @@ class StudySessionArgs {
   final String displayName;
   final String subject;
   final List<String> skills;
+  final int? checkpoint;
 
   const StudySessionArgs({
     required this.tags,
@@ -60,6 +63,7 @@ class StudySessionArgs {
     required this.displayName,
     required this.subject,
     this.skills = const [],
+    this.checkpoint,
   });
 }
 
@@ -124,6 +128,8 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     return DuolingoColors.secondaryButtonGray;
   }
 
+  static const int _checkpointSize = 5;
+
   Widget _buildWordDetailGrid() {
     if (gameProvider.deckCards.isEmpty) {
       // An empty deck means either the fetch hasn't resolved yet, or it
@@ -142,17 +148,51 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
         ),
       );
     }
+
+    final sorted = List<DeckCard>.from(gameProvider.deckCards)
+      ..sort((a, b) => a.word.id.compareTo(b.word.id));
+    final chunks = <List<DeckCard>>[];
+    for (var i = 0; i < sorted.length; i += _checkpointSize) {
+      chunks.add(sorted.sublist(i, min(i + _checkpointSize, sorted.length)));
+    }
+    final currentCheckpoint = widget.args.lesson.checkpointIndex;
+
     return Padding(
       padding: EdgeInsets.only(top: DuolingoSpacing.sm),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: gameProvider.deckCards.map((card) {
-          return _MasteryChip(
-            text: card.word.text,
-            color: _masteryChipColor(card.repetitions),
-          );
-        }).toList(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < chunks.length; i++)
+            Padding(
+              padding: EdgeInsets.only(bottom: DuolingoSpacing.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Checkpoint ${i + 1}',
+                    style: DuolingoTextStyles.label.copyWith(
+                      color: DuolingoColors.bodyText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: chunks[i].map((card) {
+                      final locked = i > currentCheckpoint;
+                      return _MasteryChip(
+                        text: card.word.text,
+                        color: locked
+                            ? DuolingoColors.secondaryButtonGray
+                            : _masteryChipColor(card.repetitions),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -170,15 +210,41 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     final stars = lesson.stars; // mastery earned so far (0-3)
 
     final wordCount = lesson.wordCount;
-    final newWords = gameProvider.deckCards
+    // Start Adventure only launches a session scoped to the current
+    // checkpoint chunk (mirrors _checkpointSize, used below by the
+    // word-detail grid) - except once the lesson is completed, when the
+    // checkpoint scoping is dropped and the session pool is the whole
+    // lesson again (see the checkpoint: argument on StudySessionArgs
+    // below). The WORDS/TIME/REWARDS tiles should describe that session,
+    // not the whole lesson, or they'd overstate what tapping the button
+    // actually gives you.
+    final sessionWordCount = lesson.status == 'completed'
+        ? wordCount
+        : (wordCount - lesson.checkpointIndex * _checkpointSize).clamp(
+            0,
+            _checkpointSize,
+          );
+    // newWords must be scoped the same way: counting zero-repetition cards
+    // across the whole deck (rather than just the current checkpoint's
+    // chunk) would inflate the TIME estimate with words that aren't even
+    // part of the session Start Adventure is about to launch. Reuses the
+    // same sort-then-chunk approach as _buildWordDetailGrid.
+    final sortedCards = List<DeckCard>.from(gameProvider.deckCards)
+      ..sort((a, b) => a.word.id.compareTo(b.word.id));
+    final checkpointStart = lesson.status == 'completed'
+        ? 0
+        : lesson.checkpointIndex * _checkpointSize;
+    final checkpointEnd = lesson.status == 'completed'
+        ? sortedCards.length
+        : min(checkpointStart + _checkpointSize, sortedCards.length);
+    final newWords = sortedCards
+        .sublist(checkpointStart.clamp(0, sortedCards.length), checkpointEnd)
         .where((c) => c.repetitions == 0)
         .length;
     // Learn cards ~8s, exercises ~20s each
-    final estMinutes = ((newWords * 8 + wordCount * 20) / 60).ceil().clamp(
-      1,
-      30,
-    );
-    final rewards = computeLessonRewards(wordCount);
+    final estMinutes =
+        ((newWords * 8 + sessionWordCount * 20) / 60).ceil().clamp(1, 30);
+    final rewards = computeLessonRewards(sessionWordCount);
 
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
@@ -270,7 +336,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                           Expanded(
                             child: _InfoTile(
                               emoji: '📚',
-                              value: '$wordCount',
+                              value: '$sessionWordCount',
                               label: 'WORDS',
                             ),
                           ),
@@ -416,6 +482,16 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                       displayName: lesson.displayName,
                       subject: widget.args.subject,
                       skills: lesson.skills,
+                      // Once a lesson is fully completed, checkpointIndex
+                      // stays parked on the final chunk forever (there's no
+                      // "done" sentinel) - passing that through here would
+                      // permanently lock re-practice sessions to only the
+                      // last 5 words. null means "no checkpoint scoping,
+                      // serve from the whole lesson pool" to getDeckCards /
+                      // loadDeck / the backend's /deck route.
+                      checkpoint: lesson.status == 'completed'
+                          ? null
+                          : lesson.checkpointIndex,
                     ),
                   );
                 },

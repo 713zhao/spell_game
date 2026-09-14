@@ -169,6 +169,8 @@ class LessonSummary {
   final int stars;
   final String status; // completed | current | locked
   final String? spellDate; // raw text, e.g. "七月十四日"; null when unset
+  final int checkpointIndex; // 0-based index of the current unlocked checkpoint
+  final int checkpointCount; // total checkpoints in this lesson (words / 5, rounded up)
 
   LessonSummary({
     required this.lessonKey,
@@ -181,20 +183,28 @@ class LessonSummary {
     required this.stars,
     required this.status,
     this.spellDate,
+    this.checkpointIndex = 0,
+    this.checkpointCount = 0,
   });
 
-  factory LessonSummary.fromJson(Map<String, dynamic> json) => LessonSummary(
-        lessonKey: json['lesson_key'] as String,
-        displayName: json['display_name'] as String,
-        labelType: json['label_type'] as String? ?? 'TEACHER',
-        tags: (json['tags'] as List).cast<String>(),
-        skills: (json['skills'] as List).cast<String>(),
-        wordCount: json['word_count'] as int,
-        masteryPct: (json['mastery_pct'] as num).toDouble(),
-        stars: json['stars'] as int,
-        status: json['status'] as String,
-        spellDate: json['spell_date'] as String?,
-      );
+  factory LessonSummary.fromJson(Map<String, dynamic> json) {
+    final wordCount = json['word_count'] as int;
+    return LessonSummary(
+      lessonKey: json['lesson_key'] as String,
+      displayName: json['display_name'] as String,
+      labelType: json['label_type'] as String? ?? 'TEACHER',
+      tags: (json['tags'] as List).cast<String>(),
+      skills: (json['skills'] as List).cast<String>(),
+      wordCount: wordCount,
+      masteryPct: (json['mastery_pct'] as num).toDouble(),
+      stars: json['stars'] as int,
+      status: json['status'] as String,
+      spellDate: json['spell_date'] as String?,
+      checkpointIndex: json['checkpoint_index'] as int? ?? 0,
+      checkpointCount:
+          json['checkpoint_count'] as int? ?? (wordCount / 5).ceil(),
+    );
+  }
 }
 
 @JsonSerializable()

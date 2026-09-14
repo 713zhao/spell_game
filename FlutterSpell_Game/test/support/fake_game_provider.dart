@@ -164,7 +164,7 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
   }
 
   @override
-  Future<void> loadDeck({List<String>? tags, int limit = 10}) async {}
+  Future<void> loadDeck({List<String>? tags, int limit = 10, int? checkpoint}) async {}
 
   @override
   Future<void> loadLessons(String subject) async {}

@@ -64,6 +64,8 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
             stars: _lessons[i].stars,
             isLocked: _lessons[i].status == 'locked',
             spellDate: _lessons[i].spellDate,
+            checkpointIndex: _lessons[i].checkpointIndex,
+            checkpointCount: _lessons[i].checkpointCount,
           ),
       ];
 

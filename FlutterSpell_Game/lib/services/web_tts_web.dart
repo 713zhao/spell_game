@@ -45,10 +45,12 @@ void _stopCurrent() {
   }
 }
 
-/// Unlike the FlutterSpell original this is ported from, this listens for
-/// the audio element's error event (not just canPlay) so a failed/500
-/// backend response falls back to browser TTS immediately instead of
-/// hanging forever waiting for a "can play" event that never fires.
+/// Unlike the FlutterSpell original this is ported from, this calls
+/// audio.play() immediately instead of awaiting the network fetch/canPlay
+/// event first. iOS Safari only allows an unmuted play() to succeed when
+/// it's invoked directly off a user gesture; awaiting anything (like the
+/// backend round-trip) beforehand breaks that chain and play() gets
+/// silently rejected, so audio never starts.
 Future<bool> _tryGoogleTts(String word) async {
   try {
     final isChinese = RegExp(r'[一-鿿]').hasMatch(word);
@@ -60,24 +62,25 @@ Future<bool> _tryGoogleTts(String word) async {
     audio.volume = 1.0;
     _currentAudio = audio;
 
-    final ready = Completer<bool>();
-    audio.onCanPlay.first.then((_) {
-      if (!ready.isCompleted) ready.complete(true);
-    });
+    final started = Completer<bool>();
     audio.onError.first.then((_) {
-      if (!ready.isCompleted) ready.complete(false);
+      if (!started.isCompleted) started.complete(false);
+    });
+    audio.play().then((_) {
+      if (!started.isCompleted) started.complete(true);
+    }).catchError((_) {
+      if (!started.isCompleted) started.complete(false);
     });
 
-    final canPlay = await ready.future.timeout(
+    final ok = await started.future.timeout(
       const Duration(seconds: 6),
       onTimeout: () => false,
     );
-    if (!canPlay) {
+    if (!ok) {
       if (_currentAudio == audio) _currentAudio = null;
       return false;
     }
 
-    await audio.play();
     await audio.onEnded.first;
 
     if (_currentAudio == audio) _currentAudio = null;
@@ -86,6 +89,25 @@ Future<bool> _tryGoogleTts(String word) async {
     _currentAudio = null;
     return false;
   }
+}
+
+// Web Speech API voices don't expose a gender field, so match common
+// female voice names from the OS/browser catalogs (Windows, macOS, Chrome,
+// Edge) that desktop `speechSynthesis` typically offers.
+const _femaleVoiceNameHints = [
+  'female',
+  // English (Windows SAPI, macOS, Chrome/Edge online voices)
+  'zira', 'samantha', 'susan', 'victoria', 'karen', 'moira', 'tessa',
+  'fiona', 'kate', 'serena', 'ava', 'allison', 'aria', 'jenny', 'sara',
+  'salli', 'joanna', 'kimberly', 'ivy', 'emma', 'amy', 'hazel',
+  // Chinese (Windows SAPI, macOS, Edge online voices)
+  'huihui', 'xiaoxiao', 'yaoyao', 'ting-ting', 'tingting', 'xiaoyi',
+  'meijia', 'mei-jia',
+];
+
+bool _looksFemale(String voiceName) {
+  final name = voiceName.toLowerCase();
+  return _femaleVoiceNameHints.any((hint) => name.contains(hint));
 }
 
 Future<void> _speakWithBrowserTts(String word) async {
@@ -97,9 +119,18 @@ Future<void> _speakWithBrowserTts(String word) async {
     final isChinese = RegExp(r'[一-鿿]').hasMatch(word);
     final langPrefix = isChinese ? 'zh' : 'en';
 
-    final selectedVoice = voices.firstWhere(
-      (v) => js_util.getProperty(v, 'lang').toString().startsWith(langPrefix),
-      orElse: () => voices.isNotEmpty ? voices[0] : null,
+    final langVoices = voices
+        .where((v) => js_util
+            .getProperty(v, 'lang')
+            .toString()
+            .startsWith(langPrefix))
+        .toList();
+
+    final selectedVoice = langVoices.firstWhere(
+      (v) => _looksFemale(js_util.getProperty(v, 'name').toString()),
+      orElse: () => langVoices.isNotEmpty
+          ? langVoices.first
+          : (voices.isNotEmpty ? voices.first : null),
     );
 
     final utter = js_util.callConstructor(

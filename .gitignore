@@ -27,3 +27,7 @@ Thumbs.db
 
 # restart-dev.sh runtime state
 .pids/
+
+# Generated repo-status reports (regenerate with check-repo-status.ps1)
+repo-status-report.*
+repo-status-summary.*
