@@ -8,6 +8,8 @@ import '../widgets/cards/treasure_chest_card.dart';
 import '../widgets/cards/boss_battle_card.dart';
 import '../widgets/cards/stat_card.dart';
 import '../utils/kingdom_progress.dart';
+import '../utils/last_lesson.dart';
+import '../models/game_models.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -23,6 +25,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _mascotController;
   late Animation<double> _mascotAnimation;
 
+  // Whichever lesson the user last opened from each kingdom's word map
+  // (e.g. after agreeing there to switch to the upcoming lesson) - shown on
+  // this card in place of the plain mastery-progress "current" lesson, so
+  // the two screens stay in sync without Home ever asking its own question.
+  LessonSummary? _englishDisplayOverride;
+  LessonSummary? _chineseDisplayOverride;
+
   @override
   void initState() {
     super.initState();
@@ -31,13 +40,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       gameProvider.loadLevels();
       gameProvider.loadUserStats();
-      gameProvider.loadLessons('EN');
-      gameProvider.loadLessons('CN');
+      gameProvider.loadLessons('EN').then((_) => _refreshDisplayLesson('EN'));
+      gameProvider.loadLessons('CN').then((_) => _refreshDisplayLesson('CN'));
     });
   }
 
   void _onGameProviderChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshDisplayLesson(String subject) async {
+    final lastKey = await getLastLessonKey(subject);
+    if (!mounted || lastKey == null) return;
+
+    final lessons =
+        subject == 'EN' ? gameProvider.englishLessons : gameProvider.chineseLessons;
+    LessonSummary? match;
+    for (final l in lessons) {
+      if (l.lessonKey == lastKey) {
+        match = l;
+        break;
+      }
+    }
+    if (match == null) return;
+
+    setState(() {
+      if (subject == 'EN') {
+        _englishDisplayOverride = match;
+      } else {
+        _chineseDisplayOverride = match;
+      }
+    });
   }
 
   void _initializeMascotAnimation() {
@@ -96,10 +129,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final coins = 85;
           final gems = 12;
           final userName = gameProvider.userName;
-          final englishProgress =
-              summarizeKingdomProgress(gameProvider.englishLessons);
-          final chineseProgress =
-              summarizeKingdomProgress(gameProvider.chineseLessons);
+          final englishProgress = summarizeKingdomProgress(
+            gameProvider.englishLessons,
+            displayOverride: _englishDisplayOverride,
+          );
+          final chineseProgress = summarizeKingdomProgress(
+            gameProvider.chineseLessons,
+            displayOverride: _chineseDisplayOverride,
+          );
 
           // Check if weak words exist for boss battle
           final hasWeakWords = gameProvider.userStats?.accuracy != null &&
@@ -211,8 +248,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     completed: englishProgress.completed,
                     total: englishProgress.total,
                     stars: englishProgress.stars,
-                    onTap: () {
-                      Navigator.of(context).pushNamed('/english-castle');
+                    onTap: () async {
+                      await Navigator.of(context).pushNamed('/english-castle');
+                      await _refreshDisplayLesson('EN');
                     },
                   ),
                   SizedBox(height: DuolingoSpacing.lg),
@@ -226,8 +264,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     completed: chineseProgress.completed,
                     total: chineseProgress.total,
                     stars: chineseProgress.stars,
-                    onTap: () {
-                      Navigator.of(context).pushNamed('/chinese-kingdom');
+                    onTap: () async {
+                      await Navigator.of(context).pushNamed('/chinese-kingdom');
+                      await _refreshDisplayLesson('CN');
                     },
                   ),
                   SizedBox(height: DuolingoSpacing.lg),

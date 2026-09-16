@@ -20,7 +20,16 @@ class KingdomProgress {
 /// lessons are completed, the display name of the one currently in
 /// progress, and its star rating. Falls back to a friendly message when
 /// there's nothing assigned yet, or everything's already finished.
-KingdomProgress summarizeKingdomProgress(List<LessonSummary> lessons) {
+///
+/// [displayOverride], when set, is shown instead of the mastery-progress
+/// "current" lesson - used to keep this card in sync with whichever lesson
+/// the user last opened from the kingdom's word map (e.g. after agreeing to
+/// switch to the upcoming lesson there), even though its own mastery status
+/// hasn't changed.
+KingdomProgress summarizeKingdomProgress(
+  List<LessonSummary> lessons, {
+  LessonSummary? displayOverride,
+}) {
   if (lessons.isEmpty) {
     return const KingdomProgress(
       completed: 0,
@@ -40,10 +49,12 @@ KingdomProgress summarizeKingdomProgress(List<LessonSummary> lessons) {
     }
   }
 
+  final displayLesson = displayOverride ?? currentLesson;
+
   return KingdomProgress(
     completed: completed,
     total: lessons.length,
-    current: currentLesson?.displayName ?? 'All lessons complete! 🎉',
-    stars: currentLesson?.stars ?? 3,
+    current: displayLesson?.displayName ?? 'All lessons complete! 🎉',
+    stars: displayLesson?.stars ?? 3,
   );
 }
