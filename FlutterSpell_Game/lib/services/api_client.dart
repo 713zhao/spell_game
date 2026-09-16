@@ -305,6 +305,32 @@ class ApiClient {
     throw Exception(_extractDetail(response.body, 'Failed to start game'));
   }
 
+  /// Where this user stands against the daily combined minigame play time
+  /// cap: {usedSeconds, limitSeconds, remainingSeconds, locked}.
+  Future<Map<String, dynamic>> getPlaytimeStatus() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/minigames/playtime?user_name=$userName'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(_extractDetail(response.body, 'Failed to load play time'));
+  }
+
+  /// Reports elapsed play seconds since the last heartbeat, accumulating
+  /// toward the daily cap. Returns the same status shape as
+  /// [getPlaytimeStatus] so the caller can lock the game out mid-session.
+  Future<Map<String, dynamic>> sendPlaytimeHeartbeat(int seconds) async {
+    final response = await http.post(
+      Uri.parse(
+          '$_baseUrl/minigames/playtime/heartbeat?user_name=$userName&seconds=$seconds'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(_extractDetail(response.body, 'Failed to report play time'));
+  }
+
   String _extractDetail(String body, String fallback) {
     try {
       return jsonDecode(body)['detail'] as String? ?? fallback;

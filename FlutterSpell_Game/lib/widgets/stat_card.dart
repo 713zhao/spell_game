@@ -24,20 +24,19 @@ class StatCard extends StatelessWidget {
         color: backgroundColor ?? Colors.blue[50],
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: 16.0,
-            vertical: 20.0,
+            horizontal: 12.0,
+            vertical: 12.0,
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null)
                 Text(
                   icon!,
-                  style: const TextStyle(fontSize: 32),
-                )
-              else
-                const SizedBox(height: 8),
-              const SizedBox(height: 8),
+                  style: const TextStyle(fontSize: 26),
+                ),
+              const SizedBox(height: 6),
               Text(
                 label,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -45,10 +44,10 @@ class StatCard extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
                 value,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,

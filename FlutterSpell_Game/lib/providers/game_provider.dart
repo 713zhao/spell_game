@@ -35,6 +35,11 @@ class GameProvider extends ChangeNotifier {
   String? errorMessage;
   bool _soundEnabled = true;
 
+  // Daily combined minigame play-time cap (see MiniGameManager on the
+  // backend - the source of truth; these just mirror the last-known status).
+  bool playtimeLocked = false;
+  int playtimeRemainingSeconds = 15 * 60;
+
   String get userName => _userName;
   bool get soundEnabled => _soundEnabled;
 
@@ -433,6 +438,35 @@ class GameProvider extends ChangeNotifier {
       notifyListeners();
       return null;
     }
+  }
+
+  /// Refreshes [playtimeLocked]/[playtimeRemainingSeconds] from the
+  /// backend. Best-effort: a failed check doesn't flip the game locked, it
+  /// just leaves the last-known status in place.
+  Future<void> loadPlaytimeStatus() async {
+    try {
+      final status = await apiClient.getPlaytimeStatus();
+      playtimeLocked = status['locked'] as bool;
+      playtimeRemainingSeconds = status['remainingSeconds'] as int;
+      notifyListeners();
+    } catch (_) {
+      // Leave last-known status as-is.
+    }
+  }
+
+  /// Reports [seconds] of elapsed play time toward the daily cap, and
+  /// returns whether the game is now (or already) locked. Best-effort like
+  /// [loadPlaytimeStatus] - a network hiccup shouldn't lock the game out.
+  Future<bool> sendPlaytimeHeartbeat(int seconds) async {
+    try {
+      final status = await apiClient.sendPlaytimeHeartbeat(seconds);
+      playtimeLocked = status['locked'] as bool;
+      playtimeRemainingSeconds = status['remainingSeconds'] as int;
+      notifyListeners();
+    } catch (_) {
+      // Leave last-known status as-is.
+    }
+    return playtimeLocked;
   }
 
   Future<bool> redeemUnlockable(int unlockableId) async {

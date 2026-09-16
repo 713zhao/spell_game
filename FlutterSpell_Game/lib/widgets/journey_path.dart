@@ -14,6 +14,11 @@ class JourneyPath extends StatefulWidget {
   final List<Color> gradientColors;
   final bool allowSkipLock;
   final void Function(int stageNumber) onSelectLesson;
+  // Stage number to scroll into view and mark with a "look here" indicator
+  // on first build (e.g. the user's default/last-opened lesson), so they
+  // can pick up where they left off without hunting through the path -
+  // still requires a tap to actually open it. Null shows no highlight.
+  final int? highlightStageNumber;
 
   const JourneyPath({
     super.key,
@@ -23,6 +28,7 @@ class JourneyPath extends StatefulWidget {
     required this.gradientColors,
     required this.allowSkipLock,
     required this.onSelectLesson,
+    this.highlightStageNumber,
   });
 
   @override
@@ -32,6 +38,14 @@ class JourneyPath extends StatefulWidget {
 class _JourneyPathState extends State<JourneyPath>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulseController;
+
+  // One GlobalKey per stage's label-anchor node, so a highlighted stage's
+  // rendered position can be found for Scrollable.ensureVisible after the
+  // path lays out - the path itself has no ScrollController of its own,
+  // it just scrolls within whichever ancestor Scrollable the caller wraps
+  // it in (a plain SingleChildScrollView on every current call site).
+  final Map<int, GlobalKey> _stageAnchorKeys = {};
+  bool _scrolledToHighlight = false;
 
   static const double _nodeSize = DuolingoSpacing.nodeSize; // 56
   static const double _milestoneSize = DuolingoSpacing.nodeSize + 26; // 82
@@ -46,6 +60,37 @@ class _JourneyPathState extends State<JourneyPath>
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     )..repeat(reverse: true);
+    if (widget.highlightStageNumber != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToHighlight());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant JourneyPath oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The highlight target is often only known after an async lookup (e.g.
+    // a confirm dialog) that resolves after this widget's first build, so
+    // it can arrive as a prop change rather than being present up front.
+    if (widget.highlightStageNumber != null &&
+        widget.highlightStageNumber != oldWidget.highlightStageNumber) {
+      _scrolledToHighlight = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToHighlight());
+    }
+  }
+
+  void _scrollToHighlight() {
+    if (_scrolledToHighlight || !mounted) return;
+    final stageNumber = widget.highlightStageNumber;
+    if (stageNumber == null) return;
+    final ctx = _stageAnchorKeys[stageNumber]?.currentContext;
+    if (ctx == null) return;
+    _scrolledToHighlight = true;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.3,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -248,6 +293,9 @@ class _JourneyPathState extends State<JourneyPath>
     // state) so Positioned offsets computed here stay centered on `center`.
     const outerSize = _nodeSize + _LessonNode.footprintPadding;
 
+    final isHighlighted =
+        lessonItem.isLabelAnchor && stage.stageNumber == widget.highlightStageNumber;
+
     final labelWidgets = <Widget>[];
     if (lessonItem.isLabelAnchor) {
       // The label (title/date/stars) reflects the LESSON's overall state,
@@ -264,6 +312,16 @@ class _JourneyPathState extends State<JourneyPath>
             left: (center.dx - 40).clamp(0, width - 80),
             width: 80,
             child: _StarRow(stars: stage.stars, dimmed: lessonLocked),
+          ),
+        );
+      }
+      if (isHighlighted) {
+        labelWidgets.add(
+          Positioned(
+            top: center.dy - _nodeSize / 2 - 54,
+            left: (center.dx - 20).clamp(0, width - 40),
+            width: 40,
+            child: _HighlightArrow(pulse: _pulseController),
           ),
         );
       }
@@ -302,18 +360,44 @@ class _JourneyPathState extends State<JourneyPath>
       );
     }
 
+    Widget node = _LessonNode(
+      state: state,
+      pulse: _pulseController,
+      onTap: () => _handleNodeTap(lessonItem),
+    );
+    if (lessonItem.isLabelAnchor) {
+      node = KeyedSubtree(
+        key: _stageAnchorKeys.putIfAbsent(stage.stageNumber, () => GlobalKey()),
+        child: node,
+      );
+    }
+
     return [
       Positioned(
         left: center.dx - outerSize / 2,
         top: center.dy - outerSize / 2,
-        child: _LessonNode(
-          state: state,
-          pulse: _pulseController,
-          onTap: () => _handleNodeTap(lessonItem),
-        ),
+        child: node,
       ),
       ...labelWidgets,
     ];
+  }
+}
+
+class _HighlightArrow extends StatelessWidget {
+  final Animation<double> pulse;
+
+  const _HighlightArrow({required this.pulse});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: pulse,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, pulse.value * 8),
+        child: child,
+      ),
+      child: const Text('👇', style: TextStyle(fontSize: 26)),
+    );
   }
 }
 

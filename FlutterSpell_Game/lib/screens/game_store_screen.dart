@@ -29,6 +29,7 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
 
   Future<void> _load() async {
     await gameProvider.loadMiniGames();
+    await gameProvider.loadPlaytimeStatus();
     if (!mounted) return;
     setState(() => _loading = false);
   }
@@ -58,6 +59,15 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
   }
 
   Future<void> _onPlay(MiniGame game) async {
+    if (gameProvider.playtimeLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'You\'ve used your 15 minutes of game time for today. Come back tomorrow!'),
+        ),
+      );
+      return;
+    }
     setState(() => _busy = true);
     final result = await gameProvider.playMiniGame(game.id);
     if (!mounted) return;
@@ -105,6 +115,7 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
           : Column(
               children: [
                 _buildCoinsBanner(),
+                _buildPlaytimeBanner(),
                 Expanded(
                   child: gameProvider.minigames.isEmpty
                       ? Center(
@@ -192,9 +203,47 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
     );
   }
 
+  /// Daily combined play-time status: a quiet reminder of minutes left, or
+  /// a clear "locked out" banner once the 15-minute cap is hit.
+  Widget _buildPlaytimeBanner() {
+    final locked = gameProvider.playtimeLocked;
+    final remainingMin = (gameProvider.playtimeRemainingSeconds / 60).ceil();
+    return Container(
+      margin: EdgeInsets.fromLTRB(
+          DuolingoSpacing.lg, DuolingoSpacing.sm, DuolingoSpacing.lg, 0),
+      padding: EdgeInsets.symmetric(
+        horizontal: DuolingoSpacing.md,
+        vertical: DuolingoSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: locked
+            ? DuolingoColors.mistakeRed.withOpacity(0.12)
+            : DuolingoColors.neutralGray,
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+      ),
+      child: Row(
+        children: [
+          Text(locked ? '⏰' : '🕒', style: const TextStyle(fontSize: 18)),
+          SizedBox(width: DuolingoSpacing.sm),
+          Expanded(
+            child: Text(
+              locked
+                  ? 'Daily game time used up - come back tomorrow!'
+                  : '$remainingMin min of game time left today',
+              style: DuolingoTextStyles.label.copyWith(
+                color: locked ? DuolingoColors.mistakeRed : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGameCard(MiniGame game) {
     final canAffordUnlock = gameProvider.coins >= game.unlockCost;
-    final canAffordPlay = gameProvider.coins >= game.playCost;
+    final canAffordPlay =
+        gameProvider.coins >= game.playCost && !gameProvider.playtimeLocked;
 
     return Container(
       padding: EdgeInsets.all(DuolingoSpacing.lg),

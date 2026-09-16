@@ -25,10 +25,13 @@ class ProgressScreen extends StatelessWidget {
               // Stats Grid
               Text('Stats', style: DuolingoTextStyles.sectionTitle),
               SizedBox(height: DuolingoSpacing.md),
-              GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: DuolingoSpacing.md,
-                mainAxisSpacing: DuolingoSpacing.md,
+              GridView(
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 200,
+                  crossAxisSpacing: DuolingoSpacing.md,
+                  mainAxisSpacing: DuolingoSpacing.md,
+                  childAspectRatio: 1.4,
+                ),
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
                 children: [

@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/utils/exercise_content_parser.dart';
+import 'package:spell_game/utils/playtime_guard.dart';
 import '../main.dart' show gameProvider;
 
 /// A continuous-movement (slither.io-style) snake game - NOT the classic
@@ -165,7 +166,7 @@ double _bodySizeScale(double length) {
 }
 
 class _WordSnakeScreenState extends State<WordSnakeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, PlaytimeGuardMixin<WordSnakeScreen> {
   // Tuned down from the reference game (smaller arena, fewer actors) to
   // keep a plain CustomPainter fast without spatial partitioning.
   static const double worldR = 1000;
@@ -228,12 +229,22 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
   bool _wordsLoading = true;
   List<Word> _quizWords = [];
 
+  // Daily combined minigame play-time cap, enforced via PlaytimeGuardMixin.
+  bool _playtimeLocked = false;
+
   @override
   void initState() {
     super.initState();
     _ticker = createTicker(_onTick)..start();
     _loadWords();
     _resetGame();
+    startPlaytimeGuard();
+  }
+
+  @override
+  void onPlaytimeLocked() {
+    if (!mounted) return;
+    setState(() => _playtimeLocked = true);
   }
 
   Future<void> _loadWords() async {
@@ -401,7 +412,7 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
         (elapsed - _lastElapsed).inMicroseconds / 1000.0;
     _lastElapsed = elapsed;
     if (dtMs <= 0 || dtMs > 200) return; // clamp first-frame / tab-away jumps
-    if (_gameOver || _quizOpen) return;
+    if (_gameOver || _quizOpen || _playtimeLocked) return;
     _update(dtMs);
     setState(() {});
   }
@@ -835,6 +846,7 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
   @override
   void dispose() {
     _ticker.dispose();
+    disposePlaytimeGuard();
     super.dispose();
   }
 
@@ -936,6 +948,8 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
                     ),
                     if (_bossBanner != null && _nowMs() < _bossBannerUntil)
                       _buildBossBanner(),
+                    if (_playtimeLocked && !_gameOver)
+                      _buildPlaytimeLockedOverlay(),
                     if (_gameOver) _buildGameOverOverlay(),
                   ],
                 ),
@@ -1038,6 +1052,51 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
             _bossBanner ?? '',
             textAlign: TextAlign.center,
             style: DuolingoTextStyles.cardTitle.copyWith(color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaytimeLockedOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.85),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('⏰', style: TextStyle(fontSize: 48)),
+              SizedBox(height: DuolingoSpacing.sm),
+              Text('Time\'s up for today!',
+                  style: DuolingoTextStyles.sectionTitle
+                      .copyWith(color: Colors.white)),
+              SizedBox(height: DuolingoSpacing.sm),
+              Padding(
+                padding:
+                    EdgeInsets.symmetric(horizontal: DuolingoSpacing.lg),
+                child: Text(
+                  'You\'ve used your 15 minutes of game time for today. '
+                  'Come back tomorrow!',
+                  textAlign: TextAlign.center,
+                  style: DuolingoTextStyles.label
+                      .copyWith(color: Colors.white70),
+                ),
+              ),
+              SizedBox(height: DuolingoSpacing.lg),
+              Text('Score: $_score',
+                  style: DuolingoTextStyles.cardTitle
+                      .copyWith(color: Colors.white)),
+              SizedBox(height: DuolingoSpacing.lg),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white),
+                ),
+                child: const Text('Exit'),
+              ),
+            ],
           ),
         ),
       ),

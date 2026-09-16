@@ -128,10 +128,11 @@ class _BackpackScreenState extends State<BackpackScreen> {
 
     return GridView.builder(
       padding: EdgeInsets.all(DuolingoSpacing.lg),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 180,
         crossAxisSpacing: DuolingoSpacing.lg,
         mainAxisSpacing: DuolingoSpacing.lg,
+        childAspectRatio: 0.9,
       ),
       itemCount: pets.length,
       itemBuilder: (context, index) {
@@ -183,10 +184,11 @@ class _BackpackScreenState extends State<BackpackScreen> {
 
     return GridView.builder(
       padding: EdgeInsets.all(DuolingoSpacing.lg),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 180,
         crossAxisSpacing: DuolingoSpacing.lg,
         mainAxisSpacing: DuolingoSpacing.lg,
+        childAspectRatio: 0.9,
       ),
       itemCount: badges.length,
       itemBuilder: (context, index) {

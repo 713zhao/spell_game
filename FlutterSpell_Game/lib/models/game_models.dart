@@ -169,6 +169,7 @@ class LessonSummary {
   final int stars;
   final String status; // completed | current | locked
   final String? spellDate; // raw text, e.g. "七月十四日"; null when unset
+  final bool isUpcoming; // true for the one lesson whose spell_date is soonest, on or after today
   final int checkpointIndex; // 0-based index of the current unlocked checkpoint
   final int checkpointCount; // total checkpoints in this lesson (words / 5, rounded up)
 
@@ -183,6 +184,7 @@ class LessonSummary {
     required this.stars,
     required this.status,
     this.spellDate,
+    this.isUpcoming = false,
     this.checkpointIndex = 0,
     this.checkpointCount = 0,
   });
@@ -200,6 +202,7 @@ class LessonSummary {
       stars: json['stars'] as int,
       status: json['status'] as String,
       spellDate: json['spell_date'] as String?,
+      isUpcoming: json['is_upcoming'] as bool? ?? false,
       checkpointIndex: json['checkpoint_index'] as int? ?? 0,
       checkpointCount:
           json['checkpoint_count'] as int? ?? (wordCount / 5).ceil(),

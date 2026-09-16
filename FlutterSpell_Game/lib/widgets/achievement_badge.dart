@@ -23,14 +23,15 @@ class AchievementBadge extends StatelessWidget {
     return Card(
       color: unlocked ? Colors.amber[50] : Colors.grey[100],
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(10.0),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Badge Icon
             Container(
-              width: 60,
-              height: 60,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: unlocked ? Colors.amber[300] : Colors.grey[400],
@@ -38,42 +39,43 @@ class AchievementBadge extends StatelessWidget {
               child: Center(
                 child: Text(
                   icon,
-                  style: const TextStyle(fontSize: 32),
+                  style: const TextStyle(fontSize: 24),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
 
             // Name and Description
             Text(
               name,
               style: Theme.of(context).textTheme.labelLarge,
               textAlign: TextAlign.center,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               description,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Colors.grey[600],
+                fontSize: 11,
               ),
               textAlign: TextAlign.center,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
 
             // Progress Bar
             if (!unlocked && progress > 0)
               Padding(
-                padding: const EdgeInsets.only(top: 8.0),
+                padding: const EdgeInsets.only(top: 6.0),
                 child: Column(
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: progress,
-                        minHeight: 6,
+                        minHeight: 5,
                         backgroundColor: Colors.grey[300],
                         valueColor: AlwaysStoppedAnimation<Color>(
                           Colors.blue[400]!,
@@ -82,10 +84,10 @@ class AchievementBadge extends StatelessWidget {
                     ),
                     if (progressLabel != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
+                        padding: const EdgeInsets.only(top: 2.0),
                         child: Text(
                           progressLabel!,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
                         ),
                       ),
                   ],
@@ -93,11 +95,11 @@ class AchievementBadge extends StatelessWidget {
               ),
 
             // Unlocked/Locked Badge
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 8.0,
-                vertical: 4.0,
+                vertical: 3.0,
               ),
               decoration: BoxDecoration(
                 color: unlocked ? Colors.green[100] : Colors.grey[300],

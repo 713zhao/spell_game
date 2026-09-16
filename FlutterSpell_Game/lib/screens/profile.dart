@@ -165,6 +165,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildHeaderChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.white.withValues(alpha: 0.95),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProfileDetailsRow(String label, dynamic value) {
     final display =
         (value == null || value.toString().trim().isEmpty) ? '—' : value.toString();
@@ -412,52 +430,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: CustomScrollView(
               slivers: [
                 // Profile Header Section
-                SliverAppBar(
-                  floating: true,
-                  backgroundColor: Colors.blue[600],
-                  leading: const SizedBox(),
-                  leadingWidth: 0,
-                  title: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      child: Column(
-                        children: [
-                          // Avatar
-                          Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: UserAvatar(
-                              name: username,
-                              size: 80,
-                              cosmeticEmoji: stats?.equippedCosmetic,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            username,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Level $level | Grade: $grade',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ],
+                SliverToBoxAdapter(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.blue[600]!, Colors.blue[500]!],
                       ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Avatar
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: UserAvatar(
+                            name: username,
+                            size: 80,
+                            cosmeticEmoji: stats?.equippedCosmetic,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          username,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            _buildHeaderChip('Level $level'),
+                            _buildHeaderChip('Grade: $grade'),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -479,10 +506,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 12),
-                        GridView.count(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
+                        GridView(
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 220,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.5,
+                          ),
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           children: [
@@ -541,13 +572,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 12),
-                        GridView.count(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
+                        GridView(
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 200,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.05,
+                          ),
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          childAspectRatio: 0.8,
                           children: _buildAchievements(
                             levelsCompleted,
                             currentStreak,
@@ -588,8 +622,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         else
                           GridView.builder(
                             gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
+                                const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 180,
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
                               childAspectRatio: 0.8,

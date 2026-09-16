@@ -5,6 +5,7 @@ import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/models/stage_data.dart';
 import 'package:spell_game/widgets/journey_path.dart';
+import 'package:spell_game/utils/last_lesson.dart';
 import '../main.dart' show gameProvider;
 import 'lesson_overview_screen.dart';
 
@@ -20,8 +21,12 @@ class ChineseKingdomScreen extends StatefulWidget {
 }
 
 class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
+  static const String _subject = 'CN';
+
   bool _allowSkipLock = true;
   bool _loadingLessons = true;
+  bool _autoHighlightHandled = false;
+  int? _highlightStageNumber;
 
   @override
   void initState() {
@@ -32,9 +37,23 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
   }
 
   Future<void> _loadLessons() async {
-    await gameProvider.loadLessons('CN');
+    await gameProvider.loadLessons(_subject);
     if (!mounted) return;
     setState(() => _loadingLessons = false);
+    await _maybeHighlightDefaultLesson();
+  }
+
+  Future<void> _maybeHighlightDefaultLesson() async {
+    if (_autoHighlightHandled || _lessons.isEmpty) return;
+    _autoHighlightHandled = true;
+    final target = await resolveDefaultLesson(
+      context: context,
+      lessons: _lessons,
+      subject: _subject,
+    );
+    if (target != null && mounted) {
+      setState(() => _highlightStageNumber = _lessons.indexOf(target) + 1);
+    }
   }
 
   void _onChanged() {
@@ -69,14 +88,16 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
           ),
       ];
 
-  void _openLesson(int stageNumber) {
+  Future<void> _openLesson(int stageNumber) async {
     final lesson = _lessons[stageNumber - 1];
+    await setLastLessonKey(_subject, lesson.lessonKey);
+    if (!mounted) return;
     Navigator.pushNamed(
       context,
       '/lesson-overview',
       arguments: LessonOverviewArgs(
         lesson: lesson,
-        subject: 'CN',
+        subject: _subject,
         kingdom: KingdomTheme.chinese,
       ),
     );
@@ -161,6 +182,7 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
                   gradientColors: DuolingoColors.chineseKingdomGradient,
                   allowSkipLock: _allowSkipLock,
                   onSelectLesson: _openLesson,
+                  highlightStageNumber: _highlightStageNumber,
                 ),
               SizedBox(height: DuolingoSpacing.xl),
             ],
