@@ -129,14 +129,8 @@ python3 .claude/skills/spelling-import/scripts/import_words_http.py \
 
 This uses plain system Python (no venv/sqlmodel needed — it only makes
 HTTP calls). It verifies the target (and `--assign-to`) user exist via
-`GET /users/{name}/profile` the same way, but **cannot set spell_date** —
-there is no HTTP route for it, so any `"date"` in the JSON is skipped and
-reported at the end as a `NOTE:` listing which lessons didn't get a date
-recorded on that backend. Mention this limitation to the user rather than
-silently dropping the dates.
-
-If the user needs spell_date set in production too, that requires either
-a new backend endpoint (edit `SpellBackend/src/routes/words.py` or
-`tags.py` to accept it, then deploy via the `deploy` skill) or an
-explicitly user-approved SSH session — don't attempt SSH into production
-without the user granting that permission first.
+`GET /users/{name}/profile`, and sets each lesson's spell_date via
+`PUT /tags/{tag_id}/spell-date` (`SpellBackend/src/routes/tags.py`) — this
+endpoint was added specifically so production imports don't need direct
+DB access for dates. If a backend predates that endpoint, deploy
+SpellBackend first (`deploy` skill) before importing.

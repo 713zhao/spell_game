@@ -3,13 +3,11 @@
 deployment over its public HTTP API (e.g. the Fly.io production backend,
 which has no SSH/direct-DB access from this environment).
 
-Unlike scripts/import_words.py (direct DB access, local dev only), this
-cannot set a lesson's spell_date - the /words/users/{name}/words/ route
-has no such parameter and there is no HTTP route to set Tag.spell_date.
-Any "date" field in the input JSON is ignored (printed as a note).
+Sets each lesson's spell_date via PUT /tags/{tag_id}/spell-date (added
+specifically so this script doesn't need direct DB access to do so).
 
 Input JSON shape: same as import_words.py - each lesson's value is either
-a plain word list, or a {"date", "words"} object (the date is ignored here).
+a plain word list, or a {"date", "words"} object.
 
 Usage:
     python3 import_words_http.py --json words.json --user ADMIN
@@ -108,7 +106,6 @@ def main():
 
     total_words = 0
     total_lessons = 0
-    dates_skipped = []
     for tag, value in lessons.items():
         total_lessons += 1
         if isinstance(value, dict):
@@ -117,8 +114,6 @@ def main():
         else:
             spell_date = None
             words = value
-        if spell_date:
-            dates_skipped.append((tag, spell_date))
 
         imported = 0
         for word_text in words:
@@ -137,9 +132,18 @@ def main():
             imported += 1
             total_words += 1
 
+        tag_id = find_tag_id(api_base, tag)
+
+        date_note = ""
+        if spell_date:
+            if tag_id is not None:
+                status, resp = http_json("PUT", f"{api_base}/tags/{tag_id}/spell-date", {"spell_date": spell_date})
+                date_note = f", date: {spell_date}" if status == 200 else f", FAILED to set date: {resp}"
+            else:
+                date_note = ", WARN: could not find tag id to set date"
+
         assign_note = ""
         if assign_to:
-            tag_id = find_tag_id(api_base, tag)
             if tag_id is not None:
                 status, resp = http_json("POST", f"{api_base}/tags/user/{quote(assign_to)}/assign/{tag_id}")
                 if status == 200:
@@ -149,13 +153,9 @@ def main():
             else:
                 assign_note = f", WARN: could not find tag id for '{tag}' to assign"
 
-        print(f"Lesson '{tag}': imported {imported}/{len(words)} words{assign_note}")
+        print(f"Lesson '{tag}': imported {imported}/{len(words)} words{date_note}{assign_note}")
 
     print(f"DONE: {total_words} words across {total_lessons} lesson(s) imported for user '{target_user}' at {api_base}.")
-    if dates_skipped:
-        print("NOTE: spell_date is not settable over HTTP - these lesson dates were NOT recorded on this backend:")
-        for tag, d in dates_skipped:
-            print(f"  {tag}: {d}")
 
 
 if __name__ == "__main__":
