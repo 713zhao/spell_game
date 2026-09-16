@@ -81,9 +81,9 @@ class _FoodTierDef {
 }
 
 const Map<_FoodTier, _FoodTierDef> _foodTierDefs = {
-  _FoodTier.small: _FoodTierDef(0.75, 1, 4.5, Color(0xFF5fd0ff), 0.8),
-  _FoodTier.medium: _FoodTierDef(0.20, 5, 7.5, Color(0xFFff5ec3), 2.5),
-  _FoodTier.large: _FoodTierDef(0.05, 15, 11.5, Color(0xFFffd166), 6.0),
+  _FoodTier.small: _FoodTierDef(0.75, 1, 4.5, Color(0xFF5fd0ff), 1.2),
+  _FoodTier.medium: _FoodTierDef(0.20, 5, 7.5, Color(0xFFff5ec3), 4.0),
+  _FoodTier.large: _FoodTierDef(0.05, 15, 11.5, Color(0xFFffd166), 12.0),
 };
 
 _FoodTier _rollFoodTier(Random random) {
@@ -156,10 +156,12 @@ double _normAngle(double a) {
 }
 
 /// How much bigger a snake's body (and its eating reach) gets as it grows,
-/// from 1.0x at the starting length up to 1.8x once it's grown a lot.
+/// from 1.0x at the starting length up to 2.2x once it's grown a lot - ramps
+/// up faster than length alone so gobbling big gold stones visibly fattens
+/// the snake right away.
 double _bodySizeScale(double length) {
   const startLength = 16.0;
-  return 1.0 + min(1.0, (length - startLength) / 200) * 0.8;
+  return 1.0 + min(1.0, (length - startLength) / 120) * 1.2;
 }
 
 class _WordSnakeScreenState extends State<WordSnakeScreen>
@@ -177,7 +179,7 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
   static const int foodCount = 90;
   static const int maxFoodCount = 320;
   static const int aiCount = 3;
-  static const int knowledgeStoneTarget = 4;
+  static const int knowledgeStoneTarget = 9;
   static const int maxLives = 3;
   static const double ghostDurationMs = 15000;
   static const double magnetDurationMs = 15000;
@@ -1169,11 +1171,27 @@ class _ArenaPainter extends CustomPainter {
       tp.paint(canvas, p - Offset(tp.width / 2, tp.height + 8));
     }
 
+    final now = _nowMs();
     for (final s in knowledgeStones) {
       final p = toScreen(Offset(s.x, s.y));
       if ((p - center).distance > size.longestSide) continue;
+      // Each stone flashes on its own cycle (phase offset by position) so
+      // they don't all pulse in lockstep - a slow bright flash layered on
+      // top of a faster gentle size wobble.
+      final phase = (s.x + s.y) * 0.01;
+      final wobble = (sin(now / 260 + phase) + 1) / 2;
+      final flash = (sin(now / 900 + phase) + 1) / 2;
+      final glowR = 16 + flash * 14;
+      canvas.drawCircle(
+        p,
+        glowR,
+        Paint()
+          ..color = const Color(0xFFffd166).withOpacity(0.12 + flash * 0.35)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+      final fontSize = 20.0 + wobble * 5 + flash * 4;
       final tp = TextPainter(
-        text: const TextSpan(text: '📚', style: TextStyle(fontSize: 20)),
+        text: TextSpan(text: '📚', style: TextStyle(fontSize: fontSize)),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));
