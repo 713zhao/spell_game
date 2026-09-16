@@ -112,3 +112,31 @@ present.
 On success the script prints a per-lesson imported count (noting the date
 used, or "no date found") and a final `DONE:` summary — report that back
 to the user.
+
+## Importing into the Fly.io production backend
+
+This environment has no SSH/direct-DB access to the production Fly volume
+(`spellbackend.fly.dev`'s `/database` mount) — attempting `flyctl ssh
+console` for this is blocked by the auto-mode classifier as a production
+action. Use the HTTP-based script instead, which imports over the public
+API exactly like a real client would:
+
+```bash
+python3 .claude/skills/spelling-import/scripts/import_words_http.py \
+  --json output/<file>.json --user <ADMIN-or-username> [--assign-to <username>] \
+  [--api-base https://spellbackend.fly.dev]
+```
+
+This uses plain system Python (no venv/sqlmodel needed — it only makes
+HTTP calls). It verifies the target (and `--assign-to`) user exist via
+`GET /users/{name}/profile` the same way, but **cannot set spell_date** —
+there is no HTTP route for it, so any `"date"` in the JSON is skipped and
+reported at the end as a `NOTE:` listing which lessons didn't get a date
+recorded on that backend. Mention this limitation to the user rather than
+silently dropping the dates.
+
+If the user needs spell_date set in production too, that requires either
+a new backend endpoint (edit `SpellBackend/src/routes/words.py` or
+`tags.py` to accept it, then deploy via the `deploy` skill) or an
+explicitly user-approved SSH session — don't attempt SSH into production
+without the user granting that permission first.
