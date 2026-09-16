@@ -2,8 +2,11 @@
 .vscode/
 .idea/
 
-# Claude Code local config
-.claude/
+# Claude Code local config - except checked-in project skills
+.claude/*
+!.claude/skills/
+__pycache__/
+*.pyc
 
 # Credentials - never commit service account keys or env files
 gen-lang-client-*.json
@@ -31,3 +34,7 @@ Thumbs.db
 # Generated repo-status reports (regenerate with check-repo-status.ps1)
 repo-status-report.*
 repo-status-summary.*
+
+# Spelling-import skill: source worksheets and generated lesson JSON
+input/
+output/
