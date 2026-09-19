@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/models/stage_data.dart';
 import 'package:spell_game/widgets/journey_path.dart';
+import 'package:spell_game/widgets/label_type_filter_bar.dart';
 import 'package:spell_game/utils/last_lesson.dart';
-import '../main.dart' show gameProvider;
+import 'package:spell_game/utils/lesson_label_filter.dart';
+import 'package:spell_game/utils/lesson_unlock_overrides.dart';
+import 'package:spell_game/providers/game_provider.dart';
 import 'lesson_overview_screen.dart';
 
 /// SpellQuest Journey Selection (Duolingo-style winding path) for the
@@ -26,18 +30,53 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
   bool _allowSkipLock = true;
   bool _loadingLessons = true;
   bool _autoHighlightHandled = false;
-  int? _highlightStageNumber;
+  String? _highlightLessonKey;
+  String? _labelFilter; // null = All
+  Set<String> _unlockedNodes = {};
+  // The server-computed track for [_labelFilter] (each label type is its own
+  // lock sequence); null until fetched, or while the filter is All.
+  List<LessonSummary>? _typeLessons;
+  int _seenLessonsVersion = 0;
+  late GameProvider gameProvider;
 
   @override
   void initState() {
     super.initState();
+    gameProvider = context.read<GameProvider>();
     _loadParentMode();
+    _loadUnlockedOverrides();
     gameProvider.addListener(_onChanged);
     _loadLessons();
   }
 
+  Future<void> _loadUnlockedOverrides() async {
+    final unlocked = await getUnlockedNodes(_subject);
+    if (!mounted) return;
+    setState(() => _unlockedNodes = unlocked);
+  }
+
+  Future<void> _handleUnlockConfirmed(
+    int stageNumber,
+    int checkpointIndex,
+  ) async {
+    final lessonKey = _lessons[stageNumber - 1].lessonKey;
+    await addUnlockedNode(_subject, lessonKey, checkpointIndex);
+    if (!mounted) return;
+    setState(
+      () => _unlockedNodes = {..._unlockedNodes, '$lessonKey#$checkpointIndex'},
+    );
+  }
+
   Future<void> _loadLessons() async {
+    _labelFilter = await getLabelFilter(_subject);
     await gameProvider.loadLessons(_subject);
+    _seenLessonsVersion = gameProvider.lessonsVersion;
+    // A saved filter for a type that no longer exists means All.
+    if (_labelFilter != null &&
+        !labelTypesOf(_allLessons).contains(_labelFilter)) {
+      _labelFilter = null;
+    }
+    await _refreshTypeLessons();
     if (!mounted) return;
     setState(() => _loadingLessons = false);
     await _maybeHighlightDefaultLesson();
@@ -52,12 +91,19 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
       subject: _subject,
     );
     if (target != null && mounted) {
-      setState(() => _highlightStageNumber = _lessons.indexOf(target) + 1);
+      setState(() => _highlightLessonKey = target.lessonKey);
     }
   }
 
   void _onChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // Lessons were reloaded (e.g. after a study session): the per-type
+    // track is fetched separately, so refresh it too.
+    if (gameProvider.lessonsVersion != _seenLessonsVersion) {
+      _seenLessonsVersion = gameProvider.lessonsVersion;
+      if (_labelFilter != null) _refreshTypeLessons();
+    }
+    setState(() {});
   }
 
   @override
@@ -72,23 +118,69 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
     setState(() => _allowSkipLock = !(prefs.getBool('parent_mode') ?? false));
   }
 
-  List<LessonSummary> get _lessons => gameProvider.chineseLessons;
+  List<LessonSummary> get _allLessons => gameProvider.chineseLessons;
 
-  List<StageData> get _stages => [
-        for (var i = 0; i < _lessons.length; i++)
-          StageData(
-            stageNumber: i + 1,
-            title: _lessons[i].displayName,
-            progress: _lessons[i].masteryPct,
-            stars: _lessons[i].stars,
-            isLocked: _lessons[i].status == 'locked',
-            spellDate: _lessons[i].spellDate,
-            checkpointIndex: _lessons[i].checkpointIndex,
-            checkpointCount: _lessons[i].checkpointCount,
+  bool get _showingType => _labelFilter != null && _typeLessons != null;
+
+  List<LessonSummary> get _lessons =>
+      _showingType ? _typeLessons! : _allLessons;
+
+  Future<void> _refreshTypeLessons() async {
+    final filter = _labelFilter;
+    if (filter == null) {
+      _typeLessons = null;
+      return;
+    }
+    final track = await gameProvider.fetchLessons(_subject, labelType: filter);
+    if (!mounted || _labelFilter != filter) return;
+    setState(() {
+      _typeLessons = track;
+      // Couldn't fetch the track: fall back to showing everything.
+      if (track == null) _labelFilter = null;
+    });
+  }
+
+  int? get _highlightStageNumber {
+    final i = _lessons.indexWhere((l) => l.lessonKey == _highlightLessonKey);
+    return i < 0 ? null : i + 1;
+  }
+
+  Future<void> _onFilterSelected(String? labelType) async {
+    setState(() {
+      _labelFilter = labelType;
+      _typeLessons = null;
+    });
+    setLabelFilter(_subject, labelType);
+    await _refreshTypeLessons();
+  }
+
+  List<StageData> get _stages {
+    final showBadge = labelTypesOf(_allLessons).length > 1;
+    return [
+      for (var i = 0; i < _lessons.length; i++)
+        StageData(
+          stageNumber: i + 1,
+          title: _lessons[i].displayName,
+          progress: _lessons[i].masteryPct,
+          stars: _lessons[i].stars,
+          isLocked: _lessons[i].status == 'locked',
+          isCompleted: _lessons[i].status == 'completed',
+          spellDate: _lessons[i].spellDate,
+          checkpointIndex: _lessons[i].checkpointIndex,
+          checkpointCount: _lessons[i].checkpointCount,
+          checkpointPassed: [for (final c in _lessons[i].checkpoints) c.passed],
+          reviewPassed: _lessons[i].reviewPassed,
+          reviewDueCount: _lessons[i].reviewDueCount,
+          unlockedNodes: unlockedIndicesFor(
+            _unlockedNodes,
+            _lessons[i].lessonKey,
           ),
-      ];
+          labelBadge: showBadge ? labelTypeEmoji(_lessons[i].labelType) : null,
+        ),
+    ];
+  }
 
-  Future<void> _openLesson(int stageNumber) async {
+  Future<void> _openLesson(int stageNumber, int? checkpointIndex) async {
     final lesson = _lessons[stageNumber - 1];
     await setLastLessonKey(_subject, lesson.lessonKey);
     if (!mounted) return;
@@ -98,6 +190,7 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
       arguments: LessonOverviewArgs(
         lesson: lesson,
         subject: _subject,
+        checkpoint: checkpointIndex,
         kingdom: KingdomTheme.chinese,
       ),
     );
@@ -130,8 +223,9 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
                   gradient: const LinearGradient(
                     colors: DuolingoColors.chineseKingdomGradient,
                   ),
-                  borderRadius:
-                      BorderRadius.circular(DuolingoSpacing.radiusCard),
+                  borderRadius: BorderRadius.circular(
+                    DuolingoSpacing.radiusCard,
+                  ),
                   boxShadow: DuolingoShadows.cardShadow,
                 ),
                 child: Row(
@@ -158,7 +252,15 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
                 ),
               ),
               SizedBox(height: DuolingoSpacing.xl),
-              if (_loadingLessons)
+              if (!_loadingLessons)
+                LabelTypeFilterBar(
+                  types: labelTypesOf(_allLessons),
+                  selected: _labelFilter,
+                  onSelected: _onFilterSelected,
+                ),
+              if (!_loadingLessons && labelTypesOf(_allLessons).length > 1)
+                SizedBox(height: DuolingoSpacing.lg),
+              if (_loadingLessons || (_labelFilter != null && !_showingType))
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
                   child: Center(child: CircularProgressIndicator()),
@@ -181,7 +283,8 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
                   kingdomLabel: 'Kingdom',
                   gradientColors: DuolingoColors.chineseKingdomGradient,
                   allowSkipLock: _allowSkipLock,
-                  onSelectLesson: _openLesson,
+                  onSelectNode: _openLesson,
+                  onUnlockConfirmed: _handleUnlockConfirmed,
                   highlightStageNumber: _highlightStageNumber,
                 ),
               SizedBox(height: DuolingoSpacing.xl),
@@ -199,9 +302,13 @@ class _ChineseKingdomScreenState extends State<ChineseKingdomScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.backpack), label: 'Backpack'),
+            icon: Icon(Icons.backpack),
+            label: 'Backpack',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.trending_up), label: 'Progress'),
+            icon: Icon(Icons.trending_up),
+            label: 'Progress',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {

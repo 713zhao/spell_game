@@ -154,6 +154,28 @@ class Challenge {
   Map<String, dynamic> toJson() => _$ChallengeToJson(this);
 }
 
+/// One checkpoint ("point" on the journey path) of a lesson: a balanced
+/// chunk of about 5 of its words. [passed] flips once a study session on it
+/// was completed.
+class LessonCheckpoint {
+  final int index;
+  final List<int> wordIds;
+  final bool passed;
+
+  const LessonCheckpoint({
+    required this.index,
+    required this.wordIds,
+    required this.passed,
+  });
+
+  factory LessonCheckpoint.fromJson(Map<String, dynamic> json) =>
+      LessonCheckpoint(
+        index: json['index'] as int,
+        wordIds: (json['word_ids'] as List).cast<int>(),
+        passed: json['passed'] as bool,
+      );
+}
+
 /// One lesson entry from the backend's `/lessons/{user}` endpoint: a group
 /// of teacher/MOE tags for the user's grade, with real word count and
 /// mastery/star progress computed from ReviewState. Plain class (parsed
@@ -169,9 +191,14 @@ class LessonSummary {
   final int stars;
   final String status; // completed | current | locked
   final String? spellDate; // raw text, e.g. "七月十四日"; null when unset
-  final bool isUpcoming; // true for the one lesson whose spell_date is soonest, on or after today
+  final bool
+  isUpcoming; // true for the one lesson whose spell_date is soonest, on or after today
   final int checkpointIndex; // 0-based index of the current unlocked checkpoint
-  final int checkpointCount; // total checkpoints in this lesson (words / 5, rounded up)
+  final int
+  checkpointCount; // total checkpoints in this lesson (about words / 5)
+  final List<LessonCheckpoint> checkpoints;
+  final bool reviewPassed; // the review node after the last checkpoint
+  final int reviewDueCount; // this lesson's words due for spaced review today
 
   LessonSummary({
     required this.lessonKey,
@@ -187,6 +214,9 @@ class LessonSummary {
     this.isUpcoming = false,
     this.checkpointIndex = 0,
     this.checkpointCount = 0,
+    this.checkpoints = const [],
+    this.reviewPassed = false,
+    this.reviewDueCount = 0,
   });
 
   factory LessonSummary.fromJson(Map<String, dynamic> json) {
@@ -206,6 +236,12 @@ class LessonSummary {
       checkpointIndex: json['checkpoint_index'] as int? ?? 0,
       checkpointCount:
           json['checkpoint_count'] as int? ?? (wordCount / 5).ceil(),
+      checkpoints: [
+        for (final c in (json['checkpoints'] as List? ?? const []))
+          LessonCheckpoint.fromJson(c as Map<String, dynamic>),
+      ],
+      reviewPassed: json['review_passed'] as bool? ?? false,
+      reviewDueCount: json['review_due_count'] as int? ?? 0,
     );
   }
 }
@@ -255,14 +291,14 @@ class MiniGame {
   });
 
   factory MiniGame.fromJson(Map<String, dynamic> json) => MiniGame(
-        id: json['id'] as int,
-        name: json['name'] as String,
-        description: json['description'] as String?,
-        icon: json['icon'] as String,
-        gameType: json['gameType'] as String? ?? 'iframe',
-        nativeKey: json['nativeKey'] as String?,
-        unlockCost: json['unlockCost'] as int,
-        playCost: json['playCost'] as int,
-        unlocked: json['unlocked'] as bool,
-      );
+    id: json['id'] as int,
+    name: json['name'] as String,
+    description: json['description'] as String?,
+    icon: json['icon'] as String,
+    gameType: json['gameType'] as String? ?? 'iframe',
+    nativeKey: json['nativeKey'] as String?,
+    unlockCost: json['unlockCost'] as int,
+    playCost: json['playCost'] as int,
+    unlocked: json['unlocked'] as bool,
+  );
 }

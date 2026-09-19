@@ -4,8 +4,9 @@ import 'package:spell_game/models/stage_data.dart';
 import 'package:spell_game/widgets/celebration.dart';
 
 /// A vertical, zig-zagging Duolingo-style map of checkpoint nodes connected
-/// by a dashed trail, with a milestone treasure chest every 5 checkpoint
-/// nodes. Shared by every kingdom's lesson-selection screen so node styling,
+/// by a dashed trail, with a milestone treasure chest every 5 nodes. The
+/// current lesson is expanded into its checkpoints plus a review node; other
+/// lessons are a single node each (see [buildPathItems]). Shared by every kingdom's lesson-selection screen so node styling,
 /// star ratings, and the lock dialog stay consistent across kingdoms.
 class JourneyPath extends StatefulWidget {
   final List<StageData> stages;
@@ -13,7 +14,17 @@ class JourneyPath extends StatefulWidget {
   final String kingdomLabel;
   final List<Color> gradientColors;
   final bool allowSkipLock;
-  final void Function(int stageNumber) onSelectLesson;
+  // Called with the tapped node's lesson and checkpoint index: >= 0 for a
+  // checkpoint, [reviewNodeIndex] for the review node, null for a
+  // lesson shown as a single node.
+  final void Function(int stageNumber, int? checkpointIndex) onSelectNode;
+  // Called when the user confirms "UNLOCK ANYWAY" on a locked node, before
+  // onSelectNode opens it - the caller should persist this (and rebuild
+  // `stages` with it in StageData.unlockedNodes) so the node doesn't come
+  // back locked and re-prompt the next time this screen loads, since the
+  // backend's progress doesn't change from skipping ahead. For a lesson
+  // shown as a single node the index is 0 (its first checkpoint).
+  final void Function(int stageNumber, int checkpointIndex)? onUnlockConfirmed;
   // Stage number to scroll into view and mark with a "look here" indicator
   // on first build (e.g. the user's default/last-opened lesson), so they
   // can pick up where they left off without hunting through the path -
@@ -27,7 +38,8 @@ class JourneyPath extends StatefulWidget {
     required this.kingdomLabel,
     required this.gradientColors,
     required this.allowSkipLock,
-    required this.onSelectLesson,
+    required this.onSelectNode,
+    this.onUnlockConfirmed,
     this.highlightStageNumber,
   });
 
@@ -50,7 +62,7 @@ class _JourneyPathState extends State<JourneyPath>
   static const double _nodeSize = DuolingoSpacing.nodeSize; // 56
   static const double _milestoneSize = DuolingoSpacing.nodeSize + 26; // 82
   static const double _rowSpacing = 122;
-  static const double _topPadding = 70;
+  static const double _topPadding = 124;
   static const List<double> _xFractions = [0.5, 0.8, 0.5, 0.2];
 
   @override
@@ -100,34 +112,50 @@ class _JourneyPathState extends State<JourneyPath>
   }
 
   void _handleNodeTap(LessonItem item) {
+    final stage = widget.stages[item.stageIndex];
     if (item.state != NodeState.locked) {
-      widget.onSelectLesson(widget.stages[item.stageIndex].stageNumber);
+      widget.onSelectNode(
+        stage.stageNumber,
+        item.isCollapsed ? null : item.checkpointIndex,
+      );
       return;
     }
-    if (widget.stages[item.stageIndex].isLocked) {
-      _showUnlockDialog(item.stageIndex);
-      return;
-    }
-    // The whole lesson is unlocked, but this checkpoint hasn't been reached
-    // yet - there's no "skip a checkpoint" feature, just tell the user why
-    // this node looks locked.
-    final currentCheckpoint = widget.stages[item.stageIndex].checkpointIndex + 1;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Clear checkpoint $currentCheckpoint first!')),
-    );
+    _showUnlockDialog(item);
   }
 
-  Future<void> _showUnlockDialog(int index) async {
-    final recommended =
-        (widget.stages[index].stageNumber - 1).clamp(1, widget.stages.length);
+  Future<void> _showUnlockDialog(LessonItem item) async {
+    final stage = widget.stages[item.stageIndex];
+    final String title;
+    final String build;
+    final String recommend;
+    if (item.isCollapsed) {
+      title = '🔒 This lesson is locked';
+      build = 'This lesson is designed to build on previous skills.';
+      recommend =
+          'Stage ${(stage.stageNumber - 1).clamp(1, widget.stages.length)}';
+    } else if (item.isReview) {
+      title = '🔒 Review is locked';
+      build = 'The review covers the whole lesson.';
+      recommend = 'all the points in this lesson';
+    } else {
+      title = '🔒 This point is locked';
+      build = 'Each point builds on the one before it.';
+      var firstUnpassed = 0;
+      while (firstUnpassed < stage.checkpointCount &&
+          stage.isCheckpointPassed(firstUnpassed)) {
+        firstUnpassed++;
+      }
+      recommend = 'point ${firstUnpassed + 1}';
+    }
 
     final actions = <Widget>[
       TextButton(
         onPressed: () => Navigator.pop(context, false),
         child: Text(
           widget.allowSkipLock ? 'CANCEL' : 'OK',
-          style:
-              DuolingoTextStyles.label.copyWith(color: DuolingoColors.bodyText),
+          style: DuolingoTextStyles.label.copyWith(
+            color: DuolingoColors.bodyText,
+          ),
         ),
       ),
     ];
@@ -152,22 +180,24 @@ class _JourneyPathState extends State<JourneyPath>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(DuolingoSpacing.radiusDialog),
         ),
-        title: const Text('🔒 This lesson is locked'),
+        title: Text(title),
         content: Text(
           widget.allowSkipLock
-              ? 'This lesson is designed to build on previous skills.\n\n'
-                  'You can unlock it now, but we recommend completing '
-                  'Stage $recommended first.'
-              : 'This lesson is designed to build on previous skills.\n\n'
-                  'Complete Stage $recommended first to unlock it.',
+              ? '$build\n\n'
+                    'You can unlock it now, but we recommend completing '
+                    '$recommend first.'
+              : '$build\n\nComplete $recommend first to unlock it.',
           style: DuolingoTextStyles.body,
         ),
         actions: actions,
       ),
     );
     if (unlock == true && mounted) {
-      setState(() => widget.stages[index].isLocked = false);
-      widget.onSelectLesson(widget.stages[index].stageNumber);
+      widget.onUnlockConfirmed?.call(stage.stageNumber, item.checkpointIndex);
+      widget.onSelectNode(
+        stage.stageNumber,
+        item.isCollapsed ? 0 : item.checkpointIndex,
+      );
     }
   }
 
@@ -225,12 +255,15 @@ class _JourneyPathState extends State<JourneyPath>
                     right: 0,
                     child: Column(
                       children: [
-                        Text(widget.kingdomEmoji,
-                            style: const TextStyle(fontSize: 30)),
+                        Text(
+                          widget.kingdomEmoji,
+                          style: const TextStyle(fontSize: 30),
+                        ),
                         Text(
                           widget.kingdomLabel,
-                          style: DuolingoTextStyles.label
-                              .copyWith(color: DuolingoColors.bodyText),
+                          style: DuolingoTextStyles.label.copyWith(
+                            color: DuolingoColors.bodyText,
+                          ),
                         ),
                       ],
                     ),
@@ -250,11 +283,7 @@ class _JourneyPathState extends State<JourneyPath>
     );
   }
 
-  List<Widget> _buildItemWidgets(
-    PathItem item,
-    Offset center,
-    double width,
-  ) {
+  List<Widget> _buildItemWidgets(PathItem item, Offset center, double width) {
     if (item is MilestoneItem) {
       return [
         Positioned(
@@ -294,7 +323,8 @@ class _JourneyPathState extends State<JourneyPath>
     const outerSize = _nodeSize + _LessonNode.footprintPadding;
 
     final isHighlighted =
-        lessonItem.isLabelAnchor && stage.stageNumber == widget.highlightStageNumber;
+        lessonItem.isLabelAnchor &&
+        stage.stageNumber == widget.highlightStageNumber;
 
     final labelWidgets = <Widget>[];
     if (lessonItem.isLabelAnchor) {
@@ -303,7 +333,7 @@ class _JourneyPathState extends State<JourneyPath>
       // anchored to - those can differ (e.g. an in-progress lesson's label
       // anchor may land on a not-yet-reached checkpoint).
       final lessonLocked = stage.isLocked;
-      final lessonCurrent = !stage.isLocked && stage.progress < 1.0;
+      final lessonCurrent = stage.isCurrent;
 
       if (stage.stars > 0) {
         labelWidgets.add(
@@ -339,13 +369,16 @@ class _JourneyPathState extends State<JourneyPath>
                   color: lessonLocked
                       ? DuolingoColors.bodyText.withOpacity(0.5)
                       : DuolingoColors.darkText,
-                  fontWeight:
-                      lessonCurrent ? FontWeight.bold : FontWeight.w600,
+                  fontWeight: lessonCurrent ? FontWeight.bold : FontWeight.w600,
                 ),
               ),
-              if (stage.spellDate != null && stage.spellDate!.isNotEmpty)
+              if ((stage.spellDate ?? '').isNotEmpty ||
+                  stage.labelBadge != null)
                 Text(
-                  stage.spellDate!,
+                  [
+                    if (stage.labelBadge != null) stage.labelBadge!,
+                    if ((stage.spellDate ?? '').isNotEmpty) stage.spellDate!,
+                  ].join(' '),
                   textAlign: TextAlign.center,
                   style: DuolingoTextStyles.label.copyWith(
                     fontSize: 11,
@@ -360,8 +393,32 @@ class _JourneyPathState extends State<JourneyPath>
       );
     }
 
+    if (lessonItem.isReview) {
+      labelWidgets.add(
+        Positioned(
+          top: center.dy + _nodeSize / 2 + 6,
+          left: (center.dx - 70).clamp(0, width - 140),
+          width: 140,
+          child: Text(
+            stage.reviewDueCount > 0
+                ? 'Review · ${stage.reviewDueCount} due'
+                : 'Review',
+            textAlign: TextAlign.center,
+            style: DuolingoTextStyles.label.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: state == NodeState.locked
+                  ? DuolingoColors.bodyText.withOpacity(0.5)
+                  : DuolingoColors.informationBlue,
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget node = _LessonNode(
       state: state,
+      isReview: lessonItem.isReview,
       pulse: _pulseController,
       onTap: () => _handleNodeTap(lessonItem),
     );
@@ -392,10 +449,8 @@ class _HighlightArrow extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: pulse,
-      builder: (context, child) => Transform.translate(
-        offset: Offset(0, pulse.value * 8),
-        child: child,
-      ),
+      builder: (context, child) =>
+          Transform.translate(offset: Offset(0, pulse.value * 8), child: child),
       child: const Text('👇', style: TextStyle(fontSize: 26)),
     );
   }
@@ -433,11 +488,13 @@ class _LessonNode extends StatelessWidget {
   static const double footprintPadding = 10;
 
   final NodeState state;
+  final bool isReview;
   final AnimationController pulse;
   final VoidCallback onTap;
 
   const _LessonNode({
     required this.state,
+    this.isReview = false,
     required this.pulse,
     required this.onTap,
   });
@@ -459,12 +516,18 @@ class _LessonNode extends StatelessWidget {
       case NodeState.current:
         fill = DuolingoColors.streakOrange;
         border = const Color(0xFFCC7A00);
-        icon = const Text('🔥', style: TextStyle(fontSize: 26));
+        icon = isReview
+            ? const Icon(Icons.replay, color: Colors.white, size: 28)
+            : const Text('🔥', style: TextStyle(fontSize: 26));
         break;
       case NodeState.available:
         fill = DuolingoColors.informationBlue;
         border = const Color(0xFF1876BF);
-        icon = const Icon(Icons.play_arrow, color: Colors.white, size: 28);
+        icon = Icon(
+          isReview ? Icons.replay : Icons.play_arrow,
+          color: Colors.white,
+          size: 28,
+        );
         break;
       case NodeState.locked:
         fill = DuolingoColors.secondaryButtonGray;
@@ -507,8 +570,9 @@ class _LessonNode extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: DuolingoColors.streakOrange
-                      .withOpacity(0.5 - pulse.value * 0.25),
+                  color: DuolingoColors.streakOrange.withOpacity(
+                    0.5 - pulse.value * 0.25,
+                  ),
                   blurRadius: glow,
                   spreadRadius: pulse.value * 4,
                 ),
@@ -557,14 +621,14 @@ class _MilestoneNode extends StatelessWidget {
               : null,
           color: unlocked ? null : DuolingoColors.neutralGray,
           border: Border.all(
-            color:
-                unlocked ? const Color(0xFFB8860B) : const Color(0xFFAAAAAA),
+            color: unlocked ? const Color(0xFFB8860B) : const Color(0xFFAAAAAA),
             width: 3,
           ),
           boxShadow: [
             BoxShadow(
-              color:
-                  unlocked ? const Color(0xFFB8860B) : const Color(0xFFAAAAAA),
+              color: unlocked
+                  ? const Color(0xFFB8860B)
+                  : const Color(0xFFAAAAAA),
               offset: const Offset(0, 4),
               blurRadius: 0,
             ),

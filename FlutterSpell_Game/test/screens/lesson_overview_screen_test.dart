@@ -18,6 +18,29 @@ Color _chipColorFor(WidgetTester tester, String word) {
   return (container.decoration as BoxDecoration).color!;
 }
 
+/// Balanced ~5-word checkpoints over word ids 1..[wordCount], the same
+/// split the backend sends (see SpellBackend/src/services/checkpoints.py).
+List<LessonCheckpoint> _checkpoints(int wordCount, int passedBefore) {
+  if (wordCount == 0) return const [];
+  final count = (wordCount / 5 + 0.5).floor().clamp(1, wordCount);
+  final base = wordCount ~/ count;
+  final extra = wordCount % count;
+  var next = 1;
+  return [
+    for (var i = 0; i < count; i++)
+      () {
+        final size = base + (i < extra ? 1 : 0);
+        final ids = [for (var k = 0; k < size; k++) next + k];
+        next += size;
+        return LessonCheckpoint(
+          index: i,
+          wordIds: ids,
+          passed: i < passedBefore,
+        );
+      }(),
+  ];
+}
+
 LessonSummary _lesson({
   required double masteryPct,
   required int wordCount,
@@ -38,6 +61,9 @@ LessonSummary _lesson({
     status: masteryPct >= 1.0 ? 'completed' : 'current',
     checkpointIndex: checkpointIndex,
     checkpointCount: checkpointCount,
+    checkpoints: checkpointCount > 0
+        ? _checkpoints(wordCount, checkpointIndex)
+        : const [],
   );
 }
 
@@ -69,7 +95,7 @@ void main() {
     gameProvider.isLoggedIn = false;
   });
 
-  testWidgets('shows the mastery percentage and the 100% unlock hint', (
+  testWidgets('shows the mastery percentage and how the next lesson unlocks', (
     tester,
   ) async {
     // The default 800x600 test surface is too short for this screen's full
@@ -85,7 +111,7 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('73%'), findsOneWidget);
-    expect(find.textContaining('100%'), findsOneWidget);
+    expect(find.textContaining('unlock the next lesson'), findsOneWidget);
   });
 
   testWidgets('tapping the info icon explains the reset rule', (tester) async {
@@ -101,7 +127,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.textContaining('a mistake resets that word to 0'),
+      find.textContaining('a mistake sends that word back to the start'),
       findsOneWidget,
     );
   });
@@ -230,7 +256,7 @@ void main() {
       _screen(
         _lesson(
           masteryPct: 0.3,
-          wordCount: 7,
+          wordCount: 12,
           checkpointIndex: 1,
           checkpointCount: 2,
         ),
@@ -239,11 +265,11 @@ void main() {
     await tester.pump();
 
     gameProvider.deckCards = [
-      for (var i = 1; i <= 7; i++)
+      for (var i = 1; i <= 12; i++)
         DeckCard(
           word: Word(id: i, text: 'word$i', language: 'english'),
-          repetitions: i <= 5 ? 5 : 0,
-          status: i <= 5 ? 'review' : 'new',
+          repetitions: i <= 6 ? 5 : 0,
+          status: i <= 6 ? 'review' : 'new',
         ),
     ];
     gameProvider.notifyListeners();
@@ -267,7 +293,7 @@ void main() {
         _screen(
           _lesson(
             masteryPct: 0.7,
-            wordCount: 7,
+            wordCount: 12,
             checkpointIndex: 0,
             checkpointCount: 2,
           ),
@@ -276,10 +302,11 @@ void main() {
       await tester.pump();
 
       gameProvider.deckCards = [
-        for (var i = 1; i <= 7; i++)
+        for (var i = 1; i <= 12; i++)
           DeckCard(
             word: Word(id: i, text: 'word$i', language: 'english'),
-            repetitions: 5, // fully mastered, but words 6-7 are in checkpoint 2
+            repetitions:
+                5, // fully mastered, but words 7-12 are in checkpoint 2
             status: 'review',
           ),
       ];
@@ -289,10 +316,10 @@ void main() {
       await tester.tap(find.textContaining('word-by-word'));
       await tester.pump();
 
-      // word6 is in checkpoint 2 (index 1), beyond currentCheckpoint (0) ->
+      // word7 is in checkpoint 2 (index 1), beyond currentCheckpoint (0) ->
       // rendered locked-grey even though repetitions=5 would normally be green.
       expect(
-        _chipColorFor(tester, 'word6'),
+        _chipColorFor(tester, 'word7'),
         DuolingoColors.secondaryButtonGray,
       );
       // word1 is in checkpoint 1 (index 0), the current one -> real mastery color.
@@ -308,11 +335,10 @@ void main() {
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
 
-      // 18 words chunked into checkpoints of 5 -> checkpoints of
-      // [1-5, 6-10, 11-15, 16-18]. checkpointIndex 3 is the last, partial
-      // chunk (only words 16-18 -> 3 words), so Start Adventure's session
-      // - and thus the WORDS/TIME/REWARDS tiles - should describe 3 words,
-      // not the lesson's full 18.
+      // 18 words split into balanced checkpoints [5, 5, 4, 4].
+      // checkpointIndex 3 is the last one (4 words), so Start Adventure's
+      // session - and thus the WORDS/TIME/REWARDS tiles - should describe 4
+      // words, not the lesson's full 18.
       await tester.pumpWidget(
         _screen(
           _lesson(
@@ -325,7 +351,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('3'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
       expect(find.text('18'), findsNothing);
     },
   );
@@ -365,7 +391,7 @@ void main() {
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
 
-      // 18 words chunked into checkpoints of 5 -> [1-5, 6-10, 11-15, 16-18].
+      // 18 words split into balanced checkpoints [1-5, 6-10, 11-14, 15-18].
       // checkpointIndex 0 is the first checkpoint (words 1-5), all brand new
       // (repetitions: 0). Words 6-18 belong to later, untouched checkpoints
       // and are seeded as already mastered (repetitions: 5) - outside the

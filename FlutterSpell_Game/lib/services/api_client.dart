@@ -85,18 +85,118 @@ class ApiClient {
     }
   }
 
+  /// Whether Home's daily treasure chest is still claimable today (UTC).
+  Future<bool> getChestStatus() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/users/$userName/chest'),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load chest status');
+    }
+    final decoded = jsonDecode(response.body);
+    return decoded['available'] == true;
+  }
+
+  /// Claims today's treasure chest, granting points server-side. Throws on
+  /// failure, notably a 400 if it was already claimed today (e.g. a second
+  /// tap that raced ahead of the UI disabling itself).
+  Future<Map<String, dynamic>> claimChest() async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/$userName/chest/claim'),
+    );
+    if (response.statusCode != 200) {
+      String detail = 'Failed to claim chest';
+      try {
+        detail = jsonDecode(response.body)['detail'] as String? ?? detail;
+      } catch (_) {}
+      throw Exception(detail);
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Every achievement's unlock state (Progress screen's Milestones list).
+  Future<List<Map<String, dynamic>>> getAchievements() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/users/$userName/achievements'),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load achievements');
+    }
+    final decoded = jsonDecode(response.body);
+    return (decoded['achievements'] as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Boss ids this user has ever defeated (Boss Arena).
+  Future<List<int>> getDefeatedBosses() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/users/$userName/bosses'),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load defeated bosses');
+    }
+    final decoded = jsonDecode(response.body);
+    return (decoded['defeated'] as List).cast<int>();
+  }
+
+  /// Records a boss win server-side. Idempotent per boss - only the first
+  /// defeat grants points; repeats report `first_time: false` and no
+  /// additional reward.
+  Future<Map<String, dynamic>> defeatBoss(int bossId) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/$userName/bosses/$bossId/defeat'),
+    );
+    if (response.statusCode != 200) {
+      String detail = 'Failed to record boss defeat';
+      try {
+        detail = jsonDecode(response.body)['detail'] as String? ?? detail;
+      } catch (_) {}
+      throw Exception(detail);
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Why a vocab quiz's correct answer is right, as one kid-friendly
+  /// sentence (AI-generated once per word, then cached server-side - see
+  /// SpellBackend's `/words/{id}/quiz-explanation`). Returns null on any
+  /// failure (network error, word has no quiz, backend AI outage, etc.) -
+  /// callers should fall back to just naming the correct option instead of
+  /// blocking on this.
+  Future<String?> getQuizExplanation(int wordId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/words/$wordId/quiz-explanation'),
+      );
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      final explanation = decoded is Map ? decoded['explanation'] : null;
+      return explanation is String && explanation.isNotEmpty
+          ? explanation
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fetch the user's study deck (their real assigned words) including
   /// spaced-repetition state used for adaptive difficulty. When [tags] is
   /// given, the deck is scoped to those tags (joined for the backend to
   /// split); a lesson spanning multiple tag variants (e.g. Chinese
   /// ::read + ::write) is passed as a multi-element list.
-  Future<List<DeckCard>> getDeckCards({List<String>? tags, int limit = 10, int? checkpoint}) async {
+  Future<List<DeckCard>> getDeckCards({
+    List<String>? tags,
+    int limit = 10,
+    int? checkpoint,
+    bool review = false,
+  }) async {
     final tagParam = (tags != null && tags.isNotEmpty)
         ? '&tag=${Uri.encodeComponent(tags.join(","))}'
         : '';
     final checkpointParam = checkpoint != null ? '&checkpoint=$checkpoint' : '';
+    final modeParam = review ? '&mode=review' : '';
     final response = await http.get(
-      Uri.parse('$_baseUrl/users/$userName/deck?limit=$limit$tagParam$checkpointParam'),
+      Uri.parse(
+        '$_baseUrl/users/$userName/deck?limit=$limit$tagParam$checkpointParam$modeParam',
+      ),
     );
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
@@ -130,13 +230,15 @@ class ApiClient {
     if (response.statusCode == 200) {
       final list = jsonDecode(response.body) as List;
       return list
-          .map((w) => Word(
-                id: w['word_id'] as int,
-                text: w['text'] as String,
-                language: (w['language'] ?? 'english') as String,
-                backCard: w['back_card'] as String?,
-                quiz: w['quiz'] as String?,
-              ))
+          .map(
+            (w) => Word(
+              id: w['word_id'] as int,
+              text: w['text'] as String,
+              language: (w['language'] ?? 'english') as String,
+              backCard: w['back_card'] as String?,
+              quiz: w['quiz'] as String?,
+            ),
+          )
           .toList();
     }
     throw Exception('Failed to load quiz word pool');
@@ -144,9 +246,15 @@ class ApiClient {
 
   /// List the user's grade-filtered lessons for a subject (EN or CN), built
   /// from teacher/MOE tags on the backend.
-  Future<List<LessonSummary>> getLessons(String subject) async {
+  Future<List<LessonSummary>> getLessons(
+    String subject, {
+    String? labelType,
+  }) async {
+    final labelParam = labelType != null
+        ? '&label_type=${Uri.encodeComponent(labelType)}'
+        : '';
     final response = await http.get(
-      Uri.parse('$_baseUrl/lessons/$userName?subject=$subject'),
+      Uri.parse('$_baseUrl/lessons/$userName?subject=$subject$labelParam'),
     );
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
@@ -156,6 +264,28 @@ class ApiClient {
           .toList();
     }
     throw Exception('Failed to load lessons');
+  }
+
+  /// Record that the user completed a study session on a lesson's
+  /// checkpoint ([checkpointIndex] >= 0) or its review node (-1), which is
+  /// what advances the journey path.
+  Future<void> markCheckpointPassed(
+    String subject,
+    String lessonKey,
+    int checkpointIndex,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/lessons/$userName/checkpoint-pass'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'subject': subject,
+        'lesson_key': lessonKey,
+        'checkpoint_index': checkpointIndex,
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to record checkpoint');
+    }
   }
 
   /// Submit a single word's review outcome (SM-2 quality 0/1/3/5) so the
@@ -194,9 +324,7 @@ class ApiClient {
 
   Future<Level> getLevelDetails(int levelId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/levels/$levelId'),
-      );
+      final response = await http.get(Uri.parse('$_baseUrl/levels/$levelId'));
 
       if (response.statusCode == 200) {
         return Level.fromJson(jsonDecode(response.body));
@@ -252,7 +380,9 @@ class ApiClient {
   Future<Map<String, dynamic>> redeemUnlockable(int unlockableId) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/unlockables/$unlockableId/redeem?user_name=$userName'),
+        Uri.parse(
+          '$_baseUrl/unlockables/$unlockableId/redeem?user_name=$userName',
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -323,12 +453,15 @@ class ApiClient {
   Future<Map<String, dynamic>> sendPlaytimeHeartbeat(int seconds) async {
     final response = await http.post(
       Uri.parse(
-          '$_baseUrl/minigames/playtime/heartbeat?user_name=$userName&seconds=$seconds'),
+        '$_baseUrl/minigames/playtime/heartbeat?user_name=$userName&seconds=$seconds',
+      ),
     );
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    throw Exception(_extractDetail(response.body, 'Failed to report play time'));
+    throw Exception(
+      _extractDetail(response.body, 'Failed to report play time'),
+    );
   }
 
   String _extractDetail(String body, String fallback) {
@@ -341,9 +474,7 @@ class ApiClient {
 
   Future<UserStats> getUserStats() async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/streaks/$userName'),
-      );
+      final response = await http.get(Uri.parse('$_baseUrl/streaks/$userName'));
 
       if (response.statusCode == 200) {
         return UserStats.fromJson(jsonDecode(response.body));
@@ -355,10 +486,15 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> createChallenge(String challengeeName, int levelId) async {
+  Future<Map<String, dynamic>> createChallenge(
+    String challengeeName,
+    int levelId,
+  ) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/challenges/create?challenger_name=$userName&challengee_name=$challengeeName&level_id=$levelId'),
+        Uri.parse(
+          '$_baseUrl/challenges/create?challenger_name=$userName&challengee_name=$challengeeName&level_id=$levelId',
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -371,7 +507,9 @@ class ApiClient {
     }
   }
 
-  Future<List<LeaderboardEntry>> getLeaderboard({String filter = 'global'}) async {
+  Future<List<LeaderboardEntry>> getLeaderboard({
+    String filter = 'global',
+  }) async {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/leaderboard/?filter=$filter'),
@@ -414,7 +552,9 @@ class ApiClient {
   Future<Map<String, dynamic>> acceptChallenge(int challengeId) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/challenges/$challengeId/accept?user_name=$userName'),
+        Uri.parse(
+          '$_baseUrl/challenges/$challengeId/accept?user_name=$userName',
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -427,10 +567,15 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> completeChallenge(int challengeId, double accuracy) async {
+  Future<Map<String, dynamic>> completeChallenge(
+    int challengeId,
+    double accuracy,
+  ) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/challenges/$challengeId/complete?user_name=$userName'),
+        Uri.parse(
+          '$_baseUrl/challenges/$challengeId/complete?user_name=$userName',
+        ),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'accuracy': accuracy}),
       );

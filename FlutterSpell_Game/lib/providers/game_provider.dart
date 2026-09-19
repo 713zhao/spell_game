@@ -40,6 +40,18 @@ class GameProvider extends ChangeNotifier {
   bool playtimeLocked = false;
   int playtimeRemainingSeconds = 15 * 60;
 
+  // Home's daily treasure chest (see ChestService on the backend - the
+  // source of truth for the once-per-UTC-day claim). Starts unavailable
+  // rather than optimistically true, so the card doesn't flash "claimable"
+  // before the real status has loaded.
+  bool chestAvailable = false;
+
+  // Progress screen's Milestones list (see AchievementService on the
+  // backend - the source of truth for unlock state and timestamps) and
+  // Boss Arena's per-boss defeat history.
+  List<Map<String, dynamic>> achievements = [];
+  List<int> defeatedBossIds = [];
+
   String get userName => _userName;
   bool get soundEnabled => _soundEnabled;
 
@@ -214,13 +226,24 @@ class GameProvider extends ChangeNotifier {
     try {
       // Idempotent: the backend only needs a name to create a user, and
       // treats a repeat call as "already exists" - either way, GUEST ends
-      // up present so the data-loading calls below don't 404.
-      await apiClient.createUser(name: 'GUEST');
+      // up present so the data-loading calls below don't 404. `grade`
+      // seeds Home's English/Chinese Kingdom lesson lists (lessons are
+      // matched to a user purely by grade), so a fresh GUEST can see the
+      // P1 lessons instead of "no lessons assigned yet".
+      await apiClient.createUser(name: 'GUEST', grade: 'P1');
     } catch (_) {
       // Already exists, or a transient error - proceed regardless; if
       // GUEST truly isn't reachable server-side, the screens' own data
       // loads will surface that the same way any other backend hiccup
       // would.
+    }
+    try {
+      // GUEST may already exist from before this field was set (createUser
+      // above is a no-op then), so patch grade separately - idempotent and
+      // safe to call every time.
+      await apiClient.updateUserProfile({'grade': 'P1'});
+    } catch (_) {
+      // Non-fatal - Home will just show "no lessons assigned yet" as before.
     }
     notifyListeners();
   }
@@ -256,14 +279,26 @@ class GameProvider extends ChangeNotifier {
   /// screen reading it mid-flight (e.g. Lesson Overview's word-detail grid)
   /// sees an empty/loading state instead of a previous lesson's stale cards
   /// while this one is still in flight.
-  Future<void> loadDeck({List<String>? tags, int limit = 10, int? checkpoint}) async {
+  Future<void> loadDeck({
+    List<String>? tags,
+    int limit = 10,
+    int? checkpoint,
+    bool review = false,
+  }) async {
     deckCards = [];
-    notifyListeners();
+    // Deferred to a microtask: this is commonly called from a screen's
+    // initState (e.g. study.dart, lesson_overview_screen.dart), and since
+    // this method doesn't hit an `await` until after the fetch below,
+    // notifying synchronously here would run during the caller's current
+    // build phase and throw "setState()/markNeedsBuild() called during
+    // build".
+    scheduleMicrotask(notifyListeners);
     try {
       deckCards = await apiClient.getDeckCards(
         tags: tags,
         limit: limit,
         checkpoint: checkpoint,
+        review: review,
       );
       notifyListeners();
     } catch (e) {
@@ -272,10 +307,45 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  /// Bumped every time [loadLessons] refreshes the lists, so a screen
+  /// showing a per-label-type track (fetched separately with
+  /// [fetchLessons]) knows to refetch it too.
+  int lessonsVersion = 0;
+
+  /// Fetch a subject's lessons restricted to one label type (TEACHER, MOE,
+  /// ...), sequenced as their own track. Unlike [loadLessons] this doesn't
+  /// touch the cached lists that Home reads - null on failure.
+  Future<List<LessonSummary>?> fetchLessons(
+    String subject, {
+    required String labelType,
+  }) async {
+    try {
+      return await apiClient.getLessons(subject, labelType: labelType);
+    } catch (e) {
+      errorMessage = e.toString();
+      return null;
+    }
+  }
+
+  /// Record that a checkpoint (or, with [checkpointIndex] -1, the lesson's
+  /// review node) was completed. Callers should [loadLessons] afterwards.
+  Future<void> markCheckpointPassed(
+    String subject,
+    String lessonKey,
+    int checkpointIndex,
+  ) async {
+    try {
+      await apiClient.markCheckpointPassed(subject, lessonKey, checkpointIndex);
+    } catch (e) {
+      errorMessage = e.toString();
+    }
+  }
+
   /// Load the user's grade-filtered lessons for a subject ('EN' or 'CN').
   Future<void> loadLessons(String subject) async {
     try {
       final result = await apiClient.getLessons(subject);
+      lessonsVersion++;
       if (subject.toUpperCase() == 'EN') {
         englishLessons = result;
       } else {
@@ -358,6 +428,69 @@ class GameProvider extends ChangeNotifier {
     } catch (e) {
       errorMessage = e.toString();
       notifyListeners();
+    }
+  }
+
+  Future<void> loadChestStatus() async {
+    try {
+      chestAvailable = await apiClient.getChestStatus();
+      notifyListeners();
+    } catch (e) {
+      // Leave chestAvailable at its last-known value rather than surfacing
+      // this as a page-level errorMessage - a failed status check
+      // shouldn't block the rest of Home from rendering.
+    }
+  }
+
+  /// Claims today's chest and refreshes the real point balance (which
+  /// backs both the XP and Coins stat tiles on Home) so the reward is
+  /// immediately visible. Returns the points earned, or null if the claim
+  /// failed (e.g. a double-tap that raced past the UI disabling itself).
+  Future<int?> claimChest() async {
+    try {
+      final result = await apiClient.claimChest();
+      chestAvailable = false;
+      await loadUserStats();
+      notifyListeners();
+      return result['points_earned'] as int?;
+    } catch (e) {
+      await loadChestStatus();
+      return null;
+    }
+  }
+
+  Future<void> loadAchievements() async {
+    try {
+      achievements = await apiClient.getAchievements();
+      notifyListeners();
+    } catch (e) {
+      // Leave the last-known list rather than surfacing this as a
+      // page-level errorMessage - same reasoning as loadChestStatus.
+    }
+  }
+
+  Future<void> loadDefeatedBosses() async {
+    try {
+      defeatedBossIds = await apiClient.getDefeatedBosses();
+      notifyListeners();
+    } catch (e) {
+      // Leave the last-known list - same reasoning as loadChestStatus.
+    }
+  }
+
+  /// Records a boss win, refreshes the real point balance it may have
+  /// granted, and re-checks achievements (a boss defeat can itself unlock
+  /// one). Returns the points earned (0 if this boss was already defeated
+  /// before), or null if the request failed.
+  Future<int?> defeatBoss(int bossId) async {
+    try {
+      final result = await apiClient.defeatBoss(bossId);
+      await loadDefeatedBosses();
+      await loadUserStats();
+      await loadAchievements();
+      return result['points_earned'] as int?;
+    } catch (e) {
+      return null;
     }
   }
 

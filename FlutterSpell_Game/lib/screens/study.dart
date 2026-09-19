@@ -1,14 +1,19 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../design_system/design_system.dart';
 import '../models/game_models.dart';
+import '../models/stage_data.dart' show reviewNodeIndex;
+import '../services/hanzi_stroke_data.dart';
 import '../services/sound_service.dart';
 import '../widgets/celebration.dart';
 import '../widgets/handwriting_canvas.dart';
+import '../widgets/hanzi_writer_trace.dart';
 import '../services/speech_recognition_service.dart';
 import '../utils/chinese_pronunciation.dart';
 import '../utils/exercise_content_parser.dart';
-import '../main.dart' show gameProvider;
+import 'package:provider/provider.dart';
+import '../providers/game_provider.dart';
 import 'lesson_overview_screen.dart' show StudySessionArgs;
 
 /// SpellQuest study session — a sequence of mini-games:
@@ -55,8 +60,10 @@ class _Exercise {
   final List<String?> slots; // fixed letters; null = blank (letter games)
   final List<String> bank; // tappable letter tiles (letter games)
   final bool isRetry;
-  final String? promptText; // meaningMatch's question, sentenceBlank's blanked sentence
-  final String? correctAnswer; // overrides word.text as the graded target (meaningMatch only)
+  final String?
+  promptText; // meaningMatch's question, sentenceBlank's blanked sentence
+  final String?
+  correctAnswer; // overrides word.text as the graded target (meaningMatch only)
 
   _Exercise({
     required this.word,
@@ -91,8 +98,15 @@ class _StudyScreenState extends State<StudyScreen>
   String? _voiceTranscript;
   bool _isRecording = false;
   bool _voiceUnsupported = false;
-  int _traceVersion = 0; // bumped by "Clear" to reset the handwriting canvas
+  int _traceVersion = 0; // bumped by "Clear"/"Restart" to reset the trace UI
   int? _voiceStars; // 1-3 rating for the last voiceRead attempt (see _check)
+
+  // Guided (HanziWriter) vs free-draw handwriting trace. Null while the
+  // stroke-data availability check for the current word is in flight.
+  bool? _hanziQuizAvailable;
+  int _hanziCharIndex = 0; // which character of the word is active in quiz mode
+  final HanziWriterTraceController _hanziController =
+      HanziWriterTraceController();
 
   // Session stats
   int _totalWords = 0;
@@ -124,9 +138,14 @@ class _StudyScreenState extends State<StudyScreen>
     'No worries — practice makes perfect!',
   ];
 
+  late GameProvider gameProvider;
+
+  static const int _reviewSessionSize = 15;
+
   @override
   void initState() {
     super.initState();
+    gameProvider = context.read<GameProvider>();
     _celebrationController = AnimationController(
       duration: const Duration(milliseconds: 700),
       vsync: this,
@@ -160,6 +179,8 @@ class _StudyScreenState extends State<StudyScreen>
       await gameProvider.loadDeck(
         tags: widget.args.tags,
         checkpoint: widget.args.checkpoint,
+        review: widget.args.review,
+        limit: widget.args.review ? _reviewSessionSize : 10,
       );
       var cards = gameProvider.deckCards;
 
@@ -169,7 +190,6 @@ class _StudyScreenState extends State<StudyScreen>
       }
 
       cards = List<DeckCard>.from(cards)..shuffle(_random);
-      _totalWords = cards.length;
 
       // Chinese exercises pick distractor characters from this lesson's own
       // words instead of letter-misspelling (a single hanzi has no letters).
@@ -192,21 +212,37 @@ class _StudyScreenState extends State<StudyScreen>
         }
 
         if (isChinese) {
-          _queue.add(_buildExercise(
-            card.word,
-            _typeForMasteryChinese(card.repetitions),
-          ));
+          _queue.add(
+            _buildExercise(card.word, _typeForMasteryChinese(card.repetitions)),
+          );
           final skills = widget.args.skills;
           if (skills.isEmpty || skills.contains('write')) {
             _queue.add(_buildExercise(card.word, ExerciseType.handwriteTrace));
           }
         } else {
           final hasSentence = parseSentenceBlank(card.word) != null;
-          final type =
-              _typeForMastery(card.repetitions, hasSentence: hasSentence);
+          final type = _typeForMastery(
+            card.repetitions,
+            hasSentence: hasSentence,
+          );
           _queue.add(_buildExercise(card.word, type));
         }
       }
+
+      // Brand-new English words get a second, harder recall (typing the
+      // whole word) at the end of the session, after the other words, so
+      // first exposure is tested again once it has had to be held for a
+      // while. Chinese words already get a second exercise (handwriting).
+      final secondPass = <_Exercise>[
+        for (final card in cards)
+          if (card.repetitions == 0 && !_isChineseWord(card.word.text))
+            _buildExercise(card.word, ExerciseType.typeWord),
+      ]..shuffle(_random);
+      _queue.addAll(secondPass);
+
+      // Accuracy is first-try-correct out of the graded exercises (learn
+      // cards aren't graded).
+      _totalWords = _queue.where((e) => e.type != ExerciseType.learn).length;
 
       setState(() => _phase = SessionPhase.exercising);
       _resetAnswerState();
@@ -238,8 +274,11 @@ class _StudyScreenState extends State<StudyScreen>
     return mastery <= 1 ? ExerciseType.listenChoose : ExerciseType.voiceRead;
   }
 
-  _Exercise _buildExercise(Word word, ExerciseType type,
-      {bool isRetry = false}) {
+  _Exercise _buildExercise(
+    Word word,
+    ExerciseType type, {
+    bool isRetry = false,
+  }) {
     switch (type) {
       case ExerciseType.chooseSpelling:
         return _Exercise(
@@ -324,23 +363,41 @@ class _StudyScreenState extends State<StudyScreen>
   }
 
   static const List<String> _fallbackCharacters = [
-    '的', '一', '是', '了', '我', '不', '人', '在', '他', '有',
-    '这', '个', '上', '们', '来', '到', '时', '大', '地', '为',
+    '的',
+    '一',
+    '是',
+    '了',
+    '我',
+    '不',
+    '人',
+    '在',
+    '他',
+    '有',
+    '这',
+    '个',
+    '上',
+    '们',
+    '来',
+    '到',
+    '时',
+    '大',
+    '地',
+    '为',
   ];
 
   /// Distractor characters for Listen & Choose: prefer sibling characters
   /// from this lesson so choices stay visually plausible; pad with common
   /// characters if the lesson is too small to have three others.
   List<String> _buildCharacterChoices(String target) {
-    final distractors = _chineseDistractorPool
-        .where((t) => t != target)
-        .toList()
-      ..shuffle(_random);
+    final distractors =
+        _chineseDistractorPool.where((t) => t != target).toList()
+          ..shuffle(_random);
     final picked = distractors.take(3).toList();
     var guard = 0;
     while (picked.length < 3 && guard < 30) {
       guard++;
-      final c = _fallbackCharacters[_random.nextInt(_fallbackCharacters.length)];
+      final c =
+          _fallbackCharacters[_random.nextInt(_fallbackCharacters.length)];
       if (c != target && !picked.contains(c)) picked.add(c);
     }
     final options = <String>[target, ...picked]..shuffle(_random);
@@ -410,16 +467,42 @@ class _StudyScreenState extends State<StudyScreen>
     _isRecording = false;
     _voiceUnsupported = false;
     _voiceStars = null;
+    _hanziQuizAvailable = null;
+    _hanziCharIndex = 0;
     final blanks = _current.slots.where((s) => s == null).length;
     _blankFill = List<int?>.filled(blanks, null);
+    if (_current.type == ExerciseType.handwriteTrace) {
+      _checkHanziQuizAvailability();
+    }
+  }
+
+  /// Preflights whether every character in the current word has
+  /// HanziWriter stroke data, so _buildHandwriteTrace can commit to guided
+  /// quiz tracing or the free-draw fallback instead of switching mid-word.
+  Future<void> _checkHanziQuizAvailability() async {
+    if (!kIsWeb) {
+      setState(() => _hanziQuizAvailable = false);
+      return;
+    }
+    final word = _current.word.text;
+    final capturedIndex = _index;
+    final available = await hanziStrokeDataAvailable(word);
+    if (!mounted || _index != capturedIndex) return;
+    setState(() => _hanziQuizAvailable = available);
   }
 
   void _autoPlayCurrentWord() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_phase == SessionPhase.exercising) {
-        _soundService.playWordPronunciation(_current.word.text);
-      }
-    });
+    // Called synchronously rather than via addPostFrameCallback: iOS
+    // Safari's autoplay/speech restrictions are far more lenient when
+    // playback stays inside the same call chain as a user gesture (see
+    // `_continue`, bound directly to onTap) - deferring to the next frame
+    // breaks that chain even though the caller was itself a tap. Ported
+    // from FlutterSpell's TtsHelper.playWord, which is always invoked this
+    // way (only from button onPressed handlers, never auto-played after
+    // an async load) and has no iOS silence issue.
+    if (_phase == SessionPhase.exercising) {
+      _soundService.playWordPronunciation(_current.word.text);
+    }
   }
 
   String _assembledAnswer() {
@@ -484,14 +567,29 @@ class _StudyScreenState extends State<StudyScreen>
       );
       return;
     }
-    final correct = _assembledAnswer().toLowerCase() == _targetAnswer.toLowerCase();
+    final correct =
+        _assembledAnswer().toLowerCase() == _targetAnswer.toLowerCase();
     _applyResult(correct);
   }
 
-  /// Handwriting trace has no auto-gradable input (no OCR) — the child
-  /// self-reports whether they wrote it correctly, and that feeds the same
-  /// reward/retry/SRS pipeline as an auto-graded answer.
+  /// Free-draw handwriting trace has no auto-gradable input (no OCR) — the
+  /// child self-reports whether they wrote it correctly, and that feeds
+  /// the same reward/retry/SRS pipeline as an auto-graded answer.
   void _selfGrade(bool gotIt) => _applyResult(gotIt);
+
+  /// Called when HanziWriter reports a character's quiz complete (every
+  /// stroke drawn correctly, in order). Advances to the next character in
+  /// a multi-character word, or grades the whole word correct once the
+  /// last one finishes — unlike the free-draw fallback, this is a real
+  /// auto-grade since HanziWriter already verified the strokes.
+  void _onHanziCharComplete() {
+    final characters = _current.word.text.split('');
+    if (_hanziCharIndex + 1 >= characters.length) {
+      _applyResult(true);
+    } else {
+      setState(() => _hanziCharIndex++);
+    }
+  }
 
   Future<void> _recordVoiceAnswer() async {
     setState(() {
@@ -511,6 +609,11 @@ class _StudyScreenState extends State<StudyScreen>
   }
 
   void _applyResult(bool correct, {int? qualityOverride}) {
+    // Close the text field's input connection before grading disables it:
+    // on web, disabling a still-focused TextField makes the engine update a
+    // text-input configuration whose DOM element is already gone, which
+    // throws an assertion (harmless to play, but noisy).
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _checked = true;
       _wasCorrect = correct;
@@ -532,11 +635,7 @@ class _StudyScreenState extends State<StudyScreen>
         final retryType = _isChineseWord(_current.word.text)
             ? ExerciseType.listenChoose
             : ExerciseType.chooseSpelling;
-        _queue.add(_buildExercise(
-          _current.word,
-          retryType,
-          isRetry: true,
-        ));
+        _queue.add(_buildExercise(_current.word, retryType, isRetry: true));
         _soundService.playIncorrectAnswer();
         _shakeController.forward(from: 0);
         // Replay the pronunciation so the child hears it again
@@ -574,6 +673,17 @@ class _StudyScreenState extends State<StudyScreen>
     // Per-word /review calls already advanced ReviewState (and each earned
     // a point); refresh the cached stats so points/streak reflect them.
     await gameProvider.loadUserStats();
+    // Finishing a checkpoint (or the review) session is what passes it and
+    // enables the next node on the path. Must land before the lessons
+    // reload below so that reload sees it.
+    final checkpoint = widget.args.checkpoint;
+    if (widget.args.review || checkpoint != null) {
+      await gameProvider.markCheckpointPassed(
+        widget.args.subject,
+        widget.args.lessonKey,
+        widget.args.review ? reviewNodeIndex : checkpoint!,
+      );
+    }
     // Also refresh the lesson list so checkpoint/mastery progress from this
     // session (which may have unlocked the next checkpoint or lesson) is
     // reflected once the user navigates back to the World Map - otherwise
@@ -598,7 +708,8 @@ class _StudyScreenState extends State<StudyScreen>
         ),
         title: const Text('Wait, don\'t go! 🥺'),
         content: const Text(
-            'You\'ll lose your progress in this adventure if you quit now.'),
+          'You\'ll lose your progress in this adventure if you quit now.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -621,6 +732,15 @@ class _StudyScreenState extends State<StudyScreen>
       ),
     );
     if (quit == true && mounted) {
+      // Each exercise already submitted its /review the moment it was
+      // graded (see _applyResult), so points/mastery earned so far this
+      // session are real on the backend even when quitting early - but
+      // gameProvider's cached userStats/lessons won't reflect that until
+      // something reloads them. Without this, Home silently shows stale
+      // numbers until its own next full reload.
+      await gameProvider.loadUserStats();
+      await gameProvider.loadLessons(widget.args.subject);
+      if (!mounted) return;
       Navigator.of(context).pop();
     }
   }
@@ -663,13 +783,16 @@ class _StudyScreenState extends State<StudyScreen>
           children: [
             const Text('📭', style: TextStyle(fontSize: 64)),
             SizedBox(height: DuolingoSpacing.lg),
-            Text('No words to study yet!',
-                style: DuolingoTextStyles.sectionTitle),
+            Text(
+              'No words to study yet!',
+              style: DuolingoTextStyles.sectionTitle,
+            ),
             SizedBox(height: DuolingoSpacing.sm),
             Text(
               'Ask your teacher to add words to your deck.',
-              style: DuolingoTextStyles.body
-                  .copyWith(color: DuolingoColors.bodyText),
+              style: DuolingoTextStyles.body.copyWith(
+                color: DuolingoColors.bodyText,
+              ),
             ),
           ],
         ),
@@ -679,32 +802,45 @@ class _StudyScreenState extends State<StudyScreen>
 
   Widget _buildExerciseScreen() {
     final progress = _index / _queue.length;
-    return Scaffold(
-      backgroundColor: DuolingoColors.backgroundWhite,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(progress),
-            Expanded(
-              child: AnimatedBuilder(
-                animation: _shakeController,
-                builder: (context, child) {
-                  final t = _shakeController.value;
-                  final dx = sin(t * pi * 4) * 10 * (1 - t);
-                  return Transform.translate(
-                      offset: Offset(dx, 0), child: child);
-                },
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: DuolingoSpacing.xxl,
-                    vertical: DuolingoSpacing.lg,
+    // Without this, a phone's back gesture/button (much more natural on
+    // mobile web than tapping the in-app close button) pops the route
+    // directly - skipping _confirmQuit and the userStats/lessons refresh
+    // it does, so Home silently shows stale points/progress even though
+    // the backend already recorded everything reviewed so far.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _confirmQuit();
+      },
+      child: Scaffold(
+        backgroundColor: DuolingoColors.backgroundWhite,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildTopBar(progress),
+              Expanded(
+                child: AnimatedBuilder(
+                  animation: _shakeController,
+                  builder: (context, child) {
+                    final t = _shakeController.value;
+                    final dx = sin(t * pi * 4) * 10 * (1 - t);
+                    return Transform.translate(
+                      offset: Offset(dx, 0),
+                      child: child,
+                    );
+                  },
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: DuolingoSpacing.xxl,
+                      vertical: DuolingoSpacing.lg,
+                    ),
+                    child: _buildExerciseBody(),
                   ),
-                  child: _buildExerciseBody(),
                 ),
               ),
-            ),
-            _buildBottomPanel(),
-          ],
+              _buildBottomPanel(),
+            ],
+          ),
         ),
       ),
     );
@@ -744,8 +880,11 @@ class _StudyScreenState extends State<StudyScreen>
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close,
-                color: DuolingoColors.secondaryButtonGray, size: 28),
+            icon: const Icon(
+              Icons.close,
+              color: DuolingoColors.secondaryButtonGray,
+              size: 28,
+            ),
             onPressed: _confirmQuit,
           ),
           Expanded(
@@ -760,7 +899,8 @@ class _StudyScreenState extends State<StudyScreen>
                   minHeight: DuolingoSpacing.progressBarHeight,
                   backgroundColor: DuolingoColors.neutralGray,
                   valueColor: const AlwaysStoppedAnimation(
-                      DuolingoColors.primaryGreen),
+                    DuolingoColors.primaryGreen,
+                  ),
                 ),
               ),
             ),
@@ -769,8 +909,9 @@ class _StudyScreenState extends State<StudyScreen>
           const Text('⚡', style: TextStyle(fontSize: 18)),
           Text(
             '$_earnedXp',
-            style: DuolingoTextStyles.cardTitle
-                .copyWith(color: DuolingoColors.streakOrange),
+            style: DuolingoTextStyles.cardTitle.copyWith(
+              color: DuolingoColors.streakOrange,
+            ),
           ),
           SizedBox(width: DuolingoSpacing.sm),
         ],
@@ -824,8 +965,7 @@ class _StudyScreenState extends State<StudyScreen>
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
-            border:
-                Border.all(color: DuolingoColors.informationBlue, width: 2),
+            border: Border.all(color: DuolingoColors.informationBlue, width: 2),
           ),
           child: Column(
             children: [
@@ -845,8 +985,9 @@ class _StudyScreenState extends State<StudyScreen>
               SizedBox(height: DuolingoSpacing.sm),
               Text(
                 'Listen and remember the spelling',
-                style: DuolingoTextStyles.label
-                    .copyWith(color: DuolingoColors.bodyText),
+                style: DuolingoTextStyles.label.copyWith(
+                  color: DuolingoColors.bodyText,
+                ),
               ),
             ],
           ),
@@ -861,16 +1002,19 @@ class _StudyScreenState extends State<StudyScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Tap the correct spelling',
-            style: DuolingoTextStyles.sectionTitle),
+        Text(
+          'Tap the correct spelling',
+          style: DuolingoTextStyles.sectionTitle,
+        ),
         SizedBox(height: DuolingoSpacing.xxl),
         Center(child: _buildAudioButton()),
         SizedBox(height: DuolingoSpacing.sm),
         Center(
           child: Text(
             'Tap to hear the word',
-            style: DuolingoTextStyles.label
-                .copyWith(color: DuolingoColors.bodyText),
+            style: DuolingoTextStyles.label.copyWith(
+              color: DuolingoColors.bodyText,
+            ),
           ),
         ),
         SizedBox(height: DuolingoSpacing.xxl),
@@ -904,8 +1048,7 @@ class _StudyScreenState extends State<StudyScreen>
     return Padding(
       padding: EdgeInsets.only(bottom: DuolingoSpacing.md),
       child: GestureDetector(
-        onTap:
-            _checked ? null : () => setState(() => _selectedChoice = choice),
+        onTap: _checked ? null : () => setState(() => _selectedChoice = choice),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           width: double.infinity,
@@ -945,16 +1088,19 @@ class _StudyScreenState extends State<StudyScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Tap the character you hear',
-            style: DuolingoTextStyles.sectionTitle),
+        Text(
+          'Tap the character you hear',
+          style: DuolingoTextStyles.sectionTitle,
+        ),
         SizedBox(height: DuolingoSpacing.xxl),
         Center(child: _buildAudioButton()),
         SizedBox(height: DuolingoSpacing.sm),
         Center(
           child: Text(
             'Tap to hear it again',
-            style: DuolingoTextStyles.label
-                .copyWith(color: DuolingoColors.bodyText),
+            style: DuolingoTextStyles.label.copyWith(
+              color: DuolingoColors.bodyText,
+            ),
           ),
         ),
         SizedBox(height: DuolingoSpacing.xxl),
@@ -1022,9 +1168,138 @@ class _StudyScreenState extends State<StudyScreen>
     );
   }
 
-  // --- Chinese: Handwriting trace (self-graded, no OCR) ---
+  // --- Chinese: Handwriting trace ---
+  //
+  // Two modes, decided per-word by _checkHanziQuizAvailability once its
+  // stroke-data preflight resolves:
+  //  - Guided quiz (preferred): HanziWriter checks stroke order/shape one
+  //    character at a time and fills in each correct stroke, matching
+  //    https://hanziwriter.org/quiz.html. Auto-grades on completion.
+  //  - Free trace (fallback): the old plain canvas, for characters outside
+  //    HanziWriter's dataset. Self-graded by the child (no OCR).
 
   Widget _buildHandwriteTrace() {
+    if (_hanziQuizAvailable == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Trace the word', style: DuolingoTextStyles.sectionTitle),
+          SizedBox(height: DuolingoSpacing.xxl),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      );
+    }
+    return _hanziQuizAvailable == true
+        ? _buildHanziQuizTrace()
+        : _buildFreeTrace();
+  }
+
+  Widget _buildHanziQuizTrace() {
+    final characters = _current.word.text.split('');
+    final isSingle = characters.length == 1;
+    final activeIndex = _hanziCharIndex.clamp(0, characters.length - 1);
+    final title = isSingle
+        ? 'Trace the character'
+        : 'Character ${activeIndex + 1} of ${characters.length}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: DuolingoTextStyles.sectionTitle),
+        if (!isSingle) ...[
+          SizedBox(height: DuolingoSpacing.md),
+          Center(
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: DuolingoSpacing.sm,
+              runSpacing: DuolingoSpacing.sm,
+              children: [
+                for (var i = 0; i < characters.length; i++)
+                  _buildHanziProgressChip(characters[i], i, activeIndex),
+              ],
+            ),
+          ),
+        ],
+        SizedBox(height: DuolingoSpacing.lg),
+        Center(child: _buildAudioButton(size: 56, iconSize: 28)),
+        SizedBox(height: DuolingoSpacing.lg),
+        Center(
+          child: HanziWriterTrace(
+            key: ValueKey(
+              'hanzi-$_index-$_traceVersion-$activeIndex-${characters[activeIndex]}',
+            ),
+            character: characters[activeIndex],
+            size: 220,
+            controller: _hanziController,
+            onComplete: _onHanziCharComplete,
+            onUnavailable: () => setState(() => _hanziQuizAvailable = false),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.sm),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: _checked
+                    ? null
+                    : () => _hanziController.showStrokeOrder(),
+                child: Text(
+                  'Show me ✍️',
+                  style: DuolingoTextStyles.label.copyWith(
+                    color: DuolingoColors.informationBlue,
+                  ),
+                ),
+              ),
+              SizedBox(width: DuolingoSpacing.md),
+              TextButton(
+                onPressed: _checked
+                    ? null
+                    : () => setState(() => _traceVersion++),
+                child: Text(
+                  'Restart',
+                  style: DuolingoTextStyles.label.copyWith(
+                    color: DuolingoColors.bodyText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHanziProgressChip(String char, int index, int activeIndex) {
+    final done = index < activeIndex;
+    final active = index == activeIndex;
+    return Container(
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: done
+            ? DuolingoColors.primaryGreen.withOpacity(0.15)
+            : (active ? DuolingoColors.neutralGray : Colors.transparent),
+        border: Border.all(
+          color: active
+              ? DuolingoColors.informationBlue
+              : const Color(0xFFE5E5E5),
+          width: 2,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        char,
+        style: TextStyle(
+          fontSize: 18,
+          color: done ? DuolingoColors.primaryGreen : DuolingoColors.darkText,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFreeTrace() {
     // word.text can be a single hanzi ("的") or a multi-character word,
     // phrase, or whole dictation sentence ("螃蟹米粉", "我们必须靠自己的
     // 力量捍卫新加坡。") — trace one box per character instead of cramming
@@ -1075,26 +1350,26 @@ class _StudyScreenState extends State<StudyScreen>
         SizedBox(height: DuolingoSpacing.lg),
         isSingle
             ? Center(child: traceBox(characters.first, 0, 220, 160))
-            : SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+            : Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: DuolingoSpacing.sm,
+                  runSpacing: DuolingoSpacing.sm,
                   children: [
-                    for (var i = 0; i < characters.length; i++) ...[
-                      if (i > 0) SizedBox(width: DuolingoSpacing.sm),
+                    for (var i = 0; i < characters.length; i++)
                       traceBox(characters[i], i, 140, 100),
-                    ],
                   ],
                 ),
               ),
         SizedBox(height: DuolingoSpacing.sm),
         Center(
           child: TextButton(
-            onPressed:
-                _checked ? null : () => setState(() => _traceVersion++),
+            onPressed: _checked ? null : () => setState(() => _traceVersion++),
             child: Text(
               'Clear',
-              style:
-                  DuolingoTextStyles.label.copyWith(color: DuolingoColors.bodyText),
+              style: DuolingoTextStyles.label.copyWith(
+                color: DuolingoColors.bodyText,
+              ),
             ),
           ),
         ),
@@ -1113,8 +1388,10 @@ class _StudyScreenState extends State<StudyScreen>
         Center(
           child: Text(
             _current.word.text,
-            style: DuolingoTextStyles.pageTitle
-                .copyWith(fontSize: 72, color: DuolingoColors.darkText),
+            style: DuolingoTextStyles.pageTitle.copyWith(
+              fontSize: 72,
+              color: DuolingoColors.darkText,
+            ),
           ),
         ),
         SizedBox(height: DuolingoSpacing.xxl),
@@ -1139,8 +1416,11 @@ class _StudyScreenState extends State<StudyScreen>
                   ),
                 ],
               ),
-              child: Icon(_isRecording ? Icons.stop : Icons.mic,
-                  color: Colors.white, size: 40),
+              child: Icon(
+                _isRecording ? Icons.stop : Icons.mic,
+                color: Colors.white,
+                size: 40,
+              ),
             ),
           ),
         ),
@@ -1150,11 +1430,12 @@ class _StudyScreenState extends State<StudyScreen>
             _isRecording
                 ? 'Listening...'
                 : (_voiceTranscript == null
-                    ? 'Tap the mic and say the word'
-                    : 'Heard: "$_voiceTranscript" — tap CHECK, or tap the mic to try again'),
+                      ? 'Tap the mic and say the word'
+                      : 'Heard: "$_voiceTranscript" — tap CHECK, or tap the mic to try again'),
             textAlign: TextAlign.center,
-            style: DuolingoTextStyles.label
-                .copyWith(color: DuolingoColors.bodyText),
+            style: DuolingoTextStyles.label.copyWith(
+              color: DuolingoColors.bodyText,
+            ),
           ),
         ),
         if (_voiceUnsupported) ...[
@@ -1167,8 +1448,9 @@ class _StudyScreenState extends State<StudyScreen>
               child: Text(
                 "Can't record? Tap here if you read it correctly",
                 textAlign: TextAlign.center,
-                style: DuolingoTextStyles.label
-                    .copyWith(color: DuolingoColors.informationBlue),
+                style: DuolingoTextStyles.label.copyWith(
+                  color: DuolingoColors.informationBlue,
+                ),
               ),
             ),
           ),
@@ -1189,11 +1471,7 @@ class _StudyScreenState extends State<StudyScreen>
         SizedBox(height: DuolingoSpacing.xxl),
         // Word slots
         Center(
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 8,
-            children: _buildSlotTiles(),
-          ),
+          child: Wrap(spacing: 6, runSpacing: 8, children: _buildSlotTiles()),
         ),
         SizedBox(height: DuolingoSpacing.xxl * 1.5),
         // Letter bank
@@ -1218,15 +1496,17 @@ class _StudyScreenState extends State<StudyScreen>
       } else {
         final idx = blankIdx;
         final bankIdx = _blankFill[idx];
-        tiles.add(GestureDetector(
-          onTap: _checked || bankIdx == null
-              ? null
-              : () => setState(() => _blankFill[idx] = null),
-          child: _slotTile(
-            letter: bankIdx == null ? '' : _current.bank[bankIdx],
-            fixed: false,
+        tiles.add(
+          GestureDetector(
+            onTap: _checked || bankIdx == null
+                ? null
+                : () => setState(() => _blankFill[idx] = null),
+            child: _slotTile(
+              letter: bankIdx == null ? '' : _current.bank[bankIdx],
+              fixed: false,
+            ),
           ),
-        ));
+        );
         blankIdx++;
       }
     }
@@ -1247,8 +1527,8 @@ class _StudyScreenState extends State<StudyScreen>
           color: fixed
               ? Colors.transparent
               : (filled
-                  ? DuolingoColors.informationBlue
-                  : const Color(0xFFE5E5E5)),
+                    ? DuolingoColors.informationBlue
+                    : const Color(0xFFE5E5E5)),
           width: 2,
         ),
         borderRadius: BorderRadius.circular(10),
@@ -1257,9 +1537,7 @@ class _StudyScreenState extends State<StudyScreen>
         letter,
         style: DuolingoTextStyles.cardTitle.copyWith(
           fontSize: 22,
-          color: fixed
-              ? DuolingoColors.darkText
-              : const Color(0xFF1899D6),
+          color: fixed ? DuolingoColors.darkText : const Color(0xFF1899D6),
         ),
       ),
     );
@@ -1270,45 +1548,47 @@ class _StudyScreenState extends State<StudyScreen>
     final tiles = <Widget>[];
     for (var i = 0; i < _current.bank.length; i++) {
       final used = usedIdxs.contains(i);
-      tiles.add(GestureDetector(
-        onTap: _checked || used
-            ? null
-            : () {
-                final nextBlank = _blankFill.indexOf(null);
-                if (nextBlank != -1) {
-                  setState(() => _blankFill[nextBlank] = i);
-                  _soundService.playPop();
-                }
-              },
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 150),
-          opacity: used ? 0.25 : 1,
-          child: Container(
-            width: 44,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: const Color(0xFFE5E5E5), width: 2),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0xFFE5E5E5),
-                  offset: Offset(0, 3),
-                  blurRadius: 0,
+      tiles.add(
+        GestureDetector(
+          onTap: _checked || used
+              ? null
+              : () {
+                  final nextBlank = _blankFill.indexOf(null);
+                  if (nextBlank != -1) {
+                    setState(() => _blankFill[nextBlank] = i);
+                    _soundService.playPop();
+                  }
+                },
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: used ? 0.25 : 1,
+            child: Container(
+              width: 44,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFE5E5E5), width: 2),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0xFFE5E5E5),
+                    offset: Offset(0, 3),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: Text(
+                _current.bank[i],
+                style: DuolingoTextStyles.cardTitle.copyWith(
+                  fontSize: 22,
+                  color: DuolingoColors.darkText,
                 ),
-              ],
-            ),
-            child: Text(
-              _current.bank[i],
-              style: DuolingoTextStyles.cardTitle.copyWith(
-                fontSize: 22,
-                color: DuolingoColors.darkText,
               ),
             ),
           ),
         ),
-      ));
+      );
     }
     return tiles;
   }
@@ -1326,8 +1606,9 @@ class _StudyScreenState extends State<StudyScreen>
         Center(
           child: Text(
             'Tap to hear the word again',
-            style: DuolingoTextStyles.label
-                .copyWith(color: DuolingoColors.bodyText),
+            style: DuolingoTextStyles.label.copyWith(
+              color: DuolingoColors.bodyText,
+            ),
           ),
         ),
         SizedBox(height: DuolingoSpacing.xxl),
@@ -1348,21 +1629,22 @@ class _StudyScreenState extends State<StudyScreen>
           ),
           decoration: InputDecoration(
             hintText: 'Type the word...',
-            hintStyle: DuolingoTextStyles.body
-                .copyWith(color: DuolingoColors.secondaryButtonGray),
+            hintStyle: DuolingoTextStyles.body.copyWith(
+              color: DuolingoColors.secondaryButtonGray,
+            ),
             filled: true,
             fillColor: DuolingoColors.neutralGray,
             contentPadding: EdgeInsets.all(DuolingoSpacing.xl),
             border: OutlineInputBorder(
-              borderRadius:
-                  BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius:
-                  BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
               borderSide: const BorderSide(
-                  color: DuolingoColors.informationBlue, width: 2),
+                color: DuolingoColors.informationBlue,
+                width: 2,
+              ),
             ),
           ),
         ),
@@ -1376,7 +1658,10 @@ class _StudyScreenState extends State<StudyScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Fill in the missing word', style: DuolingoTextStyles.sectionTitle),
+        Text(
+          'Fill in the missing word',
+          style: DuolingoTextStyles.sectionTitle,
+        ),
         SizedBox(height: DuolingoSpacing.xl),
         Container(
           width: double.infinity,
@@ -1411,8 +1696,9 @@ class _StudyScreenState extends State<StudyScreen>
           ),
           decoration: InputDecoration(
             hintText: 'Type the missing word...',
-            hintStyle: DuolingoTextStyles.body
-                .copyWith(color: DuolingoColors.secondaryButtonGray),
+            hintStyle: DuolingoTextStyles.body.copyWith(
+              color: DuolingoColors.secondaryButtonGray,
+            ),
             filled: true,
             fillColor: DuolingoColors.neutralGray,
             contentPadding: EdgeInsets.all(DuolingoSpacing.xl),
@@ -1423,7 +1709,9 @@ class _StudyScreenState extends State<StudyScreen>
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
               borderSide: const BorderSide(
-                  color: DuolingoColors.informationBlue, width: 2),
+                color: DuolingoColors.informationBlue,
+                width: 2,
+              ),
             ),
           ),
         ),
@@ -1465,8 +1753,29 @@ class _StudyScreenState extends State<StudyScreen>
       );
     }
 
-    // Handwriting trace has no auto-gradable input (no OCR) — the child
-    // self-reports instead of hitting a CHECK button.
+    // Guided HanziWriter quiz mode auto-grades on completion (see
+    // _onHanziCharComplete) — no button needed, just a hint while tracing.
+    if (_current.type == ExerciseType.handwriteTrace &&
+        _hanziQuizAvailable == true &&
+        !_checked) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(DuolingoSpacing.xl),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFE5E5E5), width: 2)),
+        ),
+        child: Text(
+          'Trace each stroke in order — it\'ll fill in automatically ✍️',
+          textAlign: TextAlign.center,
+          style: DuolingoTextStyles.label.copyWith(
+            color: DuolingoColors.bodyText,
+          ),
+        ),
+      );
+    }
+
+    // Free-draw trace fallback has no auto-gradable input (no OCR) — the
+    // child self-reports instead of hitting a CHECK button.
     if (_current.type == ExerciseType.handwriteTrace && !_checked) {
       return Container(
         width: double.infinity,
@@ -1517,10 +1826,12 @@ class _StudyScreenState extends State<StudyScreen>
       );
     }
 
-    final panelColor =
-        _wasCorrect ? const Color(0xFFD7FFB8) : const Color(0xFFFFDFE0);
-    final accent =
-        _wasCorrect ? const Color(0xFF58A700) : const Color(0xFFEA2B2B);
+    final panelColor = _wasCorrect
+        ? const Color(0xFFD7FFB8)
+        : const Color(0xFFFFDFE0);
+    final accent = _wasCorrect
+        ? const Color(0xFF58A700)
+        : const Color(0xFFEA2B2B);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -1552,8 +1863,10 @@ class _StudyScreenState extends State<StudyScreen>
                   children: [
                     Text(
                       _wasCorrect ? _lastPraise : _lastEncouragement,
-                      style: DuolingoTextStyles.sectionTitle
-                          .copyWith(color: accent, fontSize: 17),
+                      style: DuolingoTextStyles.sectionTitle.copyWith(
+                        color: accent,
+                        fontSize: 17,
+                      ),
                     ),
                     if (_voiceStars != null)
                       Padding(
@@ -1588,13 +1901,15 @@ class _StudyScreenState extends State<StudyScreen>
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius:
-                        BorderRadius.circular(DuolingoSpacing.radiusBadge),
+                    borderRadius: BorderRadius.circular(
+                      DuolingoSpacing.radiusBadge,
+                    ),
                   ),
                   child: Text(
                     _current.isRetry ? '+5 XP' : '+10 XP',
-                    style: DuolingoTextStyles.cardTitle
-                        .copyWith(color: DuolingoColors.streakOrange),
+                    style: DuolingoTextStyles.cardTitle.copyWith(
+                      color: DuolingoColors.streakOrange,
+                    ),
                   ),
                 ),
             ],
@@ -1606,8 +1921,9 @@ class _StudyScreenState extends State<StudyScreen>
             color: _wasCorrect
                 ? DuolingoColors.primaryGreen
                 : DuolingoColors.mistakeRed,
-            shadowColor:
-                _wasCorrect ? const Color(0xFF58A700) : const Color(0xFFC22B2B),
+            shadowColor: _wasCorrect
+                ? const Color(0xFF58A700)
+                : const Color(0xFFC22B2B),
             onTap: _continue,
           ),
         ],
@@ -1644,8 +1960,7 @@ class _StudyScreenState extends State<StudyScreen>
         child: Text(
           label,
           style: DuolingoTextStyles.cardTitle.copyWith(
-            color:
-                enabled ? Colors.white : DuolingoColors.secondaryButtonGray,
+            color: enabled ? Colors.white : DuolingoColors.secondaryButtonGray,
             letterSpacing: 1.5,
           ),
         ),
@@ -1656,8 +1971,9 @@ class _StudyScreenState extends State<StudyScreen>
   // --- Summary (stars, XP, coins, weak words) ---
 
   Widget _buildSummary() {
-    final accuracy =
-        _totalWords == 0 ? 0 : (_firstTryCorrect / _totalWords * 100).round();
+    final accuracy = _totalWords == 0
+        ? 0
+        : (_firstTryCorrect / _totalWords * 100).round();
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
       body: SafeArea(
@@ -1692,7 +2008,9 @@ class _StudyScreenState extends State<StudyScreen>
               Text(
                 'Adventure complete!',
                 style: DuolingoTextStyles.pageTitle.copyWith(
-                    color: DuolingoColors.treasureGold, fontSize: 26),
+                  color: DuolingoColors.treasureGold,
+                  fontSize: 26,
+                ),
               ),
               SizedBox(height: DuolingoSpacing.xxl),
               Row(
@@ -1721,8 +2039,9 @@ class _StudyScreenState extends State<StudyScreen>
                 SizedBox(height: DuolingoSpacing.xxl),
                 Text(
                   'Words to practice again:',
-                  style: DuolingoTextStyles.label
-                      .copyWith(color: DuolingoColors.bodyText),
+                  style: DuolingoTextStyles.label.copyWith(
+                    color: DuolingoColors.bodyText,
+                  ),
                 ),
                 SizedBox(height: DuolingoSpacing.sm),
                 Wrap(
@@ -1730,24 +2049,27 @@ class _StudyScreenState extends State<StudyScreen>
                   runSpacing: 8,
                   alignment: WrapAlignment.center,
                   children: _weakWords
-                      .map((w) => Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: DuolingoSpacing.md,
-                              vertical: DuolingoSpacing.xs,
+                      .map(
+                        (w) => Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: DuolingoSpacing.md,
+                            vertical: DuolingoSpacing.xs,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFDFE0),
+                            borderRadius: BorderRadius.circular(
+                              DuolingoSpacing.radiusBadge,
                             ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFDFE0),
-                              borderRadius: BorderRadius.circular(
-                                  DuolingoSpacing.radiusBadge),
+                          ),
+                          child: Text(
+                            w,
+                            style: DuolingoTextStyles.body.copyWith(
+                              color: const Color(0xFFEA2B2B),
+                              fontWeight: FontWeight.bold,
                             ),
-                            child: Text(
-                              w,
-                              style: DuolingoTextStyles.body.copyWith(
-                                color: const Color(0xFFEA2B2B),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ))
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
               ],
@@ -1796,14 +2118,17 @@ class _StudyScreenState extends State<StudyScreen>
             padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.md),
             decoration: BoxDecoration(
               color: DuolingoColors.backgroundWhite,
-              borderRadius:
-                  BorderRadius.circular(DuolingoSpacing.radiusCard - 4),
+              borderRadius: BorderRadius.circular(
+                DuolingoSpacing.radiusCard - 4,
+              ),
             ),
             child: Text(
               value,
               textAlign: TextAlign.center,
-              style: DuolingoTextStyles.cardTitle
-                  .copyWith(color: color, fontSize: 15),
+              style: DuolingoTextStyles.cardTitle.copyWith(
+                color: color,
+                fontSize: 15,
+              ),
             ),
           ),
         ],

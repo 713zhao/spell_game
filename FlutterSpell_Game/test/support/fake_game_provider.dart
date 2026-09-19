@@ -72,6 +72,21 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
   @override
   bool get soundEnabled => true;
 
+  @override
+  bool playtimeLocked = false;
+
+  @override
+  int playtimeRemainingSeconds = 15 * 60;
+
+  @override
+  bool chestAvailable = false;
+
+  @override
+  List<Map<String, dynamic>> achievements = [];
+
+  @override
+  List<int> defeatedBossIds = [];
+
   String _userName = 'TestUser';
 
   @override
@@ -164,7 +179,28 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
   }
 
   @override
-  Future<void> loadDeck({List<String>? tags, int limit = 10, int? checkpoint}) async {}
+  int lessonsVersion = 0;
+
+  @override
+  Future<void> loadDeck({
+    List<String>? tags,
+    int limit = 10,
+    int? checkpoint,
+    bool review = false,
+  }) async {}
+
+  @override
+  Future<List<LessonSummary>?> fetchLessons(
+    String subject, {
+    required String labelType,
+  }) async => null;
+
+  @override
+  Future<void> markCheckpointPassed(
+    String subject,
+    String lessonKey,
+    int checkpointIndex,
+  ) async {}
 
   @override
   Future<void> loadLessons(String subject) async {}
@@ -179,7 +215,10 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
   Future<void> loadLevelDetails(int levelId) async {}
 
   @override
-  Future<Map<String, dynamic>?> completeLevel(int levelId, double accuracy) async => {};
+  Future<Map<String, dynamic>?> completeLevel(
+    int levelId,
+    double accuracy,
+  ) async => {};
 
   @override
   Future<void> loadUserStats() async {}
@@ -200,7 +239,8 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
   Future<Map<String, dynamic>?> playMiniGame(int gameId) async => {};
 
   @override
-  Future<bool> createChallenge(String challengeeName, int levelId) async => true;
+  Future<bool> createChallenge(String challengeeName, int levelId) async =>
+      true;
 
   @override
   Future<void> loadLeaderboard({String filter = 'global'}) async {}
@@ -212,7 +252,8 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
   Future<bool> acceptChallenge(int challengeId) async => true;
 
   @override
-  Future<bool> completeChallenge(int challengeId, double accuracy) async => true;
+  Future<bool> completeChallenge(int challengeId, double accuracy) async =>
+      true;
 
   bool loadUserProfileCalled = false;
 
@@ -241,4 +282,25 @@ class FakeGameProvider extends ChangeNotifier implements GameProvider {
 
   @override
   Future<void> setSoundEnabled(bool enabled) async {}
+
+  @override
+  Future<void> loadPlaytimeStatus() async {}
+
+  @override
+  Future<bool> sendPlaytimeHeartbeat(int seconds) async => true;
+
+  @override
+  Future<void> loadChestStatus() async {}
+
+  @override
+  Future<int?> claimChest() async => null;
+
+  @override
+  Future<void> loadAchievements() async {}
+
+  @override
+  Future<void> loadDefeatedBosses() async {}
+
+  @override
+  Future<int?> defeatBoss(int bossId) async => null;
 }
