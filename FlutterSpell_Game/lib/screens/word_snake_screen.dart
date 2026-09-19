@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:provider/provider.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/game_models.dart';
+import 'package:spell_game/providers/game_provider.dart';
 import 'package:spell_game/utils/exercise_content_parser.dart';
 import 'package:spell_game/utils/playtime_guard.dart';
-import '../main.dart' show gameProvider;
+import '../services/sound_service.dart';
 
 /// A continuous-movement (slither.io-style) snake game - NOT the classic
 /// grid/turn-based snake. The player steers toward the pointer with a
@@ -78,7 +80,13 @@ class _FoodTierDef {
   final double radius;
   final Color color;
   final double growth;
-  const _FoodTierDef(this.weight, this.points, this.radius, this.color, this.growth);
+  const _FoodTierDef(
+    this.weight,
+    this.points,
+    this.radius,
+    this.color,
+    this.growth,
+  );
 }
 
 const Map<_FoodTier, _FoodTierDef> _foodTierDefs = {
@@ -90,8 +98,9 @@ const Map<_FoodTier, _FoodTierDef> _foodTierDefs = {
 _FoodTier _rollFoodTier(Random random) {
   final r = random.nextDouble();
   if (r < _foodTierDefs[_FoodTier.large]!.weight) return _FoodTier.large;
-  if (r < _foodTierDefs[_FoodTier.large]!.weight +
-      _foodTierDefs[_FoodTier.medium]!.weight) {
+  if (r <
+      _foodTierDefs[_FoodTier.large]!.weight +
+          _foodTierDefs[_FoodTier.medium]!.weight) {
     return _FoodTier.medium;
   }
   return _FoodTier.small;
@@ -232,9 +241,12 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
   // Daily combined minigame play-time cap, enforced via PlaytimeGuardMixin.
   bool _playtimeLocked = false;
 
+  late GameProvider gameProvider;
+
   @override
   void initState() {
     super.initState();
+    gameProvider = context.read<GameProvider>();
     _ticker = createTicker(_onTick)..start();
     _loadWords();
     _resetGame();
@@ -290,7 +302,9 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
       ..addAll(List.generate(potionTarget, (_) => _randomPotion()));
     _knowledgeStones
       ..clear()
-      ..addAll(List.generate(knowledgeStoneTarget, (_) => _randomKnowledgeStone()));
+      ..addAll(
+        List.generate(knowledgeStoneTarget, (_) => _randomKnowledgeStone()),
+      );
     _bossActive = false;
     _nextBossMs = 0;
     _bossBanner = null;
@@ -312,7 +326,9 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
   _Potion _randomPotion() {
     final a = _random.nextDouble() * 2 * pi;
     final r = _random.nextDouble() * (worldR - 60);
-    final type = _random.nextBool() ? _PotionType.speed : _PotionType.doubleScore;
+    final type = _random.nextBool()
+        ? _PotionType.speed
+        : _PotionType.doubleScore;
     return _Potion(cos(a) * r, sin(a) * r, type);
   }
 
@@ -354,17 +370,18 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
     cx ??= 0;
     cy ??= 0;
 
-    final boss = _Entity(
-      x: cx,
-      y: cy,
-      angle: atan2(_player.y - cy, _player.x - cx),
-      length: max(60, _player.length * 0.75),
-      isAI: true,
-    )
-      ..isBoss = true
-      ..hp = bossHp
-      ..invulnUntil = now + bossGraceMs
-      ..expireT = now + bossLifetimeMs;
+    final boss =
+        _Entity(
+            x: cx,
+            y: cy,
+            angle: atan2(_player.y - cy, _player.x - cx),
+            length: max(60, _player.length * 0.75),
+            isAI: true,
+          )
+          ..isBoss = true
+          ..hp = bossHp
+          ..invulnUntil = now + bossGraceMs
+          ..expireT = now + bossLifetimeMs;
     _aiSnakes.add(boss);
     _bossActive = true;
     _nextBossMs = now + bossIntervalMs;
@@ -394,11 +411,13 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
       final tier = _random.nextDouble() < goldChance
           ? _FoodTier.large
           : _FoodTier.medium;
-      _foods.add(_Food(
-        p.dx + (_random.nextDouble() - 0.5) * 24,
-        p.dy + (_random.nextDouble() - 0.5) * 24,
-        tier,
-      ));
+      _foods.add(
+        _Food(
+          p.dx + (_random.nextDouble() - 0.5) * 24,
+          p.dy + (_random.nextDouble() - 0.5) * 24,
+          tier,
+        ),
+      );
     }
   }
 
@@ -408,8 +427,7 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
   }
 
   void _onTick(Duration elapsed) {
-    final dtMs =
-        (elapsed - _lastElapsed).inMicroseconds / 1000.0;
+    final dtMs = (elapsed - _lastElapsed).inMicroseconds / 1000.0;
     _lastElapsed = elapsed;
     if (dtMs <= 0 || dtMs > 200) return; // clamp first-frame / tab-away jumps
     if (_gameOver || _quizOpen || _playtimeLocked) return;
@@ -458,9 +476,7 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
     }
 
     final now = _nowMs();
-    if (!_bossActive &&
-        _player.length >= bossMinLength &&
-        now >= _nextBossMs) {
+    if (!_bossActive && _player.length >= bossMinLength && now >= _nextBossMs) {
       _spawnBoss();
     }
   }
@@ -644,8 +660,10 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
   /// [_handleBossCollisions], never from a generic head/body touch.
   void _checkDeath() {
     if (_player.alive) {
-      final distFromCenter =
-          Point(_player.x, _player.y).distanceTo(const Point(0, 0));
+      final distFromCenter = Point(
+        _player.x,
+        _player.y,
+      ).distanceTo(const Point(0, 0));
       if (distFromCenter > worldR) {
         _playerHit();
       } else if (!_player.ghostActive) {
@@ -716,8 +734,7 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
     double threatD = double.infinity;
     for (final other in [_player, ..._aiSnakes]) {
       if (other == ai || !other.alive) continue;
-      if ((Offset(other.x, other.y) - Offset(ai.x, ai.y)).distance >
-          360) {
+      if ((Offset(other.x, other.y) - Offset(ai.x, ai.y)).distance > 360) {
         continue;
       }
       for (final seg in _bodySegments(other)) {
@@ -737,7 +754,8 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
       return;
     }
 
-    final targetGone = ai.aiTarget == null ||
+    final targetGone =
+        ai.aiTarget == null ||
         (ai.aiTarget! - Offset(ai.x, ai.y)).distance < 20 ||
         (ai.aiTarget! - Offset(ai.x, ai.y)).distance > aiSight * 1.6;
     if (targetGone || ai.aiRetargetMs <= 0) {
@@ -809,11 +827,20 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
     final selected = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _QuizDialog(word: word.text, quiz: quiz),
+      builder: (context) =>
+          _QuizDialog(word: word.text, wordId: word.id, quiz: quiz),
     );
 
     if (!mounted) return;
+    // _QuizDialog already showed the right/wrong result and the correct
+    // answer inline before closing - this just applies the score/reward
+    // consequences and plays matching sound feedback.
     final correct = selected == quiz.correctOption;
+    if (correct) {
+      SoundService().playCorrectAnswer();
+    } else {
+      SoundService().playIncorrectAnswer();
+    }
     setState(() {
       _quizOpen = false;
       if (correct) {
@@ -989,16 +1016,24 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Score: $_score', style: DuolingoTextStyles.cardTitle),
-              Text('Length: ${_player.length.toInt()}',
-                  style: DuolingoTextStyles.label),
+              Text(
+                'Length: ${_player.length.toInt()}',
+                style: DuolingoTextStyles.label,
+              ),
               if (_player.lives > 0)
-                Text('❤️ x${_player.lives}',
-                    style: DuolingoTextStyles.label
-                        .copyWith(color: DuolingoColors.mistakeRed)),
+                Text(
+                  '❤️ x${_player.lives}',
+                  style: DuolingoTextStyles.label.copyWith(
+                    color: DuolingoColors.mistakeRed,
+                  ),
+                ),
               if (boss != null)
-                Text('👑 ${boss.hp} HP',
-                    style: DuolingoTextStyles.label
-                        .copyWith(color: DuolingoColors.mistakeRed)),
+                Text(
+                  '👑 ${boss.hp} HP',
+                  style: DuolingoTextStyles.label.copyWith(
+                    color: DuolingoColors.mistakeRed,
+                  ),
+                ),
               Text(
                 _totalQuizzes == 0
                     ? 'Words: -'
@@ -1014,17 +1049,26 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
                 spacing: DuolingoSpacing.sm,
                 children: [
                   if (ghostSecs > 0)
-                    Text('👻 ${ghostSecs.ceil()}s',
-                        style: DuolingoTextStyles.label
-                            .copyWith(color: DuolingoColors.specialPurple)),
+                    Text(
+                      '👻 ${ghostSecs.ceil()}s',
+                      style: DuolingoTextStyles.label.copyWith(
+                        color: DuolingoColors.specialPurple,
+                      ),
+                    ),
                   if (speedSecs > 0)
-                    Text('⚡ ${speedSecs.ceil()}s',
-                        style: DuolingoTextStyles.label
-                            .copyWith(color: DuolingoColors.treasureGold)),
+                    Text(
+                      '⚡ ${speedSecs.ceil()}s',
+                      style: DuolingoTextStyles.label.copyWith(
+                        color: DuolingoColors.treasureGold,
+                      ),
+                    ),
                   if (doubleSecs > 0)
-                    Text('✖️2 ${doubleSecs.ceil()}s',
-                        style: DuolingoTextStyles.label
-                            .copyWith(color: DuolingoColors.mistakeRed)),
+                    Text(
+                      '✖️2 ${doubleSecs.ceil()}s',
+                      style: DuolingoTextStyles.label.copyWith(
+                        color: DuolingoColors.mistakeRed,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1068,25 +1112,31 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
             children: [
               const Text('⏰', style: TextStyle(fontSize: 48)),
               SizedBox(height: DuolingoSpacing.sm),
-              Text('Time\'s up for today!',
-                  style: DuolingoTextStyles.sectionTitle
-                      .copyWith(color: Colors.white)),
+              Text(
+                'Time\'s up for today!',
+                style: DuolingoTextStyles.sectionTitle.copyWith(
+                  color: Colors.white,
+                ),
+              ),
               SizedBox(height: DuolingoSpacing.sm),
               Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: DuolingoSpacing.lg),
+                padding: EdgeInsets.symmetric(horizontal: DuolingoSpacing.lg),
                 child: Text(
                   'You\'ve used your 15 minutes of game time for today. '
                   'Come back tomorrow!',
                   textAlign: TextAlign.center,
-                  style: DuolingoTextStyles.label
-                      .copyWith(color: Colors.white70),
+                  style: DuolingoTextStyles.label.copyWith(
+                    color: Colors.white70,
+                  ),
                 ),
               ),
               SizedBox(height: DuolingoSpacing.lg),
-              Text('Score: $_score',
-                  style: DuolingoTextStyles.cardTitle
-                      .copyWith(color: Colors.white)),
+              Text(
+                'Score: $_score',
+                style: DuolingoTextStyles.cardTitle.copyWith(
+                  color: Colors.white,
+                ),
+              ),
               SizedBox(height: DuolingoSpacing.lg),
               OutlinedButton(
                 onPressed: () => Navigator.pop(context),
@@ -1111,20 +1161,27 @@ class _WordSnakeScreenState extends State<WordSnakeScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Game Over',
-                  style: DuolingoTextStyles.sectionTitle
-                      .copyWith(color: Colors.white)),
+              Text(
+                'Game Over',
+                style: DuolingoTextStyles.sectionTitle.copyWith(
+                  color: Colors.white,
+                ),
+              ),
               SizedBox(height: DuolingoSpacing.sm),
-              Text('Score: $_score',
-                  style: DuolingoTextStyles.cardTitle
-                      .copyWith(color: Colors.white)),
+              Text(
+                'Score: $_score',
+                style: DuolingoTextStyles.cardTitle.copyWith(
+                  color: Colors.white,
+                ),
+              ),
               if (_totalQuizzes > 0)
                 Padding(
                   padding: EdgeInsets.only(top: DuolingoSpacing.xs),
                   child: Text(
                     'Words answered: $_correctAnswers/$_totalQuizzes',
-                    style: DuolingoTextStyles.label
-                        .copyWith(color: Colors.white70),
+                    style: DuolingoTextStyles.label.copyWith(
+                      color: Colors.white70,
+                    ),
                   ),
                 ),
               SizedBox(height: DuolingoSpacing.lg),
@@ -1183,7 +1240,10 @@ class _ArenaPainter extends CustomPainter {
     final camera = Offset(player.x, player.y);
     Offset toScreen(Offset world) => world - camera + center;
 
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF050010));
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF050010),
+    );
 
     canvas.drawCircle(
       toScreen(Offset.zero),
@@ -1213,12 +1273,24 @@ class _ArenaPainter extends CustomPainter {
     }
 
     for (final ai in aiSnakes) {
-      _drawSnake(canvas, bodySegmentsOf(ai), toScreen,
-          ai.isBoss ? const Color(0xFFE01B4A) : const Color(0xFFff5ec3),
-          false, ai.length, boss: ai.isBoss);
+      _drawSnake(
+        canvas,
+        bodySegmentsOf(ai),
+        toScreen,
+        ai.isBoss ? const Color(0xFFE01B4A) : const Color(0xFFff5ec3),
+        false,
+        ai.length,
+        boss: ai.isBoss,
+      );
     }
-    _drawSnake(canvas, bodySegmentsOf(player), toScreen,
-        const Color(0xFF4ade80), player.ghostActive, player.length);
+    _drawSnake(
+      canvas,
+      bodySegmentsOf(player),
+      toScreen,
+      const Color(0xFF4ade80),
+      player.ghostActive,
+      player.length,
+    );
 
     for (final ai in aiSnakes) {
       if (!ai.isBoss) continue;
@@ -1250,16 +1322,25 @@ class _ArenaPainter extends CustomPainter {
       );
       final fontSize = 20.0 + wobble * 5 + flash * 4;
       final tp = TextPainter(
-        text: TextSpan(text: '📚', style: TextStyle(fontSize: fontSize)),
+        text: TextSpan(
+          text: '📚',
+          style: TextStyle(fontSize: fontSize),
+        ),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));
     }
   }
 
-  void _drawSnake(Canvas canvas, List<Offset> segs,
-      Offset Function(Offset) toScreen, Color color, bool ghost, double length,
-      {bool boss = false}) {
+  void _drawSnake(
+    Canvas canvas,
+    List<Offset> segs,
+    Offset Function(Offset) toScreen,
+    Color color,
+    bool ghost,
+    double length, {
+    bool boss = false,
+  }) {
     final paint = Paint()..color = ghost ? color.withOpacity(0.5) : color;
     final growthScale = _bodySizeScale(length);
     for (var i = segs.length - 1; i >= 0; i--) {
@@ -1305,8 +1386,11 @@ class _MinimapPainter extends CustomPainter {
     );
 
     for (final s in knowledgeStones) {
-      canvas.drawCircle(toMap(s.x, s.y), 2.5,
-          Paint()..color = const Color(0xFFffd166));
+      canvas.drawCircle(
+        toMap(s.x, s.y),
+        2.5,
+        Paint()..color = const Color(0xFFffd166),
+      );
     }
 
     for (final ai in aiSnakes) {
@@ -1314,13 +1398,19 @@ class _MinimapPainter extends CustomPainter {
       canvas.drawCircle(
         toMap(ai.x, ai.y),
         ai.isBoss ? 4.5 : 2.5,
-        Paint()..color = ai.isBoss ? const Color(0xFFE01B4A) : const Color(0xFFff5ec3),
+        Paint()
+          ..color = ai.isBoss
+              ? const Color(0xFFE01B4A)
+              : const Color(0xFFff5ec3),
       );
     }
 
     if (player.alive) {
       canvas.drawCircle(
-          toMap(player.x, player.y), 3.5, Paint()..color = const Color(0xFF4ade80));
+        toMap(player.x, player.y),
+        3.5,
+        Paint()..color = const Color(0xFF4ade80),
+      );
     }
   }
 
@@ -1328,34 +1418,170 @@ class _MinimapPainter extends CustomPainter {
   bool shouldRepaint(covariant _MinimapPainter oldDelegate) => true;
 }
 
-class _QuizDialog extends StatelessWidget {
+class _QuizDialog extends StatefulWidget {
   final String word;
+  final int wordId;
   final QuizData quiz;
 
-  const _QuizDialog({required this.word, required this.quiz});
+  const _QuizDialog({
+    required this.word,
+    required this.wordId,
+    required this.quiz,
+  });
+
+  @override
+  State<_QuizDialog> createState() => _QuizDialogState();
+}
+
+class _QuizDialogState extends State<_QuizDialog> {
+  // Two-step flow: tapping an option no longer pops the dialog immediately
+  // - it reveals right/wrong plus the correct answer first, so the player
+  // actually learns something from a knowledge stone instead of only
+  // finding out (via score/reward) that they got it right, with wrong
+  // answers giving no feedback at all.
+  String? _selected;
+
+  // Fetched lazily once an option is picked, not on dialog open, since
+  // most knowledge stones are never actually answered wrong/right for a
+  // given word twice - no point paying the request for words the player
+  // never gets to.
+  String? _explanation;
+  bool _explanationLoading = false;
+
+  void _select(String option) {
+    setState(() => _selected = option);
+    _loadExplanation();
+  }
+
+  Future<void> _loadExplanation() async {
+    setState(() => _explanationLoading = true);
+    final apiClient = context.read<GameProvider>().apiClient;
+    final explanation = await apiClient.getQuizExplanation(widget.wordId);
+    if (!mounted) return;
+    setState(() {
+      _explanation = explanation;
+      _explanationLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final revealed = _selected != null;
+    final correct = _selected == widget.quiz.correctOption;
+
     return AlertDialog(
-      title: Text('📖 Word Rune: $word', style: DuolingoTextStyles.cardTitle),
+      title: Text(
+        '📖 Word Rune: ${widget.word}',
+        style: DuolingoTextStyles.cardTitle,
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(quiz.question, style: DuolingoTextStyles.body),
+          Text(widget.quiz.question, style: DuolingoTextStyles.body),
           SizedBox(height: DuolingoSpacing.md),
-          ...quiz.options.map(
-            (option) => Padding(
+          ...widget.quiz.options.map((option) {
+            final isCorrectOption = option == widget.quiz.correctOption;
+            final isWrongSelection =
+                revealed && option == _selected && !isCorrectOption;
+            final highlight = revealed && (isCorrectOption || isWrongSelection);
+            final highlightColor = isCorrectOption
+                ? DuolingoColors.primaryGreen
+                : DuolingoColors.mistakeRed;
+            return Padding(
               padding: EdgeInsets.only(bottom: DuolingoSpacing.sm),
               child: SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(option),
-                  child: Text(option, textAlign: TextAlign.center),
+                  style: highlight
+                      ? OutlinedButton.styleFrom(
+                          backgroundColor: highlightColor.withOpacity(0.12),
+                          side: BorderSide(color: highlightColor, width: 2),
+                        )
+                      : null,
+                  onPressed: revealed ? null : () => _select(option),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (highlight) ...[
+                        Icon(
+                          isCorrectOption ? Icons.check_circle : Icons.cancel,
+                          color: highlightColor,
+                          size: 18,
+                        ),
+                        SizedBox(width: DuolingoSpacing.xs),
+                      ],
+                      Flexible(
+                        child: Text(option, textAlign: TextAlign.center),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+            );
+          }),
+          if (revealed) ...[
+            SizedBox(height: DuolingoSpacing.xs),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(DuolingoSpacing.sm),
+              decoration: BoxDecoration(
+                color:
+                    (correct
+                            ? DuolingoColors.primaryGreen
+                            : DuolingoColors.mistakeRed)
+                        .withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    correct
+                        ? '✅ Correct!'
+                        : '❌ Not quite - the correct answer is "${widget.quiz.correctOption}".',
+                    style: DuolingoTextStyles.body,
+                  ),
+                  if (_explanationLoading) ...[
+                    SizedBox(height: DuolingoSpacing.xs),
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: DuolingoSpacing.xs),
+                        Text(
+                          'Thinking about why...',
+                          style: DuolingoTextStyles.body.copyWith(
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (_explanation != null) ...[
+                    SizedBox(height: DuolingoSpacing.xs),
+                    Text(
+                      _explanation!,
+                      style: DuolingoTextStyles.body.copyWith(
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
+            SizedBox(height: DuolingoSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(_selected),
+                child: const Text('Continue'),
+              ),
+            ),
+          ],
         ],
       ),
     );

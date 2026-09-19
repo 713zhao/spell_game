@@ -1,5 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'web_tts_service.dart';
@@ -8,11 +8,19 @@ import 'web_tts_service.dart';
 class SoundService {
   static final SoundService _instance = SoundService._internal();
 
+  /// Set by the app root (see main.dart) to surface a one-time in-app
+  /// notice when word pronunciation had to fall back to the browser's
+  /// built-in voice - otherwise a backend TTS outage degrades silently
+  /// with no indication to the user of why the voice sounds different.
+  static void Function(String message)? onNotice;
+  bool _ttsFallbackNoticeShown = false;
+
   AudioPlayer? _audioPlayer;
   FlutterTts? _flutterTts;
   late SharedPreferences _prefs;
   bool _soundEnabled = true;
   bool _ttsInitialized = false;
+  bool _webAudioUnlocked = false;
 
   factory SoundService() {
     return _instance;
@@ -63,6 +71,33 @@ class SoundService {
       // TTS initialization failed, but app continues
       _ttsInitialized = false;
     }
+  }
+
+  /// Primes audio/speech playback from inside a real user gesture (e.g. the
+  /// app's first tap). Browsers — iOS Safari in particular, Firefox more
+  /// loosely — block audio and speechSynthesis triggered outside a direct
+  /// gesture, and this app often starts playback from a post-frame callback
+  /// (auto-advancing to the next word) rather than a tap. Call this from a
+  /// gesture handler once per session so that later programmatic playback
+  /// isn't silently dropped.
+  void unlockAudioForWeb() {
+    if (!kIsWeb || _webAudioUnlocked) return;
+    _webAudioUnlocked = true;
+    try {
+      unlockAudioForGesture();
+    } catch (e) {
+      debugPrint('SoundService: audio unlock failed: $e');
+    }
+    // Use a throwaway player rather than the shared _audioPlayer: reusing
+    // the same instance every tap would steal it from whatever real sound
+    // effect or word audio happens to be playing/about to play, since an
+    // AudioPlayer can only have one active source at a time.
+    final unlockPlayer = AudioPlayer();
+    unlockPlayer
+        .play(AssetSource('sounds/pop.wav'), volume: 0)
+        .catchError((e) {
+      debugPrint('SoundService: sound-effect unlock failed: $e');
+    }).whenComplete(() => unlockPlayer.dispose());
   }
 
   /// Update sound enabled setting
@@ -127,7 +162,8 @@ class SoundService {
   Future<void> playWordPronunciation(String word) async {
     if (!_soundEnabled) return;
     if (kIsWeb) {
-      await speakOnWeb(word);
+      final usedFallback = await speakOnWeb(word);
+      if (usedFallback) _notifyTtsFallbackOnce();
       return;
     }
     if (!_ttsInitialized || _flutterTts == null) return;
@@ -137,8 +173,17 @@ class SoundService {
       await _flutterTts!.speak(word);
     } catch (e) {
       // TTS playback failed, but app continues gracefully
-      // In production, this would be logged
+      debugPrint('SoundService: native TTS playback failed: $e');
     }
+  }
+
+  void _notifyTtsFallbackOnce() {
+    if (_ttsFallbackNoticeShown) return;
+    _ttsFallbackNoticeShown = true;
+    onNotice?.call(
+      "Our high-quality voice service is temporarily unavailable - "
+      "using your browser's built-in voice instead.",
+    );
   }
 
   /// Internal method to play a sound by name
@@ -150,8 +195,10 @@ class SoundService {
         AssetSource('sounds/$soundName.wav'),
       );
     } catch (e) {
-      // Silently fail if sound file not found
-      // In production, this would be logged
+      // Silently fail if sound file not found, but surface it in the
+      // console — this used to be swallowed entirely, which made browser
+      // autoplay-policy failures (e.g. on Firefox) invisible.
+      debugPrint('SoundService: failed to play sound "$soundName": $e');
     }
   }
 

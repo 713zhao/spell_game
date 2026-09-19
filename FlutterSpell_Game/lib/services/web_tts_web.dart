@@ -3,31 +3,68 @@ import 'dart:html' as html;
 import 'dart:js_util' as js_util;
 import '../config/api_config.dart';
 
-// Ported from FlutterSpell (lib/services/tts_web.dart): mobile browsers
-// (iOS Safari especially) either lack decent built-in TTS voices or lack
-// Chinese voices entirely, so prefer Google Cloud TTS there and only fall
-// back to speechSynthesis if that fails. Desktop browsers already have
-// reasonable voices, so skip the network round-trip and use them directly.
+// Ported from FlutterSpell (lib/services/tts_web.dart): browser
+// speechSynthesis voices are unreliable across the board on web (missing
+// or robotic voices, especially for Chinese, and especially on Firefox and
+// iOS Safari), so Google Cloud TTS is tried first everywhere and
+// speechSynthesis is only a fallback if that fails.
 
+// iOS Safari's "unlock" isn't page-wide: a play() only succeeds without a
+// direct gesture if it's called on an element that has itself already
+// completed a play() from inside a real gesture. A freshly-constructed
+// AudioElement is never blessed that way, so word pronunciation (triggered
+// later from a post-frame callback, not a tap) must reuse the exact
+// element that got primed in [unlockAudioForGesture] rather than
+// constructing a new one per word.
 html.AudioElement? _currentAudio;
+final html.AudioElement _sharedAudio = html.AudioElement();
 
-bool _isMobileDevice() {
-  final userAgent = html.window.navigator.userAgent.toLowerCase();
-  return userAgent.contains('iphone') ||
-      userAgent.contains('ipad') ||
-      userAgent.contains('android');
-}
-
-Future<void> speakOnWeb(String word) async {
+/// Speaks [word] on web. Returns `true` when Google Cloud TTS was attempted
+/// and failed, falling back to the browser's built-in voice - callers use
+/// this to warn the user once that voice quality may be degraded, instead
+/// of failing silently.
+Future<bool> speakOnWeb(String word) async {
   _stopCurrent();
 
-  if (_isMobileDevice()) {
-    final played = await _tryGoogleTts(word);
-    if (!played) {
-      await _speakWithBrowserTts(word);
-    }
-  } else {
+  // Try Google Cloud TTS on every browser, not just mobile: desktop
+  // Firefox ships few (often robotic) built-in voices, so relying on
+  // speechSynthesis there gives noticeably worse quality than Chrome/Safari.
+  final played = await _tryGoogleTts(word);
+  if (!played) {
     await _speakWithBrowserTts(word);
+  }
+  return !played;
+}
+
+// iOS Safari (and, less strictly, Firefox) only allow audio/speech
+// triggered by a direct, synchronous user gesture. Word pronunciation is
+// often kicked off later from a post-frame callback, outside that gesture
+// chain, so it gets silently rejected. Call this once from inside a real
+// gesture handler (e.g. the app's first tap) to "prime" both the
+// AudioElement and speechSynthesis so later programmatic calls succeed.
+bool _audioUnlocked = false;
+
+void unlockAudioForGesture() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    final synth = js_util.getProperty(js_util.globalThis, 'speechSynthesis');
+    final utter = js_util.callConstructor(
+      js_util.getProperty(js_util.globalThis, 'SpeechSynthesisUtterance'),
+      [''],
+    );
+    js_util.callMethod(synth, 'speak', [utter]);
+  } catch (_) {
+    // speechSynthesis not available in this browser
+  }
+  try {
+    _sharedAudio
+      ..src =
+          'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
+      ..volume = 0;
+    _sharedAudio.play().catchError((_) {});
+  } catch (_) {
+    // Audio element playback not available
   }
 }
 
@@ -58,8 +95,9 @@ Future<bool> _tryGoogleTts(String word) async {
     final encodedWord = Uri.encodeComponent(word);
     final url = '${ApiConfig.baseUrl}/api/tts/speak?text=$encodedWord&lang=$lang';
 
-    final audio = html.AudioElement(url);
+    final audio = _sharedAudio;
     audio.volume = 1.0;
+    audio.src = url;
     _currentAudio = audio;
 
     final started = Completer<bool>();

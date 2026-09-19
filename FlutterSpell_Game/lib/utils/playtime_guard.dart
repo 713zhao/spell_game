@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import '../main.dart' show gameProvider;
+import 'package:provider/provider.dart';
+import '../providers/game_provider.dart';
 
 /// Mix into a game-playing screen's State to enforce the daily combined
 /// minigame play-time cap (backend-tracked, see MiniGameManager): sends a
@@ -11,6 +12,7 @@ import '../main.dart' show gameProvider;
 mixin PlaytimeGuardMixin<T extends StatefulWidget> on State<T> {
   Timer? _playtimeTimer;
   static const heartbeatInterval = Duration(seconds: 10);
+  late final GameProvider gameProvider = context.read<GameProvider>();
 
   /// Called once when the cap is (or becomes) reached. Implementations
   /// should stop/pause gameplay and show a lock message.
@@ -28,8 +30,9 @@ mixin PlaytimeGuardMixin<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> _tick() async {
-    final locked =
-        await gameProvider.sendPlaytimeHeartbeat(heartbeatInterval.inSeconds);
+    final locked = await gameProvider.sendPlaytimeHeartbeat(
+      heartbeatInterval.inSeconds,
+    );
     if (!mounted) return;
     if (locked) {
       _playtimeTimer?.cancel();

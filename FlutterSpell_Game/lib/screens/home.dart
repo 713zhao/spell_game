@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/account_avatar_button.dart';
 import '../design_system/design_system.dart';
 import '../widgets/celebration.dart';
-import '../main.dart' show gameProvider;
+import '../main.dart' show routeObserver;
+import '../providers/game_provider.dart';
 import '../widgets/cards/journey_card.dart';
 import '../widgets/cards/treasure_chest_card.dart';
 import '../widgets/cards/boss_battle_card.dart';
@@ -20,10 +22,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin, RouteAware {
   int _currentIndex = 0;
   late AnimationController _mascotController;
   late Animation<double> _mascotAnimation;
+  late GameProvider gameProvider;
 
   // Whichever lesson the user last opened from each kingdom's word map
   // (e.g. after agreeing there to switch to the upcoming lesson) - shown on
@@ -35,14 +39,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    gameProvider = context.read<GameProvider>();
     _initializeMascotAnimation();
     gameProvider.addListener(_onGameProviderChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      gameProvider.loadLevels();
-      gameProvider.loadUserStats();
-      gameProvider.loadLessons('EN').then((_) => _refreshDisplayLesson('EN'));
-      gameProvider.loadLessons('CN').then((_) => _refreshDisplayLesson('CN'));
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshAll());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) routeObserver.subscribe(this, route);
+  }
+
+  /// Called whenever a screen pushed on top of Home (world map, lesson
+  /// overview, a study session, ...) gets popped and Home becomes visible
+  /// again. Points/mastery earned during that screen were already saved to
+  /// the backend as they happened, but gameProvider's cached copy only
+  /// updates when something asks it to reload - without this, Home could
+  /// keep showing pre-session numbers until some other trigger refreshed
+  /// it, even though the sub-screen itself showed the real progress.
+  @override
+  void didPopNext() => _refreshAll();
+
+  void _refreshAll() {
+    gameProvider.loadLevels();
+    gameProvider.loadUserStats();
+    gameProvider.loadChestStatus();
+    gameProvider.loadLessons('EN').then((_) => _refreshDisplayLesson('EN'));
+    gameProvider.loadLessons('CN').then((_) => _refreshDisplayLesson('CN'));
   }
 
   void _onGameProviderChanged() {
@@ -53,8 +78,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final lastKey = await getLastLessonKey(subject);
     if (!mounted || lastKey == null) return;
 
-    final lessons =
-        subject == 'EN' ? gameProvider.englishLessons : gameProvider.chineseLessons;
+    final lessons = subject == 'EN'
+        ? gameProvider.englishLessons
+        : gameProvider.chineseLessons;
     LessonSummary? match;
     for (final l in lessons) {
       if (l.lessonKey == lastKey) {
@@ -86,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     gameProvider.removeListener(_onGameProviderChanged);
     _mascotController.dispose();
     super.dispose();
@@ -126,8 +153,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // Mock data if API not ready yet
           final streak = gameProvider.userStats?.currentStreak ?? 8;
           final xp = gameProvider.userStats?.totalPoints ?? 250;
-          final coins = 85;
-          final gems = 12;
+          // "Coins" is the same points balance as XP (it's what the
+          // Rewards Shop actually spends, and what the treasure chest
+          // grants) - previously hardcoded to 85 regardless of real state.
+          final coins = gameProvider.userStats?.totalPoints ?? 0;
+          // "Gems" is the same points balance as XP/Coins - there's no
+          // separate gem currency in the backend, same as Coins above.
+          final gems = gameProvider.userStats?.totalPoints ?? 0;
           final userName = gameProvider.userName;
           final englishProgress = summarizeKingdomProgress(
             gameProvider.englishLessons,
@@ -139,7 +171,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
 
           // Check if weak words exist for boss battle
-          final hasWeakWords = gameProvider.userStats?.accuracy != null &&
+          final hasWeakWords =
+              gameProvider.userStats?.accuracy != null &&
               gameProvider.userStats!.accuracy! < 0.8;
           final weakWords = ['because', 'beautiful', 'responsible'];
 
@@ -152,10 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Center(
                     child: ScaleTransition(
                       scale: _mascotAnimation,
-                      child: const Text(
-                        '🐕',
-                        style: TextStyle(fontSize: 80),
-                      ),
+                      child: const Text('🐕', style: TextStyle(fontSize: 80)),
                     ),
                   ),
                   SizedBox(height: DuolingoSpacing.lg),
@@ -219,21 +249,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      StatCard(
-                        icon: '⭐',
-                        label: 'XP',
-                        value: '$xp',
-                      ),
-                      StatCard(
-                        icon: '💰',
-                        label: 'Coins',
-                        value: '$coins',
-                      ),
-                      StatCard(
-                        icon: '💎',
-                        label: 'Gems',
-                        value: '$gems',
-                      ),
+                      StatCard(icon: '⭐', label: 'XP', value: '$xp'),
+                      StatCard(icon: '💰', label: 'Coins', value: '$coins'),
+                      StatCard(icon: '💎', label: 'Gems', value: '$gems'),
                     ],
                   ),
 
@@ -248,6 +266,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     completed: englishProgress.completed,
                     total: englishProgress.total,
                     stars: englishProgress.stars,
+                    masteryPct: englishProgress.masteryPct,
                     onTap: () async {
                       await Navigator.of(context).pushNamed('/english-castle');
                       await _refreshDisplayLesson('EN');
@@ -264,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     completed: chineseProgress.completed,
                     total: chineseProgress.total,
                     stars: chineseProgress.stars,
+                    masteryPct: chineseProgress.masteryPct,
                     onTap: () async {
                       await Navigator.of(context).pushNamed('/chinese-kingdom');
                       await _refreshDisplayLesson('CN');
@@ -271,13 +291,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                   SizedBox(height: DuolingoSpacing.lg),
 
-                  // Daily Treasure Chest Card
+                  // Daily Treasure Chest Card - claim is real (backend-
+                  // tracked once per UTC day, grants real points), not just
+                  // a client-side animation.
                   TreasureChestCard(
-                    isAvailable: true,
-                    reward: '+50 XP, +20 Coins',
-                    onTap: () {
-                      Celebration.reward(context);
-                      Celebration.xpPop(context, 50);
+                    isAvailable: gameProvider.chestAvailable,
+                    reward: '+20 Coins',
+                    onTap: () async {
+                      final earned = await gameProvider.claimChest();
+                      if (earned != null && context.mounted) {
+                        Celebration.reward(context);
+                        Celebration.xpPop(context, earned);
+                      }
                     },
                   ),
                   SizedBox(height: DuolingoSpacing.lg),
@@ -293,8 +318,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       },
                     ),
 
-                  if (hasWeakWords)
-                    SizedBox(height: DuolingoSpacing.lg),
+                  if (hasWeakWords) SizedBox(height: DuolingoSpacing.lg),
 
                   // Bottom padding (account for bottom nav bar ~56dp + extra spacing)
                   SizedBox(height: 100),
@@ -311,14 +335,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         selectedItemColor: DuolingoColors.primaryGreen,
         unselectedItemColor: DuolingoColors.navInactiveGray,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'World Map',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
           BottomNavigationBarItem(
             icon: Icon(Icons.backpack),
             label: 'Backpack',
@@ -327,10 +345,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             icon: Icon(Icons.trending_up),
             label: 'Progress',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
           if (index != _currentIndex) {

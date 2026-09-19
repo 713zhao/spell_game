@@ -43,6 +43,8 @@ class StatCard extends StatelessWidget {
                   color: Colors.grey[600],
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
               Text(

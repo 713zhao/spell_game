@@ -31,6 +31,31 @@
 
   <title>flutterspell_game</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Stroke-order data/animation for the handwriting-trace exercise
+       (lib/widgets/hanzi_writer_trace.dart). Pinned versions so a CDN
+       release doesn't silently change quiz behavior underneath us. -->
+  <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.7/dist/hanzi-writer.min.js"></script>
+
+  <!-- This build no longer registers a service worker (built with
+       --pwa-strategy=none), but a device that visited before this change
+       may still have one active from an earlier build, silently serving
+       stale cached JS forever regardless of how many times the page is
+       reloaded. Unregistering it here is a one-time self-heal - once it's
+       gone, ordinary reloads go straight to the network like a normal
+       page. -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        for (const reg of regs) reg.unregister();
+      });
+    }
+    if (window.caches) {
+      caches.keys().then((keys) => {
+        for (const key of keys) caches.delete(key);
+      });
+    }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

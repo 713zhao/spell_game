@@ -7,12 +7,18 @@ class KingdomProgress {
   final int total;
   final String current;
   final int stars;
+  // 0.0-1.0 mastery within the current lesson (see LessonSummary.masteryPct)
+  // - what the JourneyCard's progress bar actually fills against, since a
+  // single practice session usually finishes part of a lesson rather than
+  // flipping it straight to "completed".
+  final double masteryPct;
 
   const KingdomProgress({
     required this.completed,
     required this.total,
     required this.current,
     required this.stars,
+    required this.masteryPct,
   });
 }
 
@@ -36,6 +42,7 @@ KingdomProgress summarizeKingdomProgress(
       total: 0,
       current: 'No lessons yet',
       stars: 0,
+      masteryPct: 0.0,
     );
   }
 
@@ -56,5 +63,6 @@ KingdomProgress summarizeKingdomProgress(
     total: lessons.length,
     current: displayLesson?.displayName ?? 'All lessons complete! 🎉',
     stars: displayLesson?.stars ?? 3,
+    masteryPct: displayLesson?.masteryPct ?? 1.0,
   );
 }

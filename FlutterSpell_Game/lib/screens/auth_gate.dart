@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../main.dart' show gameProvider;
+import '../providers/game_provider.dart';
 import 'home.dart';
 
 /// Startup gate: silently restores a previously-persisted session (see
@@ -18,10 +19,12 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   bool _checking = true;
   String _homeUser = 'GUEST';
+  late GameProvider gameProvider;
 
   @override
   void initState() {
     super.initState();
+    gameProvider = context.read<GameProvider>();
     _checkSession();
   }
 

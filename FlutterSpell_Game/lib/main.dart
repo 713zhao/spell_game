@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
+import 'services/sound_service.dart';
 import 'screens/auth_gate.dart';
 import 'screens/home.dart';
 import 'screens/login_screen.dart';
@@ -25,8 +26,24 @@ import 'screens/game_play_screen.dart';
 // Global GameProvider instance (singleton)
 final gameProvider = GameProvider();
 
+// Lets HomeScreen detect "I'm visible again" (see its didPopNext) so it
+// refreshes its own stats/lessons whenever the user navigates back to it,
+// instead of depending on every screen pushed on top of it (world map,
+// lesson overview, study session, ...) to remember to refresh gameProvider
+// itself before popping back.
+final routeObserver = RouteObserver<ModalRoute<void>>();
+
+// Lets SoundService show a SnackBar (e.g. the TTS-fallback notice) without
+// needing a BuildContext of its own.
+final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SoundService.onNotice = (message) {
+    scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
+    );
+  };
   runApp(const MyApp());
 }
 
@@ -39,9 +56,22 @@ class MyApp extends StatelessWidget {
       value: gameProvider,
       child: MaterialApp(
         title: 'Spell Adventure',
+        scaffoldMessengerKey: scaffoldMessengerKey,
+        navigatorObservers: [routeObserver],
         theme: ThemeData(
           primarySwatch: Colors.blue,
           useMaterial3: true,
+        ),
+        // Primes audio/speechSynthesis on the very first tap anywhere in
+        // the app. iOS Safari (and Firefox, more loosely) blocks audio
+        // triggered outside a direct user gesture, and word pronunciation
+        // often auto-plays from a post-frame callback instead — this
+        // listener gives every screen a real gesture to unlock playback
+        // against before that happens.
+        builder: (context, child) => Listener(
+          onPointerDown: (_) => SoundService().unlockAudioForWeb(),
+          behavior: HitTestBehavior.translucent,
+          child: child!,
         ),
         home: const AuthGate(),
         onGenerateRoute: (settings) {

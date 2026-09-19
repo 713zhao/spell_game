@@ -9,6 +9,7 @@ class JourneyCard extends StatelessWidget {
   final int completed; // 8
   final int total; // 10
   final int stars; // 0-3
+  final double masteryPct; // 0.0-1.0 progress within the current lesson
   final VoidCallback onTap;
 
   const JourneyCard({
@@ -20,6 +21,7 @@ class JourneyCard extends StatelessWidget {
     required this.completed,
     required this.total,
     required this.stars,
+    required this.masteryPct,
     required this.onTap,
   }) : super(key: key);
 
@@ -93,7 +95,7 @@ class JourneyCard extends StatelessWidget {
               ),
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
-                widthFactor: total > 0 ? completed / total : 0.0,
+                widthFactor: masteryPct.clamp(0.0, 1.0),
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -109,7 +111,7 @@ class JourneyCard extends StatelessWidget {
             ),
             SizedBox(height: DuolingoSpacing.sm),
             Text(
-              '$completed/$total',
+              '${(masteryPct.clamp(0.0, 1.0) * 100).round()}% mastered · $completed of $total lessons in this kingdom completed',
               style: DuolingoTextStyles.label,
             ),
             SizedBox(height: DuolingoSpacing.md),

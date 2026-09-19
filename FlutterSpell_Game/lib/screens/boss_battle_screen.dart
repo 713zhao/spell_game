@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/widgets/celebration.dart';
+import '../providers/game_provider.dart';
 
 class BossBattleScreen extends StatefulWidget {
   final int bossId;
 
-  const BossBattleScreen({
-    Key? key,
-    required this.bossId,
-  }) : super(key: key);
+  const BossBattleScreen({Key? key, required this.bossId}) : super(key: key);
 
   @override
   State<BossBattleScreen> createState() => _BossBattleScreenState();
@@ -17,11 +16,17 @@ class BossBattleScreen extends StatefulWidget {
 class _BossBattleScreenState extends State<BossBattleScreen>
     with TickerProviderStateMixin {
   bool _isVictory = false;
+  // Real points earned from the backend (0 if this boss was already
+  // defeated before, since defeat() is idempotent) - replaces the mocked
+  // per-boss XP number shown on the victory screen.
+  int _pointsEarned = 0;
   late AnimationController _bossAnimController;
+  late GameProvider gameProvider;
 
   @override
   void initState() {
     super.initState();
+    gameProvider = context.read<GameProvider>();
     _bossAnimController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -40,11 +45,13 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       _bossAnimController.reverse();
     });
 
-    // After a brief delay, show victory
-    Future.delayed(const Duration(milliseconds: 800), () {
+    // After a brief delay, record the win and show victory
+    Future.delayed(const Duration(milliseconds: 800), () async {
+      final pointsEarned = await gameProvider.defeatBoss(widget.bossId);
       if (mounted) {
         setState(() {
           _isVictory = true;
+          _pointsEarned = pointsEarned ?? 0;
         });
         Celebration.lessonComplete(context);
       }
@@ -59,7 +66,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       return _VictoryScreen(
         bossName: boss['name'] as String,
         rewards: boss['rewards'] as String,
-        xp: boss['xp'] as int,
+        xp: _pointsEarned,
         onContinue: () {
           Navigator.popUntil(context, ModalRoute.withName('/boss-arena'));
         },
@@ -69,7 +76,10 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
       appBar: AppBar(
-        title: Text(boss['name'] as String, style: DuolingoTextStyles.pageTitle),
+        title: Text(
+          boss['name'] as String,
+          style: DuolingoTextStyles.pageTitle,
+        ),
         backgroundColor: DuolingoColors.backgroundWhite,
         elevation: 0,
         centerTitle: true,
@@ -87,7 +97,10 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               // Boss Character with animation
               ScaleTransition(
                 scale: Tween<double>(begin: 1.0, end: 1.1).animate(
-                  CurvedAnimation(parent: _bossAnimController, curve: Curves.elasticInOut),
+                  CurvedAnimation(
+                    parent: _bossAnimController,
+                    curve: Curves.elasticInOut,
+                  ),
                 ),
                 child: Text(
                   boss['icon'] as String,
@@ -96,10 +109,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               ),
               SizedBox(height: DuolingoSpacing.xl),
               // Boss Name and Difficulty
-              Text(
-                boss['name'] as String,
-                style: DuolingoTextStyles.pageTitle,
-              ),
+              Text(boss['name'] as String, style: DuolingoTextStyles.pageTitle),
               SizedBox(height: DuolingoSpacing.sm),
               Container(
                 padding: EdgeInsets.symmetric(
@@ -124,16 +134,15 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 padding: EdgeInsets.all(DuolingoSpacing.lg),
                 decoration: BoxDecoration(
                   color: DuolingoColors.neutralGray,
-                  borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+                  borderRadius: BorderRadius.circular(
+                    DuolingoSpacing.radiusCard,
+                  ),
                   boxShadow: DuolingoShadows.cardShadow,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Boss Health',
-                      style: DuolingoTextStyles.sectionTitle,
-                    ),
+                    Text('Boss Health', style: DuolingoTextStyles.sectionTitle),
                     SizedBox(height: DuolingoSpacing.md),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -154,9 +163,12 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: LinearProgressIndicator(
-                        value: (boss['currentHp'] as int) / (boss['maxHp'] as int),
+                        value:
+                            (boss['currentHp'] as int) / (boss['maxHp'] as int),
                         minHeight: 24,
-                        backgroundColor: DuolingoColors.mistakeRed.withValues(alpha: 0.3),
+                        backgroundColor: DuolingoColors.mistakeRed.withValues(
+                          alpha: 0.3,
+                        ),
                         valueColor: AlwaysStoppedAnimation<Color>(
                           _getHpBarColor(
                             boss['currentHp'] as int,
@@ -178,16 +190,15 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+                  borderRadius: BorderRadius.circular(
+                    DuolingoSpacing.radiusCard,
+                  ),
                   boxShadow: DuolingoShadows.cardShadow,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Challenge',
-                      style: DuolingoTextStyles.sectionTitle,
-                    ),
+                    Text('Challenge', style: DuolingoTextStyles.sectionTitle),
                     SizedBox(height: DuolingoSpacing.md),
                     Text(
                       'Spell 10 words correctly to defeat the boss!',
@@ -207,12 +218,11 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: DuolingoColors.mistakeRed,
                     foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(
-                      vertical: DuolingoSpacing.lg,
-                    ),
+                    padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.lg),
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(DuolingoSpacing.radiusButton),
+                      borderRadius: BorderRadius.circular(
+                        DuolingoSpacing.radiusButton,
+                      ),
                     ),
                     elevation: 4,
                   ),
@@ -220,10 +230,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   icon: const Icon(Icons.flash_on, size: 24),
                   label: const Text(
                     'Fight ▶',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ),
               ),
@@ -335,10 +342,7 @@ class _VictoryScreen extends StatelessWidget {
               children: [
                 SizedBox(height: MediaQuery.of(context).size.height * 0.1),
                 // Victory Emoji
-                Text(
-                  '🎉',
-                  style: const TextStyle(fontSize: 80),
-                ),
+                Text('🎉', style: const TextStyle(fontSize: 80)),
                 SizedBox(height: DuolingoSpacing.xl),
                 // Victory Text
                 Text(
@@ -364,7 +368,9 @@ class _VictoryScreen extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+                    borderRadius: BorderRadius.circular(
+                      DuolingoSpacing.radiusCard,
+                    ),
                     boxShadow: DuolingoShadows.cardShadow,
                   ),
                   child: Column(
@@ -378,10 +384,7 @@ class _VictoryScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            '⭐',
-                            style: const TextStyle(fontSize: 24),
-                          ),
+                          Text('⭐', style: const TextStyle(fontSize: 24)),
                           SizedBox(width: DuolingoSpacing.md),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,10 +413,7 @@ class _VictoryScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            '🎁',
-                            style: const TextStyle(fontSize: 24),
-                          ),
+                          Text('🎁', style: const TextStyle(fontSize: 24)),
                           SizedBox(width: DuolingoSpacing.md),
                           Expanded(
                             child: Column(
@@ -451,8 +451,9 @@ class _VictoryScreen extends StatelessWidget {
                         vertical: DuolingoSpacing.lg,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(DuolingoSpacing.radiusButton),
+                        borderRadius: BorderRadius.circular(
+                          DuolingoSpacing.radiusButton,
+                        ),
                       ),
                     ),
                     onPressed: onContinue,

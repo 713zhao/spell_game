@@ -1,12 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:spell_game/design_system/design_system.dart';
+import '../providers/game_provider.dart';
 
-class BossArenaScreen extends StatelessWidget {
+// Levels-completed thresholds to unlock each boss - matches the
+// "Unlock after Stage N" copy this screen already showed when a boss was
+// locked, now backed by the real levelsCompleted count instead of the
+// bosses just always being locked.
+const int _phoenixUnlockStage = 10;
+const int _viperUnlockStage = 15;
+
+class BossArenaScreen extends StatefulWidget {
   const BossArenaScreen({Key? key}) : super(key: key);
 
   @override
+  State<BossArenaScreen> createState() => _BossArenaScreenState();
+}
+
+class _BossArenaScreenState extends State<BossArenaScreen> {
+  late GameProvider gameProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    gameProvider = context.read<GameProvider>();
+    gameProvider.addListener(_onGameProviderChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      gameProvider.loadUserStats();
+      gameProvider.loadDefeatedBosses();
+    });
+  }
+
+  @override
+  void dispose() {
+    gameProvider.removeListener(_onGameProviderChanged);
+    super.dispose();
+  }
+
+  void _onGameProviderChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final levelsCompleted = gameProvider.userStats?.levelsCompleted ?? 0;
+    final defeated = gameProvider.defeatedBossIds;
+    final phoenixUnlocked = levelsCompleted >= _phoenixUnlockStage;
+    final viperUnlocked = levelsCompleted >= _viperUnlockStage;
+
     return Scaffold(
       backgroundColor: DuolingoColors.backgroundWhite,
       appBar: AppBar(
@@ -37,6 +79,7 @@ class BossArenaScreen extends StatelessWidget {
                 rewards: '100 XP, Rare Item',
                 icon: '🐉',
                 isUnlocked: true,
+                defeated: defeated.contains(1),
                 currentHp: 3,
                 maxHp: 4,
                 onTap: () {
@@ -49,16 +92,27 @@ class BossArenaScreen extends StatelessWidget {
                 difficulty: 'Medium',
                 rewards: '200 XP, Epic Item',
                 icon: '🔥',
-                isUnlocked: false,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Unlock after Stage 10'),
-                      backgroundColor: Colors.orange,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+                isUnlocked: phoenixUnlocked,
+                defeated: defeated.contains(2),
+                onTap: phoenixUnlocked
+                    ? () {
+                        Navigator.pushNamed(
+                          context,
+                          '/boss-battle',
+                          arguments: 2,
+                        );
+                      }
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Unlock after Stage $_phoenixUnlockStage',
+                            ),
+                            backgroundColor: Colors.orange,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
               ),
               SizedBox(height: DuolingoSpacing.lg),
               _BossCard(
@@ -66,16 +120,27 @@ class BossArenaScreen extends StatelessWidget {
                 difficulty: 'Hard',
                 rewards: '300 XP, Legendary Item',
                 icon: '🐍',
-                isUnlocked: false,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Unlock after Stage 15'),
-                      backgroundColor: Colors.orange,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+                isUnlocked: viperUnlocked,
+                defeated: defeated.contains(3),
+                onTap: viperUnlocked
+                    ? () {
+                        Navigator.pushNamed(
+                          context,
+                          '/boss-battle',
+                          arguments: 3,
+                        );
+                      }
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Unlock after Stage $_viperUnlockStage',
+                            ),
+                            backgroundColor: Colors.orange,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
               ),
               SizedBox(height: DuolingoSpacing.xl),
             ],
@@ -92,6 +157,7 @@ class _BossCard extends StatelessWidget {
   final String rewards;
   final String icon;
   final bool isUnlocked;
+  final bool defeated;
   final int? currentHp;
   final int? maxHp;
   final VoidCallback onTap;
@@ -102,6 +168,7 @@ class _BossCard extends StatelessWidget {
     required this.rewards,
     required this.icon,
     required this.isUnlocked,
+    required this.defeated,
     required this.onTap,
     this.currentHp,
     this.maxHp,
@@ -136,10 +203,7 @@ class _BossCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(
-                    icon,
-                    style: const TextStyle(fontSize: 48),
-                  ),
+                  Text(icon, style: const TextStyle(fontSize: 48)),
                   SizedBox(width: DuolingoSpacing.lg),
                   Expanded(
                     child: Column(
@@ -173,16 +237,12 @@ class _BossCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (isUnlocked)
-                    Icon(
-                      Icons.lock_open,
-                      color: DuolingoColors.primaryGreen,
-                    )
+                  if (defeated)
+                    Icon(Icons.check_circle, color: DuolingoColors.primaryGreen)
+                  else if (isUnlocked)
+                    Icon(Icons.lock_open, color: DuolingoColors.primaryGreen)
                   else
-                    Icon(
-                      Icons.lock,
-                      color: DuolingoColors.neutralGray,
-                    ),
+                    Icon(Icons.lock, color: DuolingoColors.neutralGray),
                 ],
               ),
               if (isUnlocked && currentHp != null && maxHp != null) ...[
@@ -201,8 +261,9 @@ class _BossCard extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: currentHp! / maxHp!,
                           minHeight: 8,
-                          backgroundColor: DuolingoColors.mistakeRed
-                              .withValues(alpha: 0.3),
+                          backgroundColor: DuolingoColors.mistakeRed.withValues(
+                            alpha: 0.3,
+                          ),
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _getHpBarColor(currentHp!, maxHp!),
                           ),
@@ -254,13 +315,14 @@ class _BossCard extends StatelessWidget {
                         vertical: DuolingoSpacing.md,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(DuolingoSpacing.radiusButton),
+                        borderRadius: BorderRadius.circular(
+                          DuolingoSpacing.radiusButton,
+                        ),
                       ),
                     ),
                     onPressed: onTap,
-                    child: const Text(
-                      'Battle',
+                    child: Text(
+                      defeated ? 'Battle Again' : 'Battle',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,

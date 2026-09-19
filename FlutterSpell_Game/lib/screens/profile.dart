@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/game_provider.dart';
 import '../models/game_models.dart';
 import '../widgets/stat_card.dart';
@@ -95,8 +96,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_parentMode) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content:
-              Text('Enable Parent Mode in Settings to edit profile details.'),
+          content: Text(
+            'Enable Parent Mode in Settings to edit profile details.',
+          ),
         ),
       );
       return;
@@ -129,13 +131,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     if (success) {
       _soundService.playCosmeticUnlock();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cosmetic equipped!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cosmetic equipped!')));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to equip cosmetic')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to equip cosmetic')));
     }
   }
 
@@ -155,14 +157,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pop(dialogContext);
               await context.read<GameProvider>().logout();
               if (!mounted) return;
-              Navigator.of(context)
-                  .pushNamedAndRemoveUntil('/login', (route) => false);
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/login', (route) => false);
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildExternalAppTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String url,
+  }) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.open_in_new),
+      onTap: () => _openExternalUrl(url),
+    );
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the link')),
+      );
+    }
   }
 
   Widget _buildHeaderChip(String text) {
@@ -184,8 +214,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileDetailsRow(String label, dynamic value) {
-    final display =
-        (value == null || value.toString().trim().isEmpty) ? '—' : value.toString();
+    final display = (value == null || value.toString().trim().isEmpty)
+        ? '—'
+        : value.toString();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -193,7 +224,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           SizedBox(
             width: 90,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           Expanded(child: Text(display)),
         ],
@@ -211,8 +245,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Profile Details',
-                  style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'Profile Details',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               if (!_editingProfileDetails)
                 TextButton.icon(
                   onPressed: _onEditProfileDetailsPressed,
@@ -260,27 +296,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: _gradeController,
-          decoration: const InputDecoration(labelText: 'Grade', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Grade',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _schoolController,
-          decoration: const InputDecoration(labelText: 'School', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'School',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _emailController,
-          decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Email',
+            border: OutlineInputBorder(),
+          ),
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _phoneController,
-          decoration: const InputDecoration(labelText: 'Phone', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Phone',
+            border: OutlineInputBorder(),
+          ),
           keyboardType: TextInputType.phone,
         ),
         const SizedBox(height: 20),
-        const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text(
+          'Change Password',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _newPasswordController,
@@ -294,7 +345,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: _confirmPasswordController,
-          decoration: const InputDecoration(labelText: 'Confirm Password', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Confirm Password',
+            border: OutlineInputBorder(),
+          ),
           obscureText: true,
         ),
         const SizedBox(height: 16),
@@ -302,14 +356,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: _savingProfileDetails ? null : _cancelEditingProfileDetails,
+                onPressed: _savingProfileDetails
+                    ? null
+                    : _cancelEditingProfileDetails,
                 child: const Text('Cancel'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton(
-                onPressed: _savingProfileDetails ? null : () => _saveProfileDetails(provider),
+                onPressed: _savingProfileDetails
+                    ? null
+                    : () => _saveProfileDetails(provider),
                 child: _savingProfileDetails
                     ? const SizedBox(
                         height: 16,
@@ -344,18 +402,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
     if (newPassword.isNotEmpty || confirmPassword.isNotEmpty) {
-      if (newPassword.isEmpty || confirmPassword.isEmpty || newPassword != confirmPassword) {
-        setState(() => _passwordError = 'Passwords must match and not be empty');
+      if (newPassword.isEmpty ||
+          confirmPassword.isEmpty ||
+          newPassword != confirmPassword) {
+        setState(
+          () => _passwordError = 'Passwords must match and not be empty',
+        );
         return;
       }
     }
 
     final data = <String, dynamic>{
       if (ageText.isNotEmpty) 'age': age,
-      if (_gradeController.text.trim().isNotEmpty) 'grade': _gradeController.text.trim(),
-      if (_schoolController.text.trim().isNotEmpty) 'school': _schoolController.text.trim(),
-      if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim(),
-      if (_phoneController.text.trim().isNotEmpty) 'phone': _phoneController.text.trim(),
+      if (_gradeController.text.trim().isNotEmpty)
+        'grade': _gradeController.text.trim(),
+      if (_schoolController.text.trim().isNotEmpty)
+        'school': _schoolController.text.trim(),
+      if (_emailController.text.trim().isNotEmpty)
+        'email': _emailController.text.trim(),
+      if (_phoneController.text.trim().isNotEmpty)
+        'phone': _phoneController.text.trim(),
       if (newPassword.isNotEmpty) 'password': newPassword,
     };
 
@@ -416,9 +482,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final level = _calculateLevel(stats?.totalPoints ?? 0);
           final totalPoints = stats?.totalPoints ?? 0;
           final currentStreak = stats?.currentStreak ?? 0;
-          final bestStreak = stats?.bestStreak ?? _calculateBestStreak(currentStreak);
+          final bestStreak =
+              stats?.bestStreak ?? _calculateBestStreak(currentStreak);
           final accuracy = stats?.accuracy ?? _calculateAccuracy(totalPoints);
-          final levelsCompleted = stats?.levelsCompleted ?? provider.levels.length;
+          final levelsCompleted =
+              stats?.levelsCompleted ?? provider.levels.length;
           final grade = stats?.grade ?? 'Not Set';
 
           return RefreshIndicator(
@@ -490,9 +558,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
 
                 // Profile Details Section
-                SliverToBoxAdapter(
-                  child: _buildProfileDetailsCard(provider),
-                ),
+                SliverToBoxAdapter(child: _buildProfileDetailsCard(provider)),
 
                 // Stats Grid Section
                 SliverToBoxAdapter(
@@ -509,11 +575,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         GridView(
                           gridDelegate:
                               const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 220,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1.5,
-                          ),
+                                maxCrossAxisExtent: 220,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                // A fixed height (rather than childAspectRatio,
+                                // which ties height to the cell's width) so a
+                                // StatCard's icon+label+value column always has
+                                // enough room regardless of how narrow the grid
+                                // gets - childAspectRatio: 1.5 previously
+                                // overflowed by a few px at some text scales.
+                                mainAxisExtent: 135,
+                              ),
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           children: [
@@ -537,7 +609,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             StatCard(
                               label: 'Levels Completed',
-                              value: '$levelsCompleted/${provider.levels.length}',
+                              value:
+                                  '$levelsCompleted/${provider.levels.length}',
                               icon: '📚',
                               backgroundColor: Colors.blue[50],
                             ),
@@ -575,11 +648,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         GridView(
                           gridDelegate:
                               const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 200,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1.05,
-                          ),
+                                maxCrossAxisExtent: 200,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 1.05,
+                              ),
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           children: _buildAchievements(
@@ -623,20 +696,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           GridView.builder(
                             gridDelegate:
                                 const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 180,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 0.8,
-                            ),
+                                  maxCrossAxisExtent: 180,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: 0.8,
+                                ),
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: provider.unlockables.length,
                             itemBuilder: (context, index) {
                               final cosmetic = provider.unlockables[index];
-                              return _buildCosmeticCard(
-                                cosmetic,
-                                provider,
-                              );
+                              return _buildCosmeticCard(cosmetic, provider);
                             },
                           ),
                       ],
@@ -689,6 +759,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        Text(
+                          'More learning apps',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Column(
+                            children: [
+                              _buildExternalAppTile(
+                                icon: Icons.translate,
+                                title: 'Buzzi Chinese',
+                                subtitle: 'chinese.getbuzzi.com',
+                                url: 'https://chinese.getbuzzi.com/',
+                              ),
+                              Divider(height: 0, color: Colors.grey[300]),
+                              _buildExternalAppTile(
+                                icon: Icons.sports_esports,
+                                title: 'Insight Edu Play',
+                                subtitle: 'play.insightedu.io',
+                                url: 'https://play.insightedu.io/home',
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                         // Logout Button
                         Center(
                           child: ElevatedButton.icon(
@@ -710,9 +805,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Center(
                           child: Text(
                             'Version 1.0.0',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                         ),
                       ],
@@ -721,9 +815,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
 
                 // Bottom spacing
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 24),
-                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
           );
@@ -738,8 +830,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
-          BottomNavigationBarItem(icon: Icon(Icons.backpack), label: 'Backpack'),
-          BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'Progress'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.backpack),
+            label: 'Backpack',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.trending_up),
+            label: 'Progress',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
@@ -942,11 +1040,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shape: BoxShape.circle,
                   color: Colors.green[400],
                 ),
-                child: const Icon(
-                  Icons.check,
-                  color: Colors.white,
-                  size: 16,
-                ),
+                child: const Icon(Icons.check, color: Colors.white, size: 16),
               ),
             ),
         ],

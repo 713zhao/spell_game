@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,22 @@ import 'package:spell_game/providers/game_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // GameProvider.init() fires off SoundService's audio setup
+  // (fire-and-forget, not awaited - see its call site) which otherwise
+  // hits the real audioplayers platform channel with no plugin registered
+  // in this plain Dart test environment. That async platform-channel
+  // Future then rejects on its own, outside any try/catch here, and
+  // surfaces as an unhandled zone error attributed to whichever test
+  // happens to be running when it lands - not necessarily the one that
+  // called init(). Mocking the channel lets the (harmless, side-effect-free
+  // for this test) call succeed instead.
+  TestWidgetsFlutterBinding.ensureInitialized()
+      .defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('xyz.luan/audioplayers'),
+        (call) async => null,
+      );
 
   group('GameProvider session management', () {
     test('restoreSession sets isLoggedIn and persists last_user + recent_users',

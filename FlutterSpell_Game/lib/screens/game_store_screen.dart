@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/game_models.dart';
-import '../main.dart' show gameProvider;
+import 'package:spell_game/providers/game_provider.dart';
 import 'game_play_screen.dart' show GamePlayArgs;
 import 'word_snake_screen.dart';
 
@@ -19,10 +20,12 @@ class GameStoreScreen extends StatefulWidget {
 class _GameStoreScreenState extends State<GameStoreScreen> {
   bool _loading = true;
   bool _busy = false;
+  late GameProvider gameProvider;
 
   @override
   void initState() {
     super.initState();
+    gameProvider = context.read<GameProvider>();
     gameProvider.addListener(_onChanged);
     _load();
   }
@@ -51,9 +54,11 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
     setState(() => _busy = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success
-            ? '${game.name} unlocked!'
-            : gameProvider.errorMessage ?? 'Could not unlock game'),
+        content: Text(
+          success
+              ? '${game.name} unlocked!'
+              : gameProvider.errorMessage ?? 'Could not unlock game',
+        ),
       ),
     );
   }
@@ -63,7 +68,8 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'You\'ve used your 15 minutes of game time for today. Come back tomorrow!'),
+            'You\'ve used your 15 minutes of game time for today. Come back tomorrow!',
+          ),
         ),
       );
       return;
@@ -81,9 +87,9 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
       return;
     }
     if (result['gameType'] == 'native' && result['nativeKey'] == 'word_snake') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => const WordSnakeScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (context) => const WordSnakeScreen()));
       return;
     }
     Navigator.of(context).pushNamed(
@@ -146,9 +152,13 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.backpack), label: 'Backpack'),
+            icon: Icon(Icons.backpack),
+            label: 'Backpack',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.trending_up), label: 'Progress'),
+            icon: Icon(Icons.trending_up),
+            label: 'Progress',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
@@ -177,7 +187,11 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
   Widget _buildCoinsBanner() {
     return Container(
       margin: EdgeInsets.fromLTRB(
-          DuolingoSpacing.lg, DuolingoSpacing.md, DuolingoSpacing.lg, 0),
+        DuolingoSpacing.lg,
+        DuolingoSpacing.md,
+        DuolingoSpacing.lg,
+        0,
+      ),
       padding: EdgeInsets.symmetric(
         horizontal: DuolingoSpacing.lg,
         vertical: DuolingoSpacing.md,
@@ -195,8 +209,9 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
           const Spacer(),
           Text(
             '${gameProvider.coins}',
-            style: DuolingoTextStyles.cardTitle
-                .copyWith(color: DuolingoColors.treasureGold),
+            style: DuolingoTextStyles.cardTitle.copyWith(
+              color: DuolingoColors.treasureGold,
+            ),
           ),
         ],
       ),
@@ -210,7 +225,11 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
     final remainingMin = (gameProvider.playtimeRemainingSeconds / 60).ceil();
     return Container(
       margin: EdgeInsets.fromLTRB(
-          DuolingoSpacing.lg, DuolingoSpacing.sm, DuolingoSpacing.lg, 0),
+        DuolingoSpacing.lg,
+        DuolingoSpacing.sm,
+        DuolingoSpacing.lg,
+        0,
+      ),
       padding: EdgeInsets.symmetric(
         horizontal: DuolingoSpacing.md,
         vertical: DuolingoSpacing.sm,
@@ -265,8 +284,9 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
                   SizedBox(height: DuolingoSpacing.xs),
                   Text(
                     game.description!,
-                    style: DuolingoTextStyles.label
-                        .copyWith(color: DuolingoColors.bodyText),
+                    style: DuolingoTextStyles.label.copyWith(
+                      color: DuolingoColors.bodyText,
+                    ),
                   ),
                 ],
                 SizedBox(height: DuolingoSpacing.sm),
@@ -282,8 +302,8 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
           SizedBox(width: DuolingoSpacing.sm),
           _buildActionButton(
             game: game,
-            enabled: !_busy &&
-                (game.unlocked ? canAffordPlay : canAffordUnlock),
+            enabled:
+                !_busy && (game.unlocked ? canAffordPlay : canAffordUnlock),
           ),
         ],
       ),
@@ -297,8 +317,9 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
           ? () => game.unlocked ? _onPlay(game) : _onUnlock(game)
           : null,
       style: ElevatedButton.styleFrom(
-        backgroundColor:
-            game.unlocked ? DuolingoColors.primaryGreen : DuolingoColors.informationBlue,
+        backgroundColor: game.unlocked
+            ? DuolingoColors.primaryGreen
+            : DuolingoColors.informationBlue,
         foregroundColor: Colors.white,
         disabledBackgroundColor: DuolingoColors.secondaryButtonGray,
         shape: RoundedRectangleBorder(
