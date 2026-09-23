@@ -7,11 +7,14 @@ import '../models/stage_data.dart' show reviewNodeIndex;
 import '../services/hanzi_stroke_data.dart';
 import '../services/sound_service.dart';
 import '../widgets/celebration.dart';
+import '../widgets/gift_box_dialog.dart';
 import '../widgets/handwriting_canvas.dart';
 import '../widgets/hanzi_writer_trace.dart';
 import '../services/speech_recognition_service.dart';
 import '../utils/chinese_pronunciation.dart';
 import '../utils/exercise_content_parser.dart';
+import '../utils/handwriting_gift.dart';
+import '../utils/handwriting_plan.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import 'lesson_overview_screen.dart' show StudySessionArgs;
@@ -105,6 +108,12 @@ class _StudyScreenState extends State<StudyScreen>
   // stroke-data availability check for the current word is in flight.
   bool? _hanziQuizAvailable;
   int _hanziCharIndex = 0; // which character of the word is active in quiz mode
+  // The characters the child actually writes: the whole word when short, only
+  // the hardest few of a long sentence. Empty until the preflight resolves.
+  List<String> _writeChars = [];
+  bool _typeInstead = false; // sentence handwriting swapped for keyboard input
+  int _handwritesDone = 0; // successful handwriting exercises this session
+  bool _giftPending = false; // a gift box is owed when the child continues
   final HanziWriterTraceController _hanziController =
       HanziWriterTraceController();
 
@@ -469,6 +478,8 @@ class _StudyScreenState extends State<StudyScreen>
     _voiceStars = null;
     _hanziQuizAvailable = null;
     _hanziCharIndex = 0;
+    _writeChars = [];
+    _typeInstead = false;
     final blanks = _current.slots.where((s) => s == null).length;
     _blankFill = List<int?>.filled(blanks, null);
     if (_current.type == ExerciseType.handwriteTrace) {
@@ -476,20 +487,38 @@ class _StudyScreenState extends State<StudyScreen>
     }
   }
 
-  /// Preflights whether every character in the current word has
-  /// HanziWriter stroke data, so _buildHandwriteTrace can commit to guided
-  /// quiz tracing or the free-draw fallback instead of switching mid-word.
+  /// Decides which characters of the current word the child writes (all of a
+  /// short word, only the hardest few of a sentence), then preflights whether
+  /// each has HanziWriter stroke data, so _buildHandwriteTrace can commit to
+  /// guided quiz tracing or the free-draw fallback instead of switching
+  /// mid-word.
   Future<void> _checkHanziQuizAvailability() async {
+    final chars = cjkChars(_current.word.text);
+    final capturedIndex = _index;
+    final counts = chars.length > maxHandwriteChars
+        ? await hanziStrokeCounts(chars.toSet())
+        : const <String, int>{};
+    if (!mounted || _index != capturedIndex) return;
+    final writeChars = pickKeyChars(chars, counts);
     if (!kIsWeb) {
-      setState(() => _hanziQuizAvailable = false);
+      setState(() {
+        _writeChars = writeChars;
+        _hanziQuizAvailable = false;
+      });
       return;
     }
-    final word = _current.word.text;
-    final capturedIndex = _index;
-    final available = await hanziStrokeDataAvailable(word);
+    final available = await hanziStrokeDataAvailable(writeChars.join());
     if (!mounted || _index != capturedIndex) return;
-    setState(() => _hanziQuizAvailable = available);
+    setState(() {
+      _writeChars = writeChars;
+      _hanziQuizAvailable = available;
+    });
   }
+
+  /// True when the current handwriting exercise is a sentence of which the
+  /// child only writes the tricky characters.
+  bool get _isSentenceTrace =>
+      _writeChars.length < cjkChars(_current.word.text).length;
 
   void _autoPlayCurrentWord() {
     // Called synchronously rather than via addPostFrameCallback: iOS
@@ -549,6 +578,8 @@ class _StudyScreenState extends State<StudyScreen>
       case ExerciseType.missingLetters:
       case ExerciseType.buildWord:
         return !_blankFill.contains(null);
+      case ExerciseType.handwriteTrace:
+        return _typeInstead && _typingController.text.trim().isNotEmpty;
       default:
         return false;
     }
@@ -567,6 +598,11 @@ class _StudyScreenState extends State<StudyScreen>
       );
       return;
     }
+    if (_current.type == ExerciseType.handwriteTrace) {
+      // Typed instead of handwritten: compare characters, not punctuation.
+      _applyResult(typedMatchesTarget(_typingController.text, _targetAnswer));
+      return;
+    }
     final correct =
         _assembledAnswer().toLowerCase() == _targetAnswer.toLowerCase();
     _applyResult(correct);
@@ -583,8 +619,7 @@ class _StudyScreenState extends State<StudyScreen>
   /// last one finishes — unlike the free-draw fallback, this is a real
   /// auto-grade since HanziWriter already verified the strokes.
   void _onHanziCharComplete() {
-    final characters = _current.word.text.split('');
-    if (_hanziCharIndex + 1 >= characters.length) {
+    if (_hanziCharIndex + 1 >= _writeChars.length) {
       _applyResult(true);
     } else {
       setState(() => _hanziCharIndex++);
@@ -629,6 +664,10 @@ class _StudyScreenState extends State<StudyScreen>
           _firstTryCorrect++;
         }
         Celebration.correct(context);
+        if (_current.type == ExerciseType.handwriteTrace) {
+          _handwritesDone++;
+          _giftPending = handwriteGiftDue(_handwritesDone);
+        }
       } else {
         _weakWords.add(_current.word.text);
         // Missed word returns later with an easier exercise
@@ -655,6 +694,31 @@ class _StudyScreenState extends State<StudyScreen>
   }
 
   void _continue() {
+    if (_giftPending) {
+      _giftPending = false;
+      _openGiftBox();
+      return;
+    }
+    _advance();
+  }
+
+  /// A gift box for every few handwriting exercises done. The rewards join
+  /// the session's XP/coin tally, and the next exercise only starts once the
+  /// child closes the box - via the dialog's callback rather than the
+  /// showDialog future, so audio for the next word still starts inside the
+  /// tap (see _autoPlayCurrentWord).
+  void _openGiftBox() {
+    final gift = rollHandwriteGift(_random);
+    _earnedXp += gift.xp;
+    _earnedCoins += gift.coins;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => GiftBoxDialog(gift: gift, onClaim: _advance),
+    );
+  }
+
+  void _advance() {
     if (_index + 1 >= _queue.length) {
       _finishSession();
       return;
@@ -829,13 +893,7 @@ class _StudyScreenState extends State<StudyScreen>
                       child: child,
                     );
                   },
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: DuolingoSpacing.xxl,
-                      vertical: DuolingoSpacing.lg,
-                    ),
-                    child: _buildExerciseBody(),
-                  ),
+                  child: _buildExerciseContent(),
                 ),
               ),
               _buildBottomPanel(),
@@ -844,6 +902,32 @@ class _StudyScreenState extends State<StudyScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildExerciseContent() {
+    final padding = EdgeInsets.symmetric(
+      horizontal: DuolingoSpacing.xxl,
+      vertical: DuolingoSpacing.lg,
+    );
+    // Handwriting must never scroll: a stroke that drifts (or starts) off
+    // the drawing surface would otherwise drag the page up/down instead of
+    // drawing. So the trace is sized to fit the space it's given, and the
+    // view is locked.
+    if (_current.type == ExerciseType.handwriteTrace && !_typeInstead) {
+      return LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: padding,
+          child: _buildHandwriteTrace(
+            Size(
+              constraints.maxWidth - padding.horizontal,
+              constraints.maxHeight - padding.vertical,
+            ),
+          ),
+        ),
+      );
+    }
+    return SingleChildScrollView(padding: padding, child: _buildExerciseBody());
   }
 
   Widget _buildExerciseBody() {
@@ -861,7 +945,9 @@ class _StudyScreenState extends State<StudyScreen>
       case ExerciseType.listenChoose:
         return _buildListenChoose();
       case ExerciseType.handwriteTrace:
-        return _buildHandwriteTrace();
+        // Only reached when typing instead; tracing goes through
+        // _buildExerciseContent's fixed layout.
+        return _buildTypedSentence();
       case ExerciseType.voiceRead:
         return _buildVoiceRead();
       case ExerciseType.sentenceBlank:
@@ -1178,7 +1264,7 @@ class _StudyScreenState extends State<StudyScreen>
   //  - Free trace (fallback): the old plain canvas, for characters outside
   //    HanziWriter's dataset. Self-graded by the child (no OCR).
 
-  Widget _buildHandwriteTrace() {
+  Widget _buildHandwriteTrace(Size area) {
     if (_hanziQuizAvailable == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1190,23 +1276,37 @@ class _StudyScreenState extends State<StudyScreen>
       );
     }
     return _hanziQuizAvailable == true
-        ? _buildHanziQuizTrace()
-        : _buildFreeTrace();
+        ? _buildHanziQuizTrace(area)
+        : _buildFreeTrace(area);
   }
 
-  Widget _buildHanziQuizTrace() {
-    final characters = _current.word.text.split('');
+  Widget _buildHanziQuizTrace(Size area) {
+    final characters = _writeChars;
     final isSingle = characters.length == 1;
     final activeIndex = _hanziCharIndex.clamp(0, characters.length - 1);
     final title = isSingle
         ? 'Trace the character'
         : 'Character ${activeIndex + 1} of ${characters.length}';
 
+    // Everything but the trace itself, so the trace gets what's left.
+    var otherHeight = 170.0; // title + audio + Show/Restart row + gaps
+    if (_isSentenceTrace) {
+      final perRow = max(1, (area.width - 24) ~/ 24);
+      otherHeight +=
+          40 + ((_current.word.text.length / perRow).ceil() * 32 + 24);
+    } else if (!isSingle) {
+      otherHeight += 52;
+    }
+    final traceSize = (area.height - otherHeight).clamp(120.0, 220.0);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: DuolingoTextStyles.sectionTitle),
-        if (!isSingle) ...[
+        if (_isSentenceTrace) ...[
+          SizedBox(height: DuolingoSpacing.md),
+          _buildSentenceContext(activeIndex),
+        ] else if (!isSingle) ...[
           SizedBox(height: DuolingoSpacing.md),
           Center(
             child: Wrap(
@@ -1221,7 +1321,7 @@ class _StudyScreenState extends State<StudyScreen>
           ),
         ],
         SizedBox(height: DuolingoSpacing.lg),
-        Center(child: _buildAudioButton(size: 56, iconSize: 28)),
+        Center(child: _buildAudioButton(size: 44, iconSize: 22)),
         SizedBox(height: DuolingoSpacing.lg),
         Center(
           child: HanziWriterTrace(
@@ -1229,7 +1329,7 @@ class _StudyScreenState extends State<StudyScreen>
               'hanzi-$_index-$_traceVersion-$activeIndex-${characters[activeIndex]}',
             ),
             character: characters[activeIndex],
-            size: 220,
+            size: traceSize,
             controller: _hanziController,
             onComplete: _onHanziCharComplete,
             onUnavailable: () => setState(() => _hanziQuizAvailable = false),
@@ -1266,6 +1366,146 @@ class _StudyScreenState extends State<StudyScreen>
             ],
           ),
         ),
+        if (_isSentenceTrace) Center(child: _buildTypeInsteadButton()),
+      ],
+    );
+  }
+
+  /// A long sentence only asks for its hardest characters (shown as chips
+  /// in place); everything else is displayed as plain text for context.
+  /// [activeIndex] is which key character is currently being written.
+  Widget _buildSentenceContext(int activeIndex) {
+    var keyIndex = 0;
+    final written = <String>{};
+    final chips = <Widget>[];
+    for (final ch in _current.word.text.split('')) {
+      final isKey =
+          _writeChars.contains(ch) && !written.contains(ch) && isCjkChar(ch);
+      if (isKey) {
+        written.add(ch);
+        chips.add(_buildHanziProgressChip(ch, keyIndex, activeIndex));
+        keyIndex++;
+      } else {
+        chips.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              ch,
+              style: TextStyle(
+                fontSize: 22,
+                color: DuolingoColors.darkText.withOpacity(0.7),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(DuolingoSpacing.md),
+      decoration: BoxDecoration(
+        color: DuolingoColors.neutralGray,
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: DuolingoSpacing.xs,
+        children: chips,
+      ),
+    );
+  }
+
+  Widget _buildTypeInsteadButton() {
+    return TextButton(
+      onPressed: _checked
+          ? null
+          : () => setState(() {
+              _typeInstead = true;
+              _typingController.clear();
+            }),
+      child: Text(
+        'Type it instead ⌨️',
+        style: DuolingoTextStyles.label.copyWith(
+          color: DuolingoColors.informationBlue,
+        ),
+      ),
+    );
+  }
+
+  /// Keyboard alternative to handwriting a long sentence: the child copies
+  /// the sentence with their own input method, graded on characters only.
+  Widget _buildTypedSentence() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Type the sentence', style: DuolingoTextStyles.sectionTitle),
+        SizedBox(height: DuolingoSpacing.lg),
+        Center(child: _buildAudioButton(size: 56, iconSize: 28)),
+        SizedBox(height: DuolingoSpacing.lg),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(DuolingoSpacing.xl),
+          decoration: BoxDecoration(
+            color: DuolingoColors.neutralGray,
+            borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+          ),
+          child: Text(
+            _current.word.text,
+            style: DuolingoTextStyles.cardTitle.copyWith(
+              color: DuolingoColors.darkText,
+              fontSize: 22,
+            ),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.xl),
+        TextField(
+          controller: _typingController,
+          enabled: !_checked,
+          autofocus: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          minLines: 1,
+          maxLines: 3,
+          onChanged: (_) => setState(() {}),
+          style: DuolingoTextStyles.cardTitle.copyWith(fontSize: 22),
+          decoration: InputDecoration(
+            hintText: 'Type it here...',
+            hintStyle: DuolingoTextStyles.body.copyWith(
+              color: DuolingoColors.secondaryButtonGray,
+            ),
+            filled: true,
+            fillColor: DuolingoColors.neutralGray,
+            contentPadding: EdgeInsets.all(DuolingoSpacing.xl),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusButton),
+              borderSide: const BorderSide(
+                color: DuolingoColors.informationBlue,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+        Center(
+          child: TextButton(
+            onPressed: _checked
+                ? null
+                : () => setState(() {
+                    _typeInstead = false;
+                    _traceVersion++;
+                  }),
+            child: Text(
+              'Write it by hand instead ✍️',
+              style: DuolingoTextStyles.label.copyWith(
+                color: DuolingoColors.informationBlue,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1299,16 +1539,26 @@ class _StudyScreenState extends State<StudyScreen>
     );
   }
 
-  Widget _buildFreeTrace() {
+  Widget _buildFreeTrace(Size area) {
     // word.text can be a single hanzi ("的") or a multi-character word,
     // phrase, or whole dictation sentence ("螃蟹米粉", "我们必须靠自己的
     // 力量捍卫新加坡。") — trace one box per character instead of cramming
     // the whole string into a single box sized for one glyph.
-    final characters = _current.word.text.split('');
+    final characters = _writeChars;
     final isSingle = characters.length == 1;
     final title = isSingle
         ? 'Trace the character'
         : 'Trace these ${characters.length} characters';
+    // Single box fills the height left over; several share one row when
+    // they fit (and wrap when they don't).
+    final singleSize = (area.height - (_isSentenceTrace ? 250 : 170)).clamp(
+      120.0,
+      220.0,
+    );
+    final multiSize =
+        ((area.width - (characters.length - 1) * DuolingoSpacing.sm) /
+                characters.length)
+            .clamp(80.0, 140.0);
 
     Widget traceBox(String char, int index, double size, double fontSize) {
       return Container(
@@ -1345,11 +1595,34 @@ class _StudyScreenState extends State<StudyScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: DuolingoTextStyles.sectionTitle),
+        if (_isSentenceTrace) ...[
+          SizedBox(height: DuolingoSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(DuolingoSpacing.md),
+            decoration: BoxDecoration(
+              color: DuolingoColors.neutralGray,
+              borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+            ),
+            child: Text(
+              _current.word.text,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 22, color: DuolingoColors.darkText),
+            ),
+          ),
+        ],
         SizedBox(height: DuolingoSpacing.lg),
-        Center(child: _buildAudioButton(size: 56, iconSize: 28)),
+        Center(child: _buildAudioButton(size: 44, iconSize: 22)),
         SizedBox(height: DuolingoSpacing.lg),
         isSingle
-            ? Center(child: traceBox(characters.first, 0, 220, 160))
+            ? Center(
+                child: traceBox(
+                  characters.first,
+                  0,
+                  singleSize,
+                  singleSize * 0.73,
+                ),
+              )
             : Center(
                 child: Wrap(
                   alignment: WrapAlignment.center,
@@ -1357,7 +1630,7 @@ class _StudyScreenState extends State<StudyScreen>
                   runSpacing: DuolingoSpacing.sm,
                   children: [
                     for (var i = 0; i < characters.length; i++)
-                      traceBox(characters[i], i, 140, 100),
+                      traceBox(characters[i], i, multiSize, multiSize * 0.7),
                   ],
                 ),
               ),
@@ -1373,6 +1646,7 @@ class _StudyScreenState extends State<StudyScreen>
             ),
           ),
         ),
+        if (_isSentenceTrace) Center(child: _buildTypeInsteadButton()),
       ],
     );
   }
@@ -1756,6 +2030,7 @@ class _StudyScreenState extends State<StudyScreen>
     // Guided HanziWriter quiz mode auto-grades on completion (see
     // _onHanziCharComplete) — no button needed, just a hint while tracing.
     if (_current.type == ExerciseType.handwriteTrace &&
+        !_typeInstead &&
         _hanziQuizAvailable == true &&
         !_checked) {
       return Container(
@@ -1776,7 +2051,9 @@ class _StudyScreenState extends State<StudyScreen>
 
     // Free-draw trace fallback has no auto-gradable input (no OCR) — the
     // child self-reports instead of hitting a CHECK button.
-    if (_current.type == ExerciseType.handwriteTrace && !_checked) {
+    if (_current.type == ExerciseType.handwriteTrace &&
+        !_typeInstead &&
+        !_checked) {
       return Container(
         width: double.infinity,
         padding: EdgeInsets.all(DuolingoSpacing.xl),

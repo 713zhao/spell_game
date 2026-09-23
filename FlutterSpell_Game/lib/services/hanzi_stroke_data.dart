@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 /// The HanziWriter JS library loaded in web/index.html reads stroke data
@@ -22,6 +24,29 @@ Future<bool> hanziStrokeDataAvailable(String word) async {
   } catch (_) {
     return false;
   }
+}
+
+/// Stroke count per character in [chars], from the same dataset as the
+/// guided quiz. Characters whose data can't be fetched are simply absent -
+/// callers rank those as easiest (see pickKeyChars).
+Future<Map<String, int>> hanziStrokeCounts(Set<String> chars) async {
+  final counts = <String, int>{};
+  await Future.wait(
+    chars.map((char) async {
+      try {
+        final uri = Uri.parse(
+          '$hanziWriterDataBaseUrl/${Uri.encodeComponent(char)}.json',
+        );
+        final response = await http
+            .get(uri)
+            .timeout(const Duration(seconds: 4));
+        if (response.statusCode != 200) return;
+        final strokes = (jsonDecode(response.body) as Map)['strokes'] as List;
+        counts[char] = strokes.length;
+      } catch (_) {}
+    }),
+  );
+  return counts;
 }
 
 Future<bool> _charHasStrokeData(String char) async {

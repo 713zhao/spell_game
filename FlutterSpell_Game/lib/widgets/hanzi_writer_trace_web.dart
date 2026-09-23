@@ -43,7 +43,9 @@ class _HanziWriterTraceState extends State<HanziWriterTrace> {
     _viewType = 'hanzi-writer-view-${_viewIdCounter++}';
     _container = html.DivElement()
       ..style.width = '100%'
-      ..style.height = '100%';
+      ..style.height = '100%'
+      // Drawing a stroke must not pan/scroll the page under the finger.
+      ..style.touchAction = 'none';
     ui_web.platformViewRegistry.registerViewFactory(
       _viewType,
       (int viewId) => _container,
@@ -106,8 +108,10 @@ class _HanziWriterTraceState extends State<HanziWriterTrace> {
   void _createWriter() {
     if (!mounted) return;
     try {
-      final hanziWriterClass =
-          js_util.getProperty(js_util.globalThis, 'HanziWriter');
+      final hanziWriterClass = js_util.getProperty(
+        js_util.globalThis,
+        'HanziWriter',
+      );
       if (hanziWriterClass == null) {
         _fail();
         return;
@@ -122,11 +126,11 @@ class _HanziWriterTraceState extends State<HanziWriterTrace> {
         'delayBetweenStrokes': 200,
         'onLoadCharDataError': js_util.allowInterop((dynamic _) => _fail()),
       });
-      _writer = js_util.callMethod(
-        hanziWriterClass,
-        'create',
-        [_container, widget.character, options],
-      );
+      _writer = js_util.callMethod(hanziWriterClass, 'create', [
+        _container,
+        widget.character,
+        options,
+      ]);
       _startQuiz();
     } catch (_) {
       _fail();
