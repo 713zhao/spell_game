@@ -181,8 +181,7 @@ class SoundService {
     if (_ttsFallbackNoticeShown) return;
     _ttsFallbackNoticeShown = true;
     onNotice?.call(
-      "Our high-quality voice service is temporarily unavailable - "
-      "using your browser's built-in voice instead.",
+      "Using built-in voice",
     );
   }
 

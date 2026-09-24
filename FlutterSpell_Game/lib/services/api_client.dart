@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/game_models.dart';
+import '../models/moe_word_models.dart';
 import '../config/api_config.dart';
 
 class ApiClient {
@@ -83,6 +84,62 @@ class ApiClient {
       } catch (_) {}
       throw Exception(detail);
     }
+  }
+
+  /// Resolves this user's numeric DB id via [getUserProfile] - SpellBackend's
+  /// /settings/{user_id} endpoint keys off the numeric id, unlike most other
+  /// routes in this client which key off [userName].
+  Future<int> _getUserId() async {
+    final profile = await getUserProfile();
+    final id = profile['id'];
+    if (id is int) return id;
+    if (id is num) return id.toInt();
+    throw Exception('User id missing from profile response');
+  }
+
+  /// Fetch this user's UserSetting row (study_words_source, num_study_words,
+  /// spell_repeat_count). See SpellBackend's GET /settings/{user_id}. Falls
+  /// back to the backend's own defaults if no row exists yet (404).
+  Future<Map<String, dynamic>> getUserSettings() async {
+    final userId = await _getUserId();
+    final response = await http.get(Uri.parse('$_baseUrl/settings/$userId'));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    if (response.statusCode == 404) {
+      return {
+        'user_id': userId,
+        'study_words_source': 'ALL_TAGS',
+        'num_study_words': 10,
+        'spell_repeat_count': 1,
+      };
+    }
+    throw Exception('Failed to load settings');
+  }
+
+  /// Update this user's settings. Only pass the fields that should change;
+  /// the backend's POST /settings/{user_id} takes them as query params and
+  /// leaves omitted ones untouched. Returns the updated row.
+  Future<Map<String, dynamic>> updateUserSettings({
+    String? studyWordsSource,
+    int? numStudyWords,
+    int? spellRepeatCount,
+  }) async {
+    final userId = await _getUserId();
+    final params = <String, String>{
+      if (studyWordsSource != null) 'study_words_source': studyWordsSource,
+      if (numStudyWords != null) 'num_study_words': numStudyWords.toString(),
+      if (spellRepeatCount != null)
+        'spell_repeat_count': spellRepeatCount.toString(),
+    };
+    final uri = Uri.parse(
+      '$_baseUrl/settings/$userId',
+    ).replace(queryParameters: params);
+    final response = await http.post(uri);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to update settings');
   }
 
   /// Whether Home's daily treasure chest is still claimable today (UTC).
@@ -462,6 +519,23 @@ class ApiClient {
     throw Exception(
       _extractDetail(response.body, 'Failed to report play time'),
     );
+  }
+
+  /// MOE curriculum word cards for [grade] (currently only "P1" is
+  /// backed by real data; other grades come back with `supported: false`
+  /// and an empty lesson list, not an error, so the caller can show a
+  /// "coming soon" state). Includes this user's practiced_count per
+  /// character.
+  Future<MoeWordCardsResult> getMoeWords({String grade = 'P1'}) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/moe-words?grade=$grade&user_name=$userName'),
+    );
+    if (response.statusCode == 200) {
+      return MoeWordCardsResult.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+    throw Exception('Failed to load MOE word cards');
   }
 
   String _extractDetail(String body, String fallback) {

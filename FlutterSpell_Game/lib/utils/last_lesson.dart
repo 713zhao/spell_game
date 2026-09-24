@@ -20,16 +20,20 @@ Future<void> setLastLessonKey(String subject, String lessonKey) async {
 /// single tap instead of hunting through the path - it does not navigate
 /// anywhere itself.
 ///
-/// - If a lesson was opened before, that's the default - unless a
-///   different lesson is now the upcoming (next-scheduled) one, in which
-///   case the user is asked first whether to switch to it to prepare
-///   instead of jumping straight back into the old lesson.
-/// - If no lesson has been opened yet for this subject, but an upcoming
-///   lesson is known, the user is asked whether to jump to it to prepare.
+/// - If a lesson was opened before, that stays the default - the map keeps
+///   pointing at whatever's actually in progress rather than nagging to
+///   switch elsewhere every time the screen opens. Jumping ahead to the
+///   upcoming lesson is something the user does explicitly (e.g. accepting
+///   the "upcoming lesson" prompt shown elsewhere), not something this
+///   silently does on their behalf.
+/// - If no lesson has been opened yet for this subject, the upcoming
+///   (next-scheduled) one is offered instead, as long as it isn't already
+///   fully completed - a lesson with nothing left to do is a pointless
+///   thing to point the child at.
 ///
 /// Returns null when there's nothing to auto-open: no lesson has ever been
-/// opened and no upcoming lesson is known, or the user declined to jump to
-/// the upcoming lesson with no prior lesson to fall back to.
+/// opened and no actionable upcoming lesson is known, or the user declined
+/// to jump to the upcoming lesson with no prior lesson to fall back to.
 Future<LessonSummary?> resolveDefaultLesson({
   required BuildContext context,
   required List<LessonSummary> lessons,
@@ -41,23 +45,15 @@ Future<LessonSummary?> resolveDefaultLesson({
   LessonSummary? upcoming;
   for (final l in lessons) {
     if (lastKey != null && l.lessonKey == lastKey) lastLesson = l;
-    if (l.isUpcoming) upcoming = l;
+    if (l.isUpcoming && l.status != 'completed') upcoming = l;
   }
 
-  if (lastLesson == null) {
-    if (upcoming == null) return null;
-    if (!context.mounted) return null;
-    final jump = await askGoToUpcomingLesson(context, upcoming);
-    return jump == true ? upcoming : null;
-  }
+  if (lastLesson != null) return lastLesson;
 
-  if (upcoming == null || upcoming.lessonKey == lastLesson.lessonKey) {
-    return lastLesson;
-  }
-
-  if (!context.mounted) return lastLesson;
-  final goUpcoming = await askGoToUpcomingLesson(context, upcoming);
-  return goUpcoming == true ? upcoming : lastLesson;
+  if (upcoming == null) return null;
+  if (!context.mounted) return null;
+  final jump = await askGoToUpcomingLesson(context, upcoming);
+  return jump == true ? upcoming : null;
 }
 
 /// Asks the user whether to switch to `upcoming` (the next-scheduled

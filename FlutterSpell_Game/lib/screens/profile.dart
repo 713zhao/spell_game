@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/link.dart';
 import '../providers/game_provider.dart';
 import '../models/game_models.dart';
 import '../widgets/stat_card.dart';
@@ -174,16 +175,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String subtitle,
     required String url,
   }) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.open_in_new),
-      onTap: () => _openExternalUrl(url),
+    return Link(
+      uri: Uri.parse(url),
+      target: LinkTarget.blank,
+      builder: (context, followLink) => ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.open_in_new),
+        onTap: () => _openExternalUrl(url, followLink),
+      ),
     );
   }
 
-  Future<void> _openExternalUrl(String url) async {
+  Future<void> _openExternalUrl(String url, FollowLink? followLink) async {
+    // A real <a> click (via Link's followLink) avoids browser popup blockers
+    // on web; launchUrl is the fallback for native platforms and web builds
+    // where followLink isn't available.
+    if (followLink != null) {
+      await followLink();
+      return;
+    }
     final opened = await launchUrl(
       Uri.parse(url),
       mode: LaunchMode.externalApplication,

@@ -329,15 +329,20 @@ class GameProvider extends ChangeNotifier {
 
   /// Record that a checkpoint (or, with [checkpointIndex] -1, the lesson's
   /// review node) was completed. Callers should [loadLessons] afterwards.
-  Future<void> markCheckpointPassed(
+  /// Returns false (with [errorMessage] set) if the save failed, so callers
+  /// that need the next node to actually unlock can retry or warn.
+  Future<bool> markCheckpointPassed(
     String subject,
     String lessonKey,
     int checkpointIndex,
   ) async {
     try {
       await apiClient.markCheckpointPassed(subject, lessonKey, checkpointIndex);
+      return true;
     } catch (e) {
       errorMessage = e.toString();
+      notifyListeners();
+      return false;
     }
   }
 

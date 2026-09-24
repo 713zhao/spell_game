@@ -10,6 +10,7 @@ import 'package:spell_game/widgets/label_type_filter_bar.dart';
 import 'package:spell_game/utils/last_lesson.dart';
 import 'package:spell_game/utils/lesson_label_filter.dart';
 import 'package:spell_game/utils/lesson_unlock_overrides.dart';
+import 'package:spell_game/utils/treasure_claims.dart';
 import 'package:spell_game/providers/game_provider.dart';
 import 'lesson_overview_screen.dart';
 
@@ -33,6 +34,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
   String? _highlightLessonKey;
   String? _labelFilter; // null = All
   Set<String> _unlockedNodes = {};
+  Set<int> _claimedMilestones = {};
   // The server-computed track for [_labelFilter] (each label type is its own
   // lock sequence); null until fetched, or while the filter is All.
   List<LessonSummary>? _typeLessons;
@@ -45,6 +47,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
     gameProvider = context.read<GameProvider>();
     _loadParentMode();
     _loadUnlockedOverrides();
+    _loadClaimedMilestones();
     gameProvider.addListener(_onChanged);
     _loadLessons();
   }
@@ -53,6 +56,18 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
     final unlocked = await getUnlockedNodes(_subject);
     if (!mounted) return;
     setState(() => _unlockedNodes = unlocked);
+  }
+
+  Future<void> _loadClaimedMilestones() async {
+    final claimed = await getClaimedTreasures(_subject);
+    if (!mounted) return;
+    setState(() => _claimedMilestones = claimed);
+  }
+
+  Future<void> _handleMilestoneClaimed(int index) async {
+    await addClaimedTreasure(_subject, index);
+    if (!mounted) return;
+    setState(() => _claimedMilestones = {..._claimedMilestones, index});
   }
 
   Future<void> _handleUnlockConfirmed(
@@ -286,6 +301,8 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
                   onSelectNode: _openLesson,
                   onUnlockConfirmed: _handleUnlockConfirmed,
                   highlightStageNumber: _highlightStageNumber,
+                  claimedMilestones: _claimedMilestones,
+                  onMilestoneClaimed: _handleMilestoneClaimed,
                 ),
               SizedBox(height: DuolingoSpacing.xl),
             ],

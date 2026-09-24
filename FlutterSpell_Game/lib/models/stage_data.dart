@@ -1,5 +1,3 @@
-import 'dart:math';
-
 /// checkpointIndex used for a lesson's review node (the node after its last
 /// checkpoint). Same value the backend stores for it.
 const int reviewNodeIndex = -1;
@@ -62,6 +60,11 @@ class LessonItem extends PathItem {
   final int checkpointIndex;
   final NodeState state;
   final bool isLabelAnchor; // the node carrying the lesson's title/stars
+  // The node the "look here" pointer targets when this lesson is highlighted
+  // - the next not-yet-passed node, which may be the review node (and so
+  // may differ from [isLabelAnchor], which never lands on the review node
+  // since it'd collide with the review node's own "Review" label).
+  final bool isPointerAnchor;
   final bool isCollapsed;
 
   LessonItem({
@@ -69,6 +72,7 @@ class LessonItem extends PathItem {
     required this.checkpointIndex,
     required this.state,
     required this.isLabelAnchor,
+    this.isPointerAnchor = false,
     this.isCollapsed = false,
   });
 
@@ -77,7 +81,10 @@ class LessonItem extends PathItem {
 
 class MilestoneItem extends PathItem {
   final bool unlocked;
-  MilestoneItem({required this.unlocked});
+  // Stable across rebuilds (the Nth chest overall, 0-based) so the app can
+  // remember which chests were already claimed - see treasure_claims.dart.
+  final int index;
+  MilestoneItem({required this.unlocked, required this.index});
 }
 
 /// Flattens the lessons into path nodes, in order.
@@ -96,12 +103,18 @@ class MilestoneItem extends PathItem {
 List<PathItem> buildPathItems(List<StageData> stages) {
   final items = <PathItem>[];
   var unitsSoFar = 0;
+  var milestonesSoFar = 0;
 
   void addUnit(LessonItem item) {
     items.add(item);
     unitsSoFar++;
     if (unitsSoFar % 5 == 0) {
-      items.add(MilestoneItem(unlocked: item.state == NodeState.completed));
+      items.add(
+        MilestoneItem(
+          unlocked: item.state == NodeState.completed,
+          index: milestonesSoFar++,
+        ),
+      );
     }
   }
 
@@ -123,6 +136,7 @@ List<PathItem> buildPathItems(List<StageData> stages) {
               ? NodeState.locked
               : NodeState.current,
           isLabelAnchor: true,
+          isPointerAnchor: true,
           isCollapsed: true,
         ),
       );
@@ -138,10 +152,21 @@ List<PathItem> buildPathItems(List<StageData> stages) {
       firstUnpassed++;
     }
     // The lesson's label normally anchors to the midpoint of its checkpoint
-    // nodes, but for the current lesson never past the node that's tappable
-    // right now, so the named node isn't a locked one.
+    // nodes. But for the current lesson, or one the user unlocked their way
+    // into, it instead tracks the node that's tappable right now - so the
+    // named node isn't a locked one, and actually moves on as checkpoints
+    // pass rather than sitting on whichever node happened to be the
+    // midpoint (e.g. always node 0 for a 2-checkpoint lesson). It's capped
+    // at the last checkpoint rather than the review node, since the review
+    // node has its own "Review" label that the title/stars would collide
+    // with; the "look here" pointer tracks separately below so it can still
+    // reach the review node once every checkpoint's passed.
     final midpoint = (stage.checkpointCount - 1) ~/ 2;
-    final anchor = stage.isCurrent ? min(midpoint, firstUnpassed) : midpoint;
+    final active = stage.isCurrent || stage.unlockedNodes.isNotEmpty;
+    final labelAnchor = active
+        ? firstUnpassed.clamp(0, stage.checkpointCount - 1)
+        : midpoint;
+    final pointerAnchor = active ? firstUnpassed.clamp(0, nodeCount - 1) : -1;
 
     for (var n = 0; n < nodeCount; n++) {
       final index = n < stage.checkpointCount ? n : reviewNodeIndex;
@@ -150,7 +175,13 @@ List<PathItem> buildPathItems(List<StageData> stages) {
         state = NodeState.completed;
       } else if (stage.isCurrent && n == firstUnpassed) {
         state = NodeState.current;
-      } else if (stage.unlockedNodes.contains(index)) {
+      } else if (stage.unlockedNodes.contains(index) ||
+          (n == firstUnpassed && stage.unlockedNodes.isNotEmpty)) {
+        // The lesson itself is still locked (otherwise it'd be isCurrent
+        // above), but the user unlocked their way into it - once that
+        // node's passed, the next one should open up the same way a
+        // current lesson's would, instead of demanding another "unlock
+        // anyway" tap for every single node.
         state = NodeState.available;
       } else {
         state = NodeState.locked;
@@ -160,7 +191,8 @@ List<PathItem> buildPathItems(List<StageData> stages) {
           stageIndex: i,
           checkpointIndex: index,
           state: state,
-          isLabelAnchor: n == anchor,
+          isLabelAnchor: n == labelAnchor,
+          isPointerAnchor: n == pointerAnchor,
         ),
       );
     }

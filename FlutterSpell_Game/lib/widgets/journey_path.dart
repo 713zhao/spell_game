@@ -30,6 +30,14 @@ class JourneyPath extends StatefulWidget {
   // can pick up where they left off without hunting through the path -
   // still requires a tap to actually open it. Null shows no highlight.
   final int? highlightStageNumber;
+  // Milestone chest indices (MilestoneItem.index) already opened, so a
+  // chest only ever pays out its reward once instead of replaying the
+  // celebration - and its XP/coin pop - on every tap.
+  final Set<int> claimedMilestones;
+  // Called when the user opens a chest that wasn't already claimed - the
+  // caller should persist it into [claimedMilestones] (see
+  // treasure_claims.dart) so it stays claimed across rebuilds.
+  final void Function(int index)? onMilestoneClaimed;
 
   const JourneyPath({
     super.key,
@@ -41,6 +49,8 @@ class JourneyPath extends StatefulWidget {
     required this.onSelectNode,
     this.onUnlockConfirmed,
     this.highlightStageNumber,
+    this.claimedMilestones = const {},
+    this.onMilestoneClaimed,
   });
 
   @override
@@ -201,17 +211,24 @@ class _JourneyPathState extends State<JourneyPath>
     }
   }
 
-  void _handleMilestoneTap(bool unlocked) {
-    if (unlocked) {
-      Celebration.reward(context);
-      Celebration.xpPop(context, 50);
-    } else {
+  void _handleMilestoneTap(MilestoneItem item) {
+    if (!item.unlocked) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Complete more lessons to unlock this treasure!'),
         ),
       );
+      return;
     }
+    if (widget.claimedMilestones.contains(item.index)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Already claimed this treasure!')),
+      );
+      return;
+    }
+    Celebration.reward(context);
+    Celebration.xpPop(context, 50);
+    widget.onMilestoneClaimed?.call(item.index);
   }
 
   @override
@@ -285,6 +302,7 @@ class _JourneyPathState extends State<JourneyPath>
 
   List<Widget> _buildItemWidgets(PathItem item, Offset center, double width) {
     if (item is MilestoneItem) {
+      final claimed = widget.claimedMilestones.contains(item.index);
       return [
         Positioned(
           left: center.dx - _milestoneSize / 2,
@@ -292,7 +310,8 @@ class _JourneyPathState extends State<JourneyPath>
           child: _MilestoneNode(
             size: _milestoneSize,
             unlocked: item.unlocked,
-            onTap: () => _handleMilestoneTap(item.unlocked),
+            claimed: claimed,
+            onTap: () => _handleMilestoneTap(item),
           ),
         ),
         Positioned(
@@ -300,7 +319,11 @@ class _JourneyPathState extends State<JourneyPath>
           left: (center.dx - 80).clamp(0, width - 160),
           width: 160,
           child: Text(
-            item.unlocked ? 'Treasure unlocked!' : 'Treasure Chest',
+            claimed
+                ? 'Treasure claimed'
+                : item.unlocked
+                ? 'Treasure unlocked!'
+                : 'Treasure Chest',
             textAlign: TextAlign.center,
             style: DuolingoTextStyles.label.copyWith(
               color: item.unlocked
@@ -323,10 +346,20 @@ class _JourneyPathState extends State<JourneyPath>
     const outerSize = _nodeSize + _LessonNode.footprintPadding;
 
     final isHighlighted =
-        lessonItem.isLabelAnchor &&
+        lessonItem.isPointerAnchor &&
         stage.stageNumber == widget.highlightStageNumber;
 
     final labelWidgets = <Widget>[];
+    if (isHighlighted) {
+      labelWidgets.add(
+        Positioned(
+          top: center.dy - _nodeSize / 2 - 54,
+          left: (center.dx - 20).clamp(0, width - 40),
+          width: 40,
+          child: _HighlightArrow(pulse: _pulseController),
+        ),
+      );
+    }
     if (lessonItem.isLabelAnchor) {
       // The label (title/date/stars) reflects the LESSON's overall state,
       // not the state of the single checkpoint node it happens to be
@@ -342,16 +375,6 @@ class _JourneyPathState extends State<JourneyPath>
             left: (center.dx - 40).clamp(0, width - 80),
             width: 80,
             child: _StarRow(stars: stage.stars, dimmed: lessonLocked),
-          ),
-        );
-      }
-      if (isHighlighted) {
-        labelWidgets.add(
-          Positioned(
-            top: center.dy - _nodeSize / 2 - 54,
-            left: (center.dx - 20).clamp(0, width - 40),
-            width: 40,
-            child: _HighlightArrow(pulse: _pulseController),
           ),
         );
       }
@@ -592,16 +615,22 @@ class _LessonNode extends StatelessWidget {
 class _MilestoneNode extends StatelessWidget {
   final double size;
   final bool unlocked;
+  final bool claimed;
   final VoidCallback onTap;
 
   const _MilestoneNode({
     required this.size,
     required this.unlocked,
+    required this.claimed,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    // A claimed chest keeps its gold ring (it was earned) but drops the
+    // glossy gradient/shadow so it reads as already-opened, not a reward
+    // still waiting to be tapped.
+    final active = unlocked && !claimed;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -609,7 +638,7 @@ class _MilestoneNode extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: unlocked
+          gradient: active
               ? const LinearGradient(
                   colors: [
                     DuolingoColors.treasureGold,
@@ -619,24 +648,28 @@ class _MilestoneNode extends StatelessWidget {
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: unlocked ? null : DuolingoColors.neutralGray,
+          color: active
+              ? null
+              : unlocked
+              ? DuolingoColors.treasureGold.withOpacity(0.35)
+              : DuolingoColors.neutralGray,
           border: Border.all(
             color: unlocked ? const Color(0xFFB8860B) : const Color(0xFFAAAAAA),
             width: 3,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: unlocked
-                  ? const Color(0xFFB8860B)
-                  : const Color(0xFFAAAAAA),
-              offset: const Offset(0, 4),
-              blurRadius: 0,
-            ),
-          ],
+          boxShadow: active
+              ? const [
+                  BoxShadow(
+                    color: Color(0xFFB8860B),
+                    offset: Offset(0, 4),
+                    blurRadius: 0,
+                  ),
+                ]
+              : null,
         ),
         alignment: Alignment.center,
         child: Text(
-          unlocked ? '🎁' : '🔒',
+          claimed ? '📦' : unlocked ? '🎁' : '🔒',
           style: TextStyle(fontSize: size * 0.42),
         ),
       ),

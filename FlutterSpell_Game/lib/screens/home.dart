@@ -9,6 +9,7 @@ import '../widgets/cards/journey_card.dart';
 import '../widgets/cards/treasure_chest_card.dart';
 import '../widgets/cards/boss_battle_card.dart';
 import '../widgets/cards/stat_card.dart';
+import '../widgets/cards/word_cards_card.dart';
 import '../utils/kingdom_progress.dart';
 import '../utils/last_lesson.dart';
 import '../models/game_models.dart';
@@ -287,6 +288,14 @@ class _HomeScreenState extends State<HomeScreen>
                     onTap: () async {
                       await Navigator.of(context).pushNamed('/chinese-kingdom');
                       await _refreshDisplayLesson('CN');
+                    },
+                  ),
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Chinese Word Cards - official MOE Primary 1 flip cards
+                  WordCardsCard(
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/word-cards');
                     },
                   ),
                   SizedBox(height: DuolingoSpacing.lg),

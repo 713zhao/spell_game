@@ -126,6 +126,11 @@ class _StudyScreenState extends State<StudyScreen>
   String _lastPraise = '';
   String _lastEncouragement = '';
 
+  // In-flight /review POSTs, so _finishSession can wait for all of them
+  // (including the last word's) before refetching stats/lessons - otherwise
+  // the refetch can race the last submission and render stale mastery.
+  final List<Future<void>> _pendingReviews = [];
+
   late AnimationController _celebrationController;
   late Animation<double> _celebrationScale;
   late AnimationController _shakeController;
@@ -690,7 +695,7 @@ class _StudyScreenState extends State<StudyScreen>
     // (computed from ReviewState on next /lessons fetch) advance for real.
     final quality =
         qualityOverride ?? (correct ? (_current.isRetry ? 3 : 5) : 1);
-    gameProvider.submitReview(_current.word.id, quality);
+    _pendingReviews.add(gameProvider.submitReview(_current.word.id, quality));
   }
 
   void _continue() {
@@ -734,6 +739,10 @@ class _StudyScreenState extends State<StudyScreen>
     setState(() => _phase = SessionPhase.complete);
     _celebrationController.forward(from: 0);
     Celebration.lessonComplete(context);
+    // Wait for every word's /review POST (including the last one, which may
+    // still be in flight) before refetching - otherwise the refetch below
+    // can race it and render mastery/stats that don't include this session.
+    await Future.wait(_pendingReviews);
     // Per-word /review calls already advanced ReviewState (and each earned
     // a point); refresh the cached stats so points/streak reflect them.
     await gameProvider.loadUserStats();
@@ -742,11 +751,23 @@ class _StudyScreenState extends State<StudyScreen>
     // reload below so that reload sees it.
     final checkpoint = widget.args.checkpoint;
     if (widget.args.review || checkpoint != null) {
-      await gameProvider.markCheckpointPassed(
+      var passed = await gameProvider.markCheckpointPassed(
         widget.args.subject,
         widget.args.lessonKey,
         widget.args.review ? reviewNodeIndex : checkpoint!,
       );
+      // A flaky connection or backend hiccup shouldn't silently strand the
+      // child on a lesson that never unlocks the next node - retry once.
+      if (!passed) {
+        passed = await gameProvider.markCheckpointPassed(
+          widget.args.subject,
+          widget.args.lessonKey,
+          widget.args.review ? reviewNodeIndex : checkpoint!,
+        );
+      }
+      if (!passed && mounted) {
+        _progressSaveFailed = true;
+      }
     }
     // Also refresh the lesson list so checkpoint/mastery progress from this
     // session (which may have unlocked the next checkpoint or lesson) is
@@ -754,7 +775,12 @@ class _StudyScreenState extends State<StudyScreen>
     // the kingdom screen's cached LessonSummary still shows the pre-session
     // checkpointIndex, silently re-serving already-mastered words.
     await gameProvider.loadLessons(widget.args.subject);
+    if (mounted) setState(() {});
   }
+
+  // Set when markCheckpointPassed fails twice, so the summary screen can
+  // warn the child/parent instead of showing an unqualified "complete!".
+  bool _progressSaveFailed = false;
 
   int get _stars {
     final accuracy = _totalWords == 0 ? 0.0 : _firstTryCorrect / _totalWords;
@@ -2312,6 +2338,26 @@ class _StudyScreenState extends State<StudyScreen>
                   ),
                 ],
               ),
+              if (_progressSaveFailed) ...[
+                SizedBox(height: DuolingoSpacing.lg),
+                Container(
+                  padding: EdgeInsets.all(DuolingoSpacing.md),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3CD),
+                    borderRadius: BorderRadius.circular(
+                      DuolingoSpacing.radiusCard,
+                    ),
+                  ),
+                  child: Text(
+                    "Couldn't save your progress - check your connection "
+                    'and try this adventure again so it counts.',
+                    textAlign: TextAlign.center,
+                    style: DuolingoTextStyles.body.copyWith(
+                      color: const Color(0xFF856404),
+                    ),
+                  ),
+                ),
+              ],
               if (_weakWords.isNotEmpty) ...[
                 SizedBox(height: DuolingoSpacing.xxl),
                 Text(

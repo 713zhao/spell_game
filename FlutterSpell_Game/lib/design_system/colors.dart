@@ -49,4 +49,5 @@ class DuolingoColors {
   static const List<Color> treasureIslandGradient = [Color(0xFFFFFDE6), Color(0xFFFFFFE0)];
   static const List<Color> bossArenaGradient = [Color(0xFFFFE6E6), Color(0xFFFFCCCC)];
   static const List<Color> gameStoreGradient = [Color(0xFFE6FFF0), Color(0xFFCCFFE0)];
+  static const List<Color> wordCardsGradient = [Color(0xFFFDE6FF), Color(0xFFF2CCFF)];
 }

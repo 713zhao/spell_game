@@ -22,6 +22,7 @@ import 'screens/boss_battle_screen.dart';
 import 'screens/lesson_overview_screen.dart';
 import 'screens/game_store_screen.dart';
 import 'screens/game_play_screen.dart';
+import 'screens/moe_word_cards_screen.dart';
 
 // Global GameProvider instance (singleton)
 final gameProvider = GameProvider();
@@ -170,6 +171,10 @@ class MyApp extends StatelessWidget {
               final playArgs = settings.arguments as GamePlayArgs;
               return MaterialPageRoute(
                 builder: (context) => GamePlayScreen(args: playArgs),
+              );
+            case '/word-cards':
+              return MaterialPageRoute(
+                builder: (context) => const MoeWordCardsScreen(),
               );
             default:
               return null;
