@@ -103,6 +103,12 @@ class Unlockable {
 @JsonSerializable()
 class UserStats {
   final int totalPoints;
+  // Spendable currency, earned in lockstep with totalPoints (XP) and spent
+  // on minigame unlocks/plays, streak revives, and cosmetic redemptions.
+  final int? coins;
+  // Bonus currency, not spent anywhere yet - granted on boss victories and
+  // achievement unlocks.
+  final int? gems;
   final int currentStreak;
   final String? lastLogin;
   final int? bestStreak;
@@ -115,6 +121,8 @@ class UserStats {
 
   UserStats({
     required this.totalPoints,
+    this.coins,
+    this.gems,
     required this.currentStreak,
     this.lastLogin,
     this.bestStreak,

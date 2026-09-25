@@ -40,10 +40,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
   Widget build(BuildContext context) {
     final stats = gameProvider.userStats;
     final xp = stats?.totalPoints ?? 0;
-    // "Coins" and "Gems" are the same points balance as XP - there's no
-    // separate coin/gem currency in the backend (see home.dart).
-    final coins = stats?.totalPoints ?? 0;
-    final gems = stats?.totalPoints ?? 0;
+    final coins = stats?.coins ?? 0;
+    final gems = stats?.gems ?? 0;
     final streak = stats?.currentStreak ?? 0;
     final levelsCompleted = stats?.levelsCompleted ?? 0;
     final bossesDefeated = gameProvider.defeatedBossIds.length;

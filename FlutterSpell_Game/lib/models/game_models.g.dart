@@ -28,12 +28,16 @@ Word _$WordFromJson(Map<String, dynamic> json) => Word(
   id: (json['id'] as num).toInt(),
   text: json['text'] as String,
   language: json['language'] as String,
+  backCard: json['backCard'] as String?,
+  quiz: json['quiz'] as String?,
 );
 
 Map<String, dynamic> _$WordToJson(Word instance) => <String, dynamic>{
   'id': instance.id,
   'text': instance.text,
   'language': instance.language,
+  'backCard': instance.backCard,
+  'quiz': instance.quiz,
 };
 
 LevelProgress _$LevelProgressFromJson(Map<String, dynamic> json) =>
@@ -75,6 +79,8 @@ Map<String, dynamic> _$UnlockableToJson(Unlockable instance) =>
 
 UserStats _$UserStatsFromJson(Map<String, dynamic> json) => UserStats(
   totalPoints: (json['totalPoints'] as num).toInt(),
+  coins: (json['coins'] as num?)?.toInt(),
+  gems: (json['gems'] as num?)?.toInt(),
   currentStreak: (json['currentStreak'] as num).toInt(),
   lastLogin: json['lastLogin'] as String?,
   bestStreak: (json['bestStreak'] as num?)?.toInt(),
@@ -88,6 +94,8 @@ UserStats _$UserStatsFromJson(Map<String, dynamic> json) => UserStats(
 
 Map<String, dynamic> _$UserStatsToJson(UserStats instance) => <String, dynamic>{
   'totalPoints': instance.totalPoints,
+  'coins': instance.coins,
+  'gems': instance.gems,
   'currentStreak': instance.currentStreak,
   'lastLogin': instance.lastLogin,
   'bestStreak': instance.bestStreak,

@@ -611,6 +611,8 @@ class GameProvider extends ChangeNotifier {
     try {
       await apiClient.redeemUnlockable(unlockableId);
       await loadUnlockables();
+      // Refresh so the Coins Balance header reflects the spend immediately.
+      await loadUserStats();
       return true;
     } catch (e) {
       errorMessage = e.toString();

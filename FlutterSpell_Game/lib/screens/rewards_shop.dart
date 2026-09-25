@@ -59,9 +59,10 @@ class _RewardsShopScreenState extends State<RewardsShopScreen> {
 
     if (confirmed != true) return;
 
-    // Check if user has enough points
+    // Check if user has enough coins (cosmetics are spent from the coins
+    // balance, not XP - see unlockable_manager.py on the backend)
     if (provider.userStats == null ||
-        provider.userStats!.totalPoints < cosmetic.pointsCost) {
+        (provider.userStats!.coins ?? 0) < cosmetic.pointsCost) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -155,7 +156,7 @@ class _RewardsShopScreenState extends State<RewardsShopScreen> {
                   child: Column(
                     children: [
                       const Text(
-                        'Points Balance',
+                        'Coins Balance',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -163,7 +164,7 @@ class _RewardsShopScreenState extends State<RewardsShopScreen> {
                         ),
                       ),
                       Text(
-                        '${provider.userStats?.totalPoints ?? 0}',
+                        '${provider.userStats?.coins ?? 0}',
                         style: const TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,

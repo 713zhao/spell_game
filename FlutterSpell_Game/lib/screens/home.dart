@@ -154,13 +154,12 @@ class _HomeScreenState extends State<HomeScreen>
           // Mock data if API not ready yet
           final streak = gameProvider.userStats?.currentStreak ?? 8;
           final xp = gameProvider.userStats?.totalPoints ?? 250;
-          // "Coins" is the same points balance as XP (it's what the
-          // Rewards Shop actually spends, and what the treasure chest
-          // grants) - previously hardcoded to 85 regardless of real state.
-          final coins = gameProvider.userStats?.totalPoints ?? 0;
-          // "Gems" is the same points balance as XP/Coins - there's no
-          // separate gem currency in the backend, same as Coins above.
-          final gems = gameProvider.userStats?.totalPoints ?? 0;
+          // Coins: spendable currency, earned alongside XP and spent on
+          // minigame unlocks/plays, streak revives, and cosmetics.
+          final coins = gameProvider.userStats?.coins ?? 0;
+          // Gems: bonus currency granted on boss victories and achievement
+          // unlocks - not spent anywhere yet.
+          final gems = gameProvider.userStats?.gems ?? 0;
           final userName = gameProvider.userName;
           final englishProgress = summarizeKingdomProgress(
             gameProvider.englishLessons,
