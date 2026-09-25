@@ -58,11 +58,22 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
   List<_DeckEntry> _ankiDeck = [];
   int _ankiSessionReviewed = 0;
 
+  // Every local (on-device) preference below is namespaced by the current
+  // user's name, not just by grade - otherwise two kids sharing the same
+  // browser/device would silently read and overwrite each other's saved
+  // grade, lesson selection, filter, difficulty stars and Anki toggle.
+  // Only set once, on the very first _load() (initState), so a later
+  // grade switch from the settings sheet doesn't re-read a stale saved
+  // grade and fight the user's explicit tap.
+  bool _restoredInitialGrade = false;
+
   @override
   void initState() {
     super.initState();
     _load();
   }
+
+  String get _userName => context.read<GameProvider>().userName;
 
   Future<void> _load() async {
     setState(() {
@@ -71,7 +82,17 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     });
     try {
       final gameProvider = context.read<GameProvider>();
+      final userName = gameProvider.userName;
       final prefs = _prefs ?? await SharedPreferences.getInstance();
+
+      if (!_restoredInitialGrade) {
+        _restoredInitialGrade = true;
+        final savedGrade = prefs.getString(_selectedGradePrefsKey(userName));
+        if (savedGrade != null && _grades.contains(savedGrade)) {
+          _selectedGrade = savedGrade;
+        }
+      }
+
       final result = await gameProvider.apiClient.getMoeWords(
         grade: _selectedGrade,
       );
@@ -85,15 +106,28 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
         // still works locally and will retry the save on next change.
       }
       if (!mounted) return;
+      final allLessonKeys = result.lessons.map((l) => l.lessonKey).toSet();
+      final savedLessonKeys = _loadSelectedLessonKeys(
+        prefs,
+        userName,
+        _selectedGrade,
+      );
       setState(() {
         _prefs = prefs;
         _result = result;
-        // Default: all lessons for this grade are selected.
-        _selectedLessonKeys = result.lessons.map((l) => l.lessonKey).toSet();
-        _difficultIds = _loadDifficultIds(prefs, _selectedGrade);
-        _filter = _MoeFilter.all;
+        // Resume the last lesson selection for this user+grade if we have
+        // one (and it's still valid for the loaded lesson set); otherwise
+        // default to all lessons, same as before.
+        _selectedLessonKeys =
+            savedLessonKeys != null &&
+                savedLessonKeys.isNotEmpty &&
+                savedLessonKeys.every(allLessonKeys.contains)
+            ? savedLessonKeys
+            : allLessonKeys;
+        _difficultIds = _loadDifficultIds(prefs, userName, _selectedGrade);
+        _filter = _loadFilter(prefs, userName);
         _cardIndex = 0;
-        _ankiMode = prefs.getBool(_ankiModePrefsKey) ?? true;
+        _ankiMode = prefs.getBool(_ankiModePrefsKey(userName)) ?? true;
         _numStudyWords = numStudyWords;
         _loading = false;
       });
@@ -109,12 +143,26 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     }
   }
 
-  static const String _ankiModePrefsKey = 'moe_anki_mode';
+  String _ankiModePrefsKey(String userName) => 'moe_anki_mode_$userName';
 
-  String _difficultPrefsKey(String grade) => 'moe_difficult_$grade';
+  String _difficultPrefsKey(String userName, String grade) =>
+      'moe_difficult_${userName}_$grade';
 
-  Set<int> _loadDifficultIds(SharedPreferences prefs, String grade) {
-    final stored = prefs.getStringList(_difficultPrefsKey(grade)) ?? [];
+  String _selectedGradePrefsKey(String userName) =>
+      'moe_selected_grade_$userName';
+
+  String _selectedLessonsPrefsKey(String userName, String grade) =>
+      'moe_selected_lessons_${userName}_$grade';
+
+  String _filterPrefsKey(String userName) => 'moe_filter_$userName';
+
+  Set<int> _loadDifficultIds(
+    SharedPreferences prefs,
+    String userName,
+    String grade,
+  ) {
+    final stored =
+        prefs.getStringList(_difficultPrefsKey(userName, grade)) ?? [];
     return stored.map(int.parse).toSet();
   }
 
@@ -122,9 +170,49 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     final prefs = _prefs;
     if (prefs == null) return;
     await prefs.setStringList(
-      _difficultPrefsKey(_selectedGrade),
+      _difficultPrefsKey(_userName, _selectedGrade),
       _difficultIds.map((id) => id.toString()).toList(),
     );
+  }
+
+  Set<String>? _loadSelectedLessonKeys(
+    SharedPreferences prefs,
+    String userName,
+    String grade,
+  ) {
+    final stored = prefs.getStringList(
+      _selectedLessonsPrefsKey(userName, grade),
+    );
+    return stored?.toSet();
+  }
+
+  Future<void> _saveSelectedLessonKeys() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    await prefs.setStringList(
+      _selectedLessonsPrefsKey(_userName, _selectedGrade),
+      _selectedLessonKeys.toList(),
+    );
+  }
+
+  _MoeFilter _loadFilter(SharedPreferences prefs, String userName) {
+    final stored = prefs.getString(_filterPrefsKey(userName));
+    return _MoeFilter.values.firstWhere(
+      (f) => f.name == stored,
+      orElse: () => _MoeFilter.all,
+    );
+  }
+
+  Future<void> _saveFilter() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    await prefs.setString(_filterPrefsKey(_userName), _filter.name);
+  }
+
+  Future<void> _saveSelectedGrade() async {
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    _prefs = prefs;
+    await prefs.setString(_selectedGradePrefsKey(_userName), _selectedGrade);
   }
 
   void _toggleDifficult(int characterId) {
@@ -200,7 +288,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     });
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
-    await prefs.setBool(_ankiModePrefsKey, value);
+    await prefs.setBool(_ankiModePrefsKey(_userName), value);
     if (value) {
       await _loadAnkiDeck();
     }
@@ -297,6 +385,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
   Future<void> _selectGrade(String grade) {
     if (grade == _selectedGrade) return Future.value();
     setState(() => _selectedGrade = grade);
+    _saveSelectedGrade();
     return _load();
   }
 
@@ -343,6 +432,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
       _filter = filter;
       _cardIndex = 0;
     });
+    _saveFilter();
   }
 
   /// Opens the same guided handwriting trace used in the main study flow
@@ -1001,6 +1091,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
               }
               _cardIndex = 0;
             });
+            _saveSelectedLessonKeys();
             setSheetState(() {});
             if (_ankiMode) _loadAnkiDeck();
           },
@@ -1031,6 +1122,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
                 }
                 _cardIndex = 0;
               });
+              _saveSelectedLessonKeys();
               setSheetState(() {});
               if (_ankiMode) _loadAnkiDeck();
             },
