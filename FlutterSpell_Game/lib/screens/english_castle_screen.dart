@@ -11,6 +11,7 @@ import 'package:spell_game/utils/last_lesson.dart';
 import 'package:spell_game/utils/lesson_label_filter.dart';
 import 'package:spell_game/utils/lesson_unlock_overrides.dart';
 import 'package:spell_game/utils/treasure_claims.dart';
+import 'package:spell_game/utils/practice_sessions.dart';
 import 'package:spell_game/providers/game_provider.dart';
 import 'lesson_overview_screen.dart';
 
@@ -35,6 +36,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
   String? _labelFilter; // null = All
   Set<String> _unlockedNodes = {};
   Set<int> _claimedMilestones = {};
+  Map<String, int> _practiceSessionCounts = {};
   // The server-computed track for [_labelFilter] (each label type is its own
   // lock sequence); null until fetched, or while the filter is All.
   List<LessonSummary>? _typeLessons;
@@ -48,6 +50,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
     _loadParentMode();
     _loadUnlockedOverrides();
     _loadClaimedMilestones();
+    _loadPracticeSessionCounts();
     gameProvider.addListener(_onChanged);
     _loadLessons();
   }
@@ -62,6 +65,12 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
     final claimed = await getClaimedTreasures(_subject);
     if (!mounted) return;
     setState(() => _claimedMilestones = claimed);
+  }
+
+  Future<void> _loadPracticeSessionCounts() async {
+    final counts = await getPracticeSessionCounts(_subject);
+    if (!mounted) return;
+    setState(() => _practiceSessionCounts = counts);
   }
 
   Future<void> _handleMilestoneClaimed(int index) async {
@@ -117,6 +126,7 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
     if (gameProvider.lessonsVersion != _seenLessonsVersion) {
       _seenLessonsVersion = gameProvider.lessonsVersion;
       if (_labelFilter != null) _refreshTypeLessons();
+      _loadPracticeSessionCounts();
     }
     setState(() {});
   }
@@ -191,6 +201,8 @@ class _EnglishCastleScreenState extends State<EnglishCastleScreen> {
             _lessons[i].lessonKey,
           ),
           labelBadge: showBadge ? labelTypeEmoji(_lessons[i].labelType) : null,
+          practiceSessionsDone:
+              _practiceSessionCounts[_lessons[i].lessonKey] ?? 0,
         ),
     ];
   }

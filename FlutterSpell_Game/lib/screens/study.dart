@@ -15,6 +15,7 @@ import '../utils/chinese_pronunciation.dart';
 import '../utils/exercise_content_parser.dart';
 import '../utils/handwriting_gift.dart';
 import '../utils/handwriting_plan.dart';
+import '../utils/practice_sessions.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import 'lesson_overview_screen.dart' show StudySessionArgs;
@@ -768,6 +769,14 @@ class _StudyScreenState extends State<StudyScreen>
       if (!passed && mounted) {
         _progressSaveFailed = true;
       }
+    } else {
+      // checkpoint == null and not a review: a completed lesson's free
+      // practice (see lesson_overview_screen.dart's _point) - count it so
+      // its practice node's "Session N" label advances next time.
+      await incrementPracticeSessionCount(
+        widget.args.subject,
+        widget.args.lessonKey,
+      );
     }
     // Also refresh the lesson list so checkpoint/mastery progress from this
     // session (which may have unlocked the next checkpoint or lesson) is

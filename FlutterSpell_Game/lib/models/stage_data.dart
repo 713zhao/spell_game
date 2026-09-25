@@ -20,6 +20,10 @@ class StageData {
   // [reviewNodeIndex] for the review node.
   final Set<int> unlockedNodes;
   final String? labelBadge; // emoji for the lesson's label type; null hides it
+  // Free-practice sessions already completed for a lesson that's done but
+  // under 3 stars (see practice_sessions.dart) - the next practice node
+  // reads "Session N+1" so repeat practice looks like forward progress.
+  final int practiceSessionsDone;
 
   const StageData({
     required this.stageNumber,
@@ -36,6 +40,7 @@ class StageData {
     this.reviewDueCount = 0,
     this.unlockedNodes = const {},
     this.labelBadge,
+    this.practiceSessionsDone = 0,
   });
 
   /// The lesson the user should be working on now in this track.
@@ -66,6 +71,13 @@ class LessonItem extends PathItem {
   // since it'd collide with the review node's own "Review" label).
   final bool isPointerAnchor;
   final bool isCollapsed;
+  // An extra node after a completed lesson that hasn't hit 3 stars yet -
+  // tapping it opens the same free-practice session as the collapsed node
+  // itself, just visually distinct and re-offered so the path keeps
+  // inviting further practice instead of going silent once "completed".
+  final bool isPracticeNode;
+  // 1-based session number this node represents, when [isPracticeNode].
+  final int practiceSessionNumber;
 
   LessonItem({
     required this.stageIndex,
@@ -74,6 +86,8 @@ class LessonItem extends PathItem {
     required this.isLabelAnchor,
     this.isPointerAnchor = false,
     this.isCollapsed = false,
+    this.isPracticeNode = false,
+    this.practiceSessionNumber = 0,
   });
 
   bool get isReview => checkpointIndex == reviewNodeIndex;
@@ -126,6 +140,29 @@ List<PathItem> buildPathItems(List<StageData> stages) {
         (stage.isCurrent || stage.unlockedNodes.isNotEmpty);
 
     if (!expanded) {
+      // A completed lesson under 3 stars keeps a visible trail of its
+      // practice sessions - past ones as plain checkmarks, like passed
+      // checkpoints, and the next one pulsing and tappable - instead of
+      // collapsing into a single done node with nothing left to do there.
+      if (stage.isCompleted && stage.stars < 3) {
+        final totalSessions = stage.practiceSessionsDone + 1;
+        for (var s = 1; s <= totalSessions; s++) {
+          final isNext = s == totalSessions;
+          addUnit(
+            LessonItem(
+              stageIndex: i,
+              checkpointIndex: 0,
+              state: isNext ? NodeState.current : NodeState.completed,
+              isLabelAnchor: isNext,
+              isPointerAnchor: isNext,
+              isCollapsed: true,
+              isPracticeNode: true,
+              practiceSessionNumber: s,
+            ),
+          );
+        }
+        continue;
+      }
       addUnit(
         LessonItem(
           stageIndex: i,

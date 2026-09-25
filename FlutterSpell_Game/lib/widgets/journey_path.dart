@@ -378,42 +378,49 @@ class _JourneyPathState extends State<JourneyPath>
           ),
         );
       }
-      labelWidgets.add(
-        Positioned(
-          top: center.dy + _nodeSize / 2 + 6,
-          left: (center.dx - 70).clamp(0, width - 140),
-          width: 140,
-          child: Column(
-            children: [
-              Text(
-                stage.title,
-                textAlign: TextAlign.center,
-                style: DuolingoTextStyles.label.copyWith(
-                  color: lessonLocked
-                      ? DuolingoColors.bodyText.withOpacity(0.5)
-                      : DuolingoColors.darkText,
-                  fontWeight: lessonCurrent ? FontWeight.bold : FontWeight.w600,
-                ),
-              ),
-              if ((stage.spellDate ?? '').isNotEmpty ||
-                  stage.labelBadge != null)
+      // A lesson still being practiced past completion gets its own
+      // "Session N" label below instead of the plain title/date.
+      if (!lessonItem.isPracticeNode) {
+        labelWidgets.add(
+          Positioned(
+            top: center.dy + _nodeSize / 2 + 6,
+            left: (center.dx - 70).clamp(0, width - 140),
+            width: 140,
+            child: Column(
+              children: [
                 Text(
-                  [
-                    if (stage.labelBadge != null) stage.labelBadge!,
-                    if ((stage.spellDate ?? '').isNotEmpty) stage.spellDate!,
-                  ].join(' '),
+                  stage.title,
                   textAlign: TextAlign.center,
                   style: DuolingoTextStyles.label.copyWith(
-                    fontSize: 11,
-                    color: DuolingoColors.bodyText.withOpacity(
-                      lessonLocked ? 0.4 : 0.8,
-                    ),
+                    color: lessonLocked
+                        ? DuolingoColors.bodyText.withOpacity(0.5)
+                        : DuolingoColors.darkText,
+                    fontWeight: lessonCurrent
+                        ? FontWeight.bold
+                        : FontWeight.w600,
                   ),
                 ),
-            ],
+                if ((stage.spellDate ?? '').isNotEmpty ||
+                    stage.labelBadge != null)
+                  Text(
+                    [
+                      if (stage.labelBadge != null) stage.labelBadge!,
+                      if ((stage.spellDate ?? '').isNotEmpty)
+                        stage.spellDate!,
+                    ].join(' '),
+                    textAlign: TextAlign.center,
+                    style: DuolingoTextStyles.label.copyWith(
+                      fontSize: 11,
+                      color: DuolingoColors.bodyText.withOpacity(
+                        lessonLocked ? 0.4 : 0.8,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
 
     if (lessonItem.isReview) {
@@ -439,9 +446,41 @@ class _JourneyPathState extends State<JourneyPath>
       );
     }
 
+    if (lessonItem.isPracticeNode && lessonItem.isLabelAnchor) {
+      labelWidgets.add(
+        Positioned(
+          top: center.dy + _nodeSize / 2 + 6,
+          left: (center.dx - 70).clamp(0, width - 140),
+          width: 140,
+          child: Column(
+            children: [
+              Text(
+                '${stage.title} Session ${lessonItem.practiceSessionNumber}',
+                textAlign: TextAlign.center,
+                style: DuolingoTextStyles.label.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: DuolingoColors.informationBlue,
+                ),
+              ),
+              Text(
+                '${(stage.progress * 100).round()}% mastery',
+                textAlign: TextAlign.center,
+                style: DuolingoTextStyles.label.copyWith(
+                  fontSize: 11,
+                  color: DuolingoColors.bodyText.withOpacity(0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     Widget node = _LessonNode(
       state: state,
       isReview: lessonItem.isReview,
+      isPractice: lessonItem.isPracticeNode,
       pulse: _pulseController,
       onTap: () => _handleNodeTap(lessonItem),
     );
@@ -512,12 +551,14 @@ class _LessonNode extends StatelessWidget {
 
   final NodeState state;
   final bool isReview;
+  final bool isPractice;
   final AnimationController pulse;
   final VoidCallback onTap;
 
   const _LessonNode({
     required this.state,
     this.isReview = false,
+    this.isPractice = false,
     required this.pulse,
     required this.onTap,
   });
@@ -539,7 +580,9 @@ class _LessonNode extends StatelessWidget {
       case NodeState.current:
         fill = DuolingoColors.streakOrange;
         border = const Color(0xFFCC7A00);
-        icon = isReview
+        icon = isPractice
+            ? const Icon(Icons.fitness_center, color: Colors.white, size: 28)
+            : isReview
             ? const Icon(Icons.replay, color: Colors.white, size: 28)
             : const Text('🔥', style: TextStyle(fontSize: 26));
         break;
@@ -547,7 +590,11 @@ class _LessonNode extends StatelessWidget {
         fill = DuolingoColors.informationBlue;
         border = const Color(0xFF1876BF);
         icon = Icon(
-          isReview ? Icons.replay : Icons.play_arrow,
+          isPractice
+              ? Icons.fitness_center
+              : isReview
+              ? Icons.replay
+              : Icons.play_arrow,
           color: Colors.white,
           size: 28,
         );
