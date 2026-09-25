@@ -34,7 +34,7 @@ class MoeWordCardsScreen extends StatefulWidget {
 }
 
 class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
-  static const _grades = ['P1', 'P2', 'P3', 'P4'];
+  static const _grades = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
 
   String _selectedGrade = 'P1';
   MoeWordCardsResult? _result;
@@ -289,10 +289,15 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     });
   }
 
-  void _selectGrade(String grade) {
-    if (grade == _selectedGrade) return;
+  /// Switches grade and reloads. Returns the in-flight [_load] future so
+  /// callers (the settings sheet's grade selector) can wait for the new
+  /// grade's lessons to actually arrive before refreshing sheet-local state
+  /// that was otherwise captured as a stale snapshot from when the sheet
+  /// was first opened.
+  Future<void> _selectGrade(String grade) {
+    if (grade == _selectedGrade) return Future.value();
     setState(() => _selectedGrade = grade);
-    _load();
+    return _load();
   }
 
   void _playAudio(String text) {
@@ -536,6 +541,10 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
         return 'Primary 3';
       case 'P4':
         return 'Primary 4';
+      case 'P5':
+        return 'Primary 5';
+      case 'P6':
+        return 'Primary 6';
       default:
         return grade;
     }
@@ -779,7 +788,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
                     SizedBox(height: DuolingoSpacing.lg),
                     Text('Lessons', style: DuolingoTextStyles.sectionTitle),
                     SizedBox(height: DuolingoSpacing.sm),
-                    _buildLessonChecklist(result, setSheetState),
+                    _buildLessonChecklist(setSheetState),
                     SizedBox(height: DuolingoSpacing.lg),
                     Text('Study mode', style: DuolingoTextStyles.sectionTitle),
                     SizedBox(height: DuolingoSpacing.sm),
@@ -827,17 +836,23 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     return Row(
       children: _grades.map((grade) {
         final selected = grade == _selectedGrade;
-        final enabled = grade == 'P1';
         return Expanded(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: DuolingoSpacing.xs),
             child: GestureDetector(
-              onTap: enabled
-                  ? () {
-                      setSheetState(() {});
-                      _selectGrade(grade);
-                    }
-                  : null,
+              onTap: () {
+                // _selectGrade runs synchronously up to its first `await`,
+                // so _selectedGrade (and _loading) are already updated by
+                // the time this setSheetState fires - the grade pill
+                // highlights immediately. The lesson checklist below reads
+                // live state (not a stale snapshot), so it refreshes once
+                // the new grade's lessons actually arrive.
+                final loadFuture = _selectGrade(grade);
+                setSheetState(() {});
+                loadFuture.then((_) {
+                  if (mounted) setSheetState(() {});
+                });
+              },
               child: Container(
                 padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.sm),
                 decoration: BoxDecoration(
@@ -848,28 +863,12 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
                     DuolingoSpacing.radiusButton,
                   ),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      grade,
-                      textAlign: TextAlign.center,
-                      style: DuolingoTextStyles.cardTitle.copyWith(
-                        color: selected
-                            ? Colors.white
-                            : (enabled
-                                  ? DuolingoColors.darkText
-                                  : DuolingoColors.navInactiveGray),
-                      ),
-                    ),
-                    if (!enabled)
-                      Text(
-                        'Soon',
-                        style: DuolingoTextStyles.label.copyWith(
-                          fontSize: 9,
-                          color: DuolingoColors.navInactiveGray,
-                        ),
-                      ),
-                  ],
+                child: Text(
+                  grade,
+                  textAlign: TextAlign.center,
+                  style: DuolingoTextStyles.cardTitle.copyWith(
+                    color: selected ? Colors.white : DuolingoColors.darkText,
+                  ),
                 ),
               ),
             ),
@@ -962,11 +961,28 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     );
   }
 
-  Widget _buildLessonChecklist(
-    MoeWordCardsResult result,
-    void Function(void Function()) setSheetState,
-  ) {
+  Widget _buildLessonChecklist(void Function(void Function()) setSheetState) {
+    // Reads live state (not a snapshot captured when the sheet was opened)
+    // so switching grades from within the sheet refreshes this list once
+    // the new grade's lessons arrive - see _selectGrade/_buildGradeSelector.
+    final result = _result;
+    if (_loading || result == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
     final lessons = result.lessons;
+    if (lessons.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Text(
+          '$_selectedGrade word cards are coming soon!',
+          textAlign: TextAlign.center,
+          style: DuolingoTextStyles.body,
+        ),
+      );
+    }
     final allSelected = _selectedLessonKeys.length == lessons.length;
 
     return Column(
