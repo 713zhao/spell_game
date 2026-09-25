@@ -9,15 +9,25 @@ import '../config/api_config.dart';
 // iOS Safari), so Google Cloud TTS is tried first everywhere and
 // speechSynthesis is only a fallback if that fails.
 
-// iOS Safari's "unlock" isn't page-wide: a play() only succeeds without a
-// direct gesture if it's called on an element that has itself already
-// completed a play() from inside a real gesture. A freshly-constructed
-// AudioElement is never blessed that way, so word pronunciation (triggered
-// later from a post-frame callback, not a tap) must reuse the exact
-// element that got primed in [unlockAudioForGesture] rather than
-// constructing a new one per word.
+// Every real caller of speakOnWeb is already gesture-synchronous (see the
+// _autoPlayCurrentWord comment in study.dart - deliberately never invoked
+// from a post-frame callback or other async gap), so word audio itself
+// qualifies for iOS Safari's per-call "this play() happened inside a user
+// gesture's call stack" allowance on its own merits. It does NOT need to
+// reuse a previously-blessed element to work.
+//
+// [unlockAudioForGesture] exists only to prime speechSynthesis once so a
+// *rejected/glitchy first-ever* speak() doesn't leave the engine wedged,
+// plus a defensive silent AudioElement.play(). It used to reuse this same
+// _sharedAudio element, which meant the very first tap after a page
+// reload could race two play() calls against each other on one element
+// (the unlock's silent blip and, moments later, the real TTS clip
+// overwriting .src mid-flight) - iOS Safari can silently drop the second
+// play() when that happens. Giving the unlock ping its own dedicated
+// element removes that race entirely.
 html.AudioElement? _currentAudio;
 final html.AudioElement _sharedAudio = html.AudioElement();
+final html.AudioElement _unlockAudio = html.AudioElement();
 
 /// Speaks [word] on web. Returns `true` when Google Cloud TTS was attempted
 /// and failed, falling back to the browser's built-in voice - callers use
@@ -58,11 +68,11 @@ void unlockAudioForGesture() {
     // speechSynthesis not available in this browser
   }
   try {
-    _sharedAudio
+    _unlockAudio
       ..src =
           'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
       ..volume = 0;
-    _sharedAudio.play().catchError((_) {});
+    _unlockAudio.play().catchError((_) {});
   } catch (_) {
     // Audio element playback not available
   }
@@ -148,12 +158,49 @@ bool _looksFemale(String voiceName) {
   return _femaleVoiceNameHints.any((hint) => name.contains(hint));
 }
 
+// Safari (and Chrome, on a cold cache) returns an empty voice list from
+// the very first getVoices() call after a page load - the real list only
+// arrives asynchronously via the 'voiceschanged' event. Calling speak()
+// with no matching voice found doesn't usually fail outright, but it
+// silently loses the language/gender preference. Wait briefly for the
+// event (capped so a browser that never fires it - some older WebKit
+// builds don't - can't hang word playback indefinitely).
+Future<List> _getVoicesAsync(Object synth) async {
+  final immediate = List.from(js_util.callMethod(synth, 'getVoices', []));
+  if (immediate.isNotEmpty) return immediate;
+
+  final completer = Completer<List>();
+  void handler(dynamic _) {
+    if (!completer.isCompleted) {
+      completer.complete(
+        List.from(js_util.callMethod(synth, 'getVoices', [])),
+      );
+    }
+  }
+
+  final jsHandler = js_util.allowInterop(handler);
+  js_util.callMethod(synth, 'addEventListener', ['voiceschanged', jsHandler]);
+  final voices = await completer.future.timeout(
+    const Duration(milliseconds: 500),
+    onTimeout: () => List.from(js_util.callMethod(synth, 'getVoices', [])),
+  );
+  try {
+    js_util.callMethod(synth, 'removeEventListener', [
+      'voiceschanged',
+      jsHandler,
+    ]);
+  } catch (_) {
+    // Best-effort cleanup only.
+  }
+  return voices;
+}
+
 Future<void> _speakWithBrowserTts(String word) async {
   try {
     final synth = js_util.getProperty(js_util.globalThis, 'speechSynthesis');
     js_util.callMethod(synth, 'cancel', []);
 
-    final voices = List.from(js_util.callMethod(synth, 'getVoices', []));
+    final voices = await _getVoicesAsync(synth);
     final isChinese = RegExp(r'[一-鿿]').hasMatch(word);
     final langPrefix = isChinese ? 'zh' : 'en';
 
@@ -171,15 +218,41 @@ Future<void> _speakWithBrowserTts(String word) async {
           : (voices.isNotEmpty ? voices.first : null),
     );
 
-    final utter = js_util.callConstructor(
-      js_util.getProperty(js_util.globalThis, 'SpeechSynthesisUtterance'),
-      [word],
-    );
-    if (selectedVoice != null) {
-      js_util.setProperty(utter, 'voice', selectedVoice);
-      js_util.setProperty(utter, 'lang', js_util.getProperty(selectedVoice, 'lang'));
+    void speakOnce({bool isRetry = false}) {
+      final utter = js_util.callConstructor(
+        js_util.getProperty(js_util.globalThis, 'SpeechSynthesisUtterance'),
+        [word],
+      );
+      if (selectedVoice != null) {
+        js_util.setProperty(utter, 'voice', selectedVoice);
+        js_util.setProperty(
+          utter,
+          'lang',
+          js_util.getProperty(selectedVoice, 'lang'),
+        );
+      }
+      // speechSynthesis.speak() doesn't reject on a gesture-policy
+      // rejection - it fails silently with no event at all - so there's
+      // no reliable signal to retry on for THAT case. What IS observable
+      // is a genuine 'error' event (e.g. the engine was still tearing
+      // down the cancel() call issued above, or hit a transient glitch);
+      // one retry after a short delay recovers from that specific case
+      // without risking a retry loop.
+      if (!isRetry) {
+        js_util.callMethod(utter, 'addEventListener', [
+          'error',
+          js_util.allowInterop((_) {
+            Future.delayed(
+              const Duration(milliseconds: 150),
+              () => speakOnce(isRetry: true),
+            );
+          }),
+        ]);
+      }
+      js_util.callMethod(synth, 'speak', [utter]);
     }
-    js_util.callMethod(synth, 'speak', [utter]);
+
+    speakOnce();
   } catch (_) {
     // No speechSynthesis available at all — silently give up, matching
     // native flutter_tts's own try/catch-and-continue behavior.
