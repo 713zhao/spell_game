@@ -33,13 +33,57 @@ final html.AudioElement _unlockAudio = html.AudioElement();
 /// and failed, falling back to the browser's built-in voice - callers use
 /// this to warn the user once that voice quality may be degraded, instead
 /// of failing silently.
+// After Google TTS fails (e.g. billing disabled on the backend), skip it for
+// a few minutes so every play doesn't wait on a request that will fail
+// again, and go straight to the built-in voice.
+DateTime? _googleFailedAt;
+const _googleRetryAfter = Duration(minutes: 5);
+
+// User-selected browser voices, keyed by language prefix ('en' / 'zh').
+final Map<String, String> _preferredVoices = {};
+
+void setPreferredWebVoice(String langPrefix, String? voiceName) {
+  if (voiceName == null || voiceName.isEmpty) {
+    _preferredVoices.remove(langPrefix);
+  } else {
+    _preferredVoices[langPrefix] = voiceName;
+  }
+}
+
+/// Lists every voice the browser's speechSynthesis offers, as
+/// `{name, lang}` maps.
+Future<List<Map<String, String>>> getWebVoices() async {
+  try {
+    final synth = js_util.getProperty(js_util.globalThis, 'speechSynthesis');
+    final voices = await _getVoicesAsync(synth);
+    return voices
+        .map<Map<String, String>>((v) => {
+              'name': js_util.getProperty(v, 'name').toString(),
+              'lang': js_util.getProperty(v, 'lang').toString(),
+            })
+        .toList();
+  } catch (_) {
+    return const [];
+  }
+}
+
 Future<bool> speakOnWeb(String word) async {
   _stopCurrent();
+
+  // An explicitly chosen local voice always wins over Google Cloud TTS.
+  final prefix = RegExp(r'[一-鿿]').hasMatch(word) ? 'zh' : 'en';
+  if (_preferredVoices.containsKey(prefix)) {
+    await _speakWithBrowserTts(word);
+    return false;
+  }
 
   // Try Google Cloud TTS on every browser, not just mobile: desktop
   // Firefox ships few (often robotic) built-in voices, so relying on
   // speechSynthesis there gives noticeably worse quality than Chrome/Safari.
-  final played = await _tryGoogleTts(word);
+  final skipGoogle = _googleFailedAt != null &&
+      DateTime.now().difference(_googleFailedAt!) < _googleRetryAfter;
+  final played = skipGoogle ? false : await _tryGoogleTts(word);
+  if (!skipGoogle) _googleFailedAt = played ? null : DateTime.now();
   if (!played) {
     await _speakWithBrowserTts(word);
   }
@@ -211,12 +255,24 @@ Future<void> _speakWithBrowserTts(String word) async {
             .startsWith(langPrefix))
         .toList();
 
-    final selectedVoice = langVoices.firstWhere(
-      (v) => _looksFemale(js_util.getProperty(v, 'name').toString()),
-      orElse: () => langVoices.isNotEmpty
-          ? langVoices.first
-          : (voices.isNotEmpty ? voices.first : null),
-    );
+    // Only pick a voice of the right language. Falling back to "any
+    // voice" (voices.first) can land on a wrong-language or novelty voice
+    // that reads Chinese as garbage; with no match we leave the voice unset
+    // and only set utter.lang, so the browser picks its own default voice
+    // for that language.
+    final preferredName = _preferredVoices[langPrefix];
+    final selectedVoice = langVoices.isEmpty
+        ? null
+        : langVoices.firstWhere(
+            (v) =>
+                preferredName != null &&
+                js_util.getProperty(v, 'name').toString() == preferredName,
+            orElse: () => langVoices.firstWhere(
+              (v) => _looksFemale(js_util.getProperty(v, 'name').toString()),
+              orElse: () => langVoices.first,
+            ),
+          );
+    final fallbackLang = isChinese ? 'zh-CN' : 'en-US';
 
     void speakOnce({bool isRetry = false}) {
       final utter = js_util.callConstructor(
@@ -230,6 +286,8 @@ Future<void> _speakWithBrowserTts(String word) async {
           'lang',
           js_util.getProperty(selectedVoice, 'lang'),
         );
+      } else {
+        js_util.setProperty(utter, 'lang', fallbackLang);
       }
       // speechSynthesis.speak() doesn't reject on a gesture-policy
       // rejection - it fails silently with no event at all - so there's

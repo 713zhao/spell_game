@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_nav.dart';
 import 'package:provider/provider.dart';
 import 'package:spell_game/widgets/account_avatar_button.dart';
 import 'package:spell_game/design_system/design_system.dart';
@@ -6,6 +7,8 @@ import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/providers/game_provider.dart';
 import 'game_play_screen.dart' show GamePlayArgs;
 import 'word_snake_screen.dart';
+import 'flying_dog_reading_screen.dart';
+import 'word_wheel_screen.dart';
 
 /// Game store: a catalog of embeddable mini-games. Each game has a one-time
 /// coin cost to unlock and a smaller coin cost every time it's played,
@@ -92,6 +95,19 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
       ).push(MaterialPageRoute(builder: (context) => const WordSnakeScreen()));
       return;
     }
+    if (result['gameType'] == 'native' && result['nativeKey'] == 'word_wheel') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (context) => const WordWheelScreen()));
+      return;
+    }
+    if (result['gameType'] == 'native' &&
+        result['nativeKey'] == 'flying_dog_reading') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const FlyingDogReadingScreen()),
+      );
+      return;
+    }
     Navigator.of(context).pushNamed(
       '/game-play',
       arguments: GamePlayArgs(
@@ -142,45 +158,7 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
                 ),
               ],
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: DuolingoColors.backgroundWhite,
-        selectedItemColor: DuolingoColors.primaryGreen,
-        unselectedItemColor: DuolingoColors.navInactiveGray,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.backpack),
-            label: 'Backpack',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.trending_up),
-            label: 'Progress',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.of(context).pushReplacementNamed('/');
-              break;
-            case 1:
-              Navigator.of(context).pushReplacementNamed('/world-map');
-              break;
-            case 2:
-              Navigator.of(context).pushReplacementNamed('/backpack');
-              break;
-            case 3:
-              Navigator.of(context).pushReplacementNamed('/progress');
-              break;
-            case 4:
-              Navigator.of(context).pushReplacementNamed('/profile');
-              break;
-          }
-        },
-      ),
+      bottomNavigationBar: const AppBottomNav(current: '/world-map'),
     );
   }
 

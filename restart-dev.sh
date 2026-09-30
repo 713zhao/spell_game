@@ -22,9 +22,10 @@ BACKEND_PORT=8090
 FRONTEND_PORT=8080
 FRONTEND2_PORT=8081
 # FlutterSpell_Game builds URLs as "$baseUrl/path" (no trailing slash expected).
-API_BASE_URL_GAME="http://localhost:${BACKEND_PORT}"
+DEV_HOST="${DEV_HOST:-localhost}"
+API_BASE_URL_GAME="http://${DEV_HOST}:${BACKEND_PORT}"
 # FlutterSpell builds URLs as "${baseUrl}path" (trailing slash required).
-API_BASE_URL_SPELL="http://localhost:${BACKEND_PORT}/"
+API_BASE_URL_SPELL="http://${DEV_HOST}:${BACKEND_PORT}/"
 
 killport() {
   local port="$1"
@@ -64,7 +65,7 @@ echo "Building frontend (FlutterSpell_Game)..."
 echo "Starting frontend (FlutterSpell_Game, port $FRONTEND_PORT)..."
 (
   cd "$ROOT_DIR/FlutterSpell_Game/build/web"
-  python3 -m http.server "$FRONTEND_PORT" --bind 0.0.0.0 >> "$LOG_DIR/flutterspell_game.log" 2>&1 &
+  python3 "$ROOT_DIR/serve_nocache.py" "$FRONTEND_PORT" >> "$LOG_DIR/flutterspell_game.log" 2>&1 &
   echo $! > "$PID_DIR/flutterspell_game.pid"
 )
 
@@ -76,7 +77,7 @@ echo "Building frontend (FlutterSpell)..."
 echo "Starting frontend (FlutterSpell, port $FRONTEND2_PORT)..."
 (
   cd "$ROOT_DIR/FlutterSpell/build/web"
-  python3 -m http.server "$FRONTEND2_PORT" --bind 0.0.0.0 >> "$LOG_DIR/flutterspell.log" 2>&1 &
+  python3 "$ROOT_DIR/serve_nocache.py" "$FRONTEND2_PORT" >> "$LOG_DIR/flutterspell.log" 2>&1 &
   echo $! > "$PID_DIR/flutterspell.pid"
 )
 

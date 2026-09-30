@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_nav.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,8 +9,8 @@ import '../models/game_models.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/achievement_badge.dart';
 import '../services/sound_service.dart';
+import '../services/parent_mode.dart';
 import '../widgets/user_avatar.dart';
-import '../design_system/design_system.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -83,6 +84,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await provider.setSoundEnabled(value);
   }
 
+  Widget _buildVoiceTile(String prefix, String title) {
+    return ListTile(
+      leading: const Icon(Icons.record_voice_over),
+      title: Text(title),
+      subtitle: Text(_soundService.preferredVoice(prefix) ?? 'Default'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _pickVoice(prefix, title),
+    );
+  }
+
+  Future<void> _pickVoice(String prefix, String title) async {
+    final all = await _soundService.getAvailableVoices();
+    if (!mounted) return;
+    final voices = all
+        .where((v) => v['locale']!.toLowerCase().startsWith(prefix))
+        .toList();
+    final current = _soundService.preferredVoice(prefix);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(title),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: voices.isEmpty
+                ? const Text('No local voices found on this device.')
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(
+                        title: const Text('Default'),
+                        selected: _soundService.preferredVoice(prefix) == null,
+                        onTap: () async {
+                          await _soundService.setPreferredVoice(
+                              prefix, null, null);
+                          if (mounted) setState(() {});
+                          setDialogState(() {});
+                        },
+                      ),
+                      for (final v in voices)
+                        ListTile(
+                          title: Text(v['name']!),
+                          subtitle: Text(v['locale']!),
+                          selected:
+                              _soundService.preferredVoice(prefix) == v['name'],
+                          trailing: IconButton(
+                            icon: const Icon(Icons.play_arrow),
+                            tooltip: 'Preview',
+                            onPressed: () => _soundService
+                                .playWordPronunciation(
+                                    prefix == 'zh' ? '你好' : 'Hello'),
+                          ),
+                          onTap: () async {
+                            await _soundService.setPreferredVoice(
+                                prefix, v['name'], v['locale']);
+                            if (mounted) setState(() {});
+                            setDialogState(() {});
+                            _soundService.playWordPronunciation(
+                                prefix == 'zh' ? '你好' : 'Hello');
+                          },
+                        ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (current != _soundService.preferredVoice(prefix) && mounted) {
+      setState(() {});
+    }
+  }
+
   void _updateNotificationSetting(bool value) async {
     setState(() => _notificationsEnabled = value);
     await _prefs.setBool('notifications_enabled', value);
@@ -90,7 +169,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _updateParentModeSetting(bool value) async {
     setState(() => _parentMode = value);
-    await _prefs.setBool('parent_mode', value);
+    await ParentMode.set(value);
   }
 
   void _onEditProfileDetailsPressed() {
@@ -750,6 +829,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               Divider(height: 0, color: Colors.grey[300]),
+                              _buildVoiceTile('en', 'English voice'),
+                              Divider(height: 0, color: Colors.grey[300]),
+                              _buildVoiceTile('zh', 'Chinese voice'),
+                              Divider(height: 0, color: Colors.grey[300]),
                               ListTile(
                                 leading: const Icon(Icons.notifications),
                                 title: const Text('Notifications'),
@@ -833,45 +916,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         },
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 4,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: DuolingoColors.backgroundWhite,
-        selectedItemColor: DuolingoColors.primaryGreen,
-        unselectedItemColor: DuolingoColors.navInactiveGray,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.backpack),
-            label: 'Backpack',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.trending_up),
-            label: 'Progress',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.of(context).pushReplacementNamed('/');
-              break;
-            case 1:
-              Navigator.of(context).pushReplacementNamed('/world-map');
-              break;
-            case 2:
-              Navigator.of(context).pushReplacementNamed('/backpack');
-              break;
-            case 3:
-              Navigator.of(context).pushReplacementNamed('/progress');
-              break;
-            case 4:
-              // Already on profile
-              break;
-          }
-        },
-      ),
+      bottomNavigationBar: const AppBottomNav(current: '/profile'),
     );
   }
 

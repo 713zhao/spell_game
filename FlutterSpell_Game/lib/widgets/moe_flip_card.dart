@@ -2,17 +2,22 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/moe_word_models.dart';
+import 'package:spell_game/utils/moe_phrases.dart';
 
 /// A Buzzi-style (https://chinese.getbuzzi.com) flip flashcard for a single
 /// MOE character. Front: the character, large, with a tap-to-play audio
 /// button. Back: pinyin, English meaning, a "practiced N times" badge, and
 /// a "Practice writing" button. Tapping anywhere on the card (other than
-/// the audio/practice buttons) flips it.
+/// the audio/practice buttons) flips it and plays the audio automatically.
 class MoeFlipCard extends StatefulWidget {
   final MoeCharacter character;
   final double width;
   final double height;
   final VoidCallback? onPlayAudio;
+
+  /// Called when the card turns to its back, to read the character and its
+  /// 词语. Falls back to [onPlayAudio] when not provided.
+  final VoidCallback? onPlayBackAudio;
   final VoidCallback? onPracticeWriting;
   final bool isDifficult;
   final VoidCallback? onToggleDifficult;
@@ -30,6 +35,7 @@ class MoeFlipCard extends StatefulWidget {
     this.width = 260,
     this.height = 320,
     this.onPlayAudio,
+    this.onPlayBackAudio,
     this.onPracticeWriting,
     this.isDifficult = false,
     this.onToggleDifficult,
@@ -53,6 +59,11 @@ class MoeFlipCardState extends State<MoeFlipCard>
       duration: const Duration(milliseconds: 350),
       vsync: this,
     );
+    if (MoePhrases.forCharacter(widget.character.text).isEmpty) {
+      MoePhrases.ensureLoaded().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override
@@ -82,6 +93,14 @@ class MoeFlipCardState extends State<MoeFlipCard>
         _controller.forward();
       }
     });
+    // Read the character aloud each time the card turns over. This runs
+    // inside the tap that triggered the flip, which keeps iOS Safari's
+    // user-gesture requirement for audio satisfied.
+    if (_showingFront) {
+      widget.onPlayAudio?.call();
+    } else {
+      (widget.onPlayBackAudio ?? widget.onPlayAudio)?.call();
+    }
   }
 
   @override
@@ -250,7 +269,11 @@ class MoeFlipCardState extends State<MoeFlipCard>
           .map(
             (r) => Padding(
               padding: EdgeInsets.symmetric(horizontal: DuolingoSpacing.xs),
-              child: _buildRatingButton(quality: r.$1, label: r.$2, color: r.$3),
+              child: _buildRatingButton(
+                quality: r.$1,
+                label: r.$2,
+                color: r.$3,
+              ),
             ),
           )
           .toList(),
@@ -286,6 +309,7 @@ class MoeFlipCardState extends State<MoeFlipCard>
 
   Widget _buildBack() {
     final c = widget.character;
+    final phrases = MoePhrases.forCharacter(c.text);
     return Container(
       decoration: _cardDecoration,
       padding: EdgeInsets.all(DuolingoSpacing.lg),
@@ -293,71 +317,84 @@ class MoeFlipCardState extends State<MoeFlipCard>
         alignment: Alignment.center,
         children: [
           Positioned(top: 0, right: 0, child: _buildStarButton()),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                c.text,
-                style: DuolingoTextStyles.cardTitle.copyWith(fontSize: 28),
-              ),
-              SizedBox(height: DuolingoSpacing.sm),
-              Text(
-                c.pinyin ?? '—',
-                style: DuolingoTextStyles.sectionTitle.copyWith(
-                  color: DuolingoColors.informationBlue,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  c.text,
+                  style: DuolingoTextStyles.cardTitle.copyWith(fontSize: 28),
                 ),
-              ),
-              SizedBox(height: DuolingoSpacing.sm),
-              Text(
-                c.meaning ?? '',
-                textAlign: TextAlign.center,
-                style: DuolingoTextStyles.body,
-              ),
-              SizedBox(height: DuolingoSpacing.lg),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: DuolingoSpacing.md,
-                  vertical: DuolingoSpacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: DuolingoColors.rewardYellow,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Practiced ${c.practicedCount} ${c.practicedCount == 1 ? 'time' : 'times'}',
-                  style: DuolingoTextStyles.label.copyWith(
-                    color: DuolingoColors.darkText,
+                SizedBox(height: DuolingoSpacing.sm),
+                Text(
+                  c.pinyin ?? '—',
+                  style: DuolingoTextStyles.sectionTitle.copyWith(
+                    color: DuolingoColors.informationBlue,
                   ),
                 ),
-              ),
-              SizedBox(height: DuolingoSpacing.md),
-              GestureDetector(
-                onTap: widget.onPracticeWriting,
-                child: Container(
+                SizedBox(height: DuolingoSpacing.sm),
+                Text(
+                  c.meaning ?? '',
+                  textAlign: TextAlign.center,
+                  style: DuolingoTextStyles.body,
+                ),
+                if (phrases.isNotEmpty) ...[
+                  SizedBox(height: DuolingoSpacing.sm),
+                  Text(
+                    phrases.join('   '),
+                    textAlign: TextAlign.center,
+                    style: DuolingoTextStyles.sectionTitle.copyWith(
+                      color: DuolingoColors.darkText,
+                    ),
+                  ),
+                ],
+                SizedBox(height: DuolingoSpacing.lg),
+                Container(
                   padding: EdgeInsets.symmetric(
-                    horizontal: DuolingoSpacing.lg,
-                    vertical: DuolingoSpacing.sm,
+                    horizontal: DuolingoSpacing.md,
+                    vertical: DuolingoSpacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    color: DuolingoColors.primaryGreen,
-                    borderRadius: BorderRadius.circular(
-                      DuolingoSpacing.radiusButton,
-                    ),
+                    color: DuolingoColors.rewardYellow,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'Practice writing ✍️',
+                    'Practiced ${c.practicedCount} ${c.practicedCount == 1 ? 'time' : 'times'}',
                     style: DuolingoTextStyles.label.copyWith(
-                      color: Colors.white,
+                      color: DuolingoColors.darkText,
                     ),
                   ),
                 ),
-              ),
-              if (widget.showRatingButtons) ...[
-                SizedBox(height: DuolingoSpacing.xxl),
-                _buildRatingRow(),
+                SizedBox(height: DuolingoSpacing.md),
+                GestureDetector(
+                  onTap: widget.onPracticeWriting,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: DuolingoSpacing.lg,
+                      vertical: DuolingoSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: DuolingoColors.primaryGreen,
+                      borderRadius: BorderRadius.circular(
+                        DuolingoSpacing.radiusButton,
+                      ),
+                    ),
+                    child: Text(
+                      'Practice writing ✍️',
+                      style: DuolingoTextStyles.label.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.showRatingButtons) ...[
+                  SizedBox(height: DuolingoSpacing.xxl),
+                  _buildRatingRow(),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),

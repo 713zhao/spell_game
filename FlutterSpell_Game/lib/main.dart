@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'services/sound_service.dart';
+import 'services/parent_mode.dart';
+import 'screens/parent_add_words_screen.dart';
+import 'screens/parent_labels_screen.dart';
 import 'screens/auth_gate.dart';
 import 'screens/home.dart';
 import 'screens/login_screen.dart';
@@ -20,6 +23,7 @@ import 'screens/chinese_kingdom_screen.dart';
 import 'screens/boss_arena_screen.dart';
 import 'screens/boss_battle_screen.dart';
 import 'screens/lesson_overview_screen.dart';
+import 'screens/ai_math_screen.dart';
 import 'screens/game_store_screen.dart';
 import 'screens/game_play_screen.dart';
 import 'screens/moe_word_cards_screen.dart';
@@ -45,6 +49,7 @@ Future<void> main() async {
       SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
     );
   };
+  await ParentMode.load();
   runApp(const MyApp());
 }
 
@@ -105,6 +110,14 @@ class MyApp extends StatelessWidget {
             case '/profile':
               return MaterialPageRoute(
                 builder: (context) => const ProfileScreen(),
+              );
+            case '/parent-words':
+              return MaterialPageRoute(
+                builder: (context) => const ParentAddWordsScreen(),
+              );
+            case '/parent-labels':
+              return MaterialPageRoute(
+                builder: (context) => const ParentLabelsScreen(),
               );
             case '/study':
               // Lesson selection passes a StudySessionArgs; a few shortcuts
@@ -171,6 +184,10 @@ class MyApp extends StatelessWidget {
               final playArgs = settings.arguments as GamePlayArgs;
               return MaterialPageRoute(
                 builder: (context) => GamePlayScreen(args: playArgs),
+              );
+            case '/ai-math':
+              return MaterialPageRoute(
+                builder: (context) => const AiMathScreen(),
               );
             case '/word-cards':
               return MaterialPageRoute(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_nav.dart';
 import 'package:provider/provider.dart';
 import '../widgets/account_avatar_button.dart';
 import '../design_system/design_system.dart';
@@ -25,7 +26,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with TickerProviderStateMixin, RouteAware {
-  int _currentIndex = 0;
   late AnimationController _mascotController;
   late Animation<double> _mascotAnimation;
   late GameProvider gameProvider;
@@ -336,51 +336,7 @@ class _HomeScreenState extends State<HomeScreen>
           );
         },
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: DuolingoColors.backgroundWhite,
-        selectedItemColor: DuolingoColors.primaryGreen,
-        unselectedItemColor: DuolingoColors.navInactiveGray,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'World Map'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.backpack),
-            label: 'Backpack',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.trending_up),
-            label: 'Progress',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-        onTap: (index) {
-          if (index != _currentIndex) {
-            setState(() {
-              _currentIndex = index;
-            });
-
-            switch (index) {
-              case 0:
-                // Already on home
-                break;
-              case 1:
-                Navigator.of(context).pushReplacementNamed('/world-map');
-                break;
-              case 2:
-                Navigator.of(context).pushReplacementNamed('/backpack');
-                break;
-              case 3:
-                Navigator.of(context).pushReplacementNamed('/progress');
-                break;
-              case 4:
-                Navigator.of(context).pushReplacementNamed('/profile');
-                break;
-            }
-          }
-        },
-      ),
+      bottomNavigationBar: const AppBottomNav(current: '/'),
     );
   }
 }

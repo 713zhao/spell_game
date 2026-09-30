@@ -33,6 +33,68 @@ class SoundService {
     _prefs = await SharedPreferences.getInstance();
     _soundEnabled = _prefs.getBool('sound_enabled') ?? true;
     _initializeAudioIfNeeded();
+    for (final prefix in ['en', 'zh']) {
+      final name = _prefs.getString('tts_voice_$prefix');
+      if (name != null) {
+        _preferredVoices[prefix] = name;
+        _preferredLocales[prefix] =
+            _prefs.getString('tts_voice_locale_$prefix') ?? '';
+      }
+      if (kIsWeb) setPreferredWebVoice(prefix, name);
+    }
+  }
+
+  // Voice chosen by the user per language prefix ('en' / 'zh'), name only.
+  final Map<String, String> _preferredVoices = {};
+  final Map<String, String> _preferredLocales = {};
+
+  String? preferredVoice(String langPrefix) => _preferredVoices[langPrefix];
+
+  /// Lists local TTS voices as `{name, locale}` maps, sorted by name.
+  Future<List<Map<String, String>>> getAvailableVoices() async {
+    List<Map<String, String>> result = [];
+    if (kIsWeb) {
+      result = (await getWebVoices())
+          .map((v) => {'name': v['name']!, 'locale': v['lang']!})
+          .toList();
+    } else {
+      try {
+        _flutterTts ??= FlutterTts();
+        final raw = await _flutterTts!.getVoices;
+        if (raw is List) {
+          for (final v in raw) {
+            if (v is Map && v['name'] != null) {
+              result.add({
+                'name': v['name'].toString(),
+                'locale': (v['locale'] ?? '').toString(),
+              });
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('SoundService: failed to list voices: $e');
+      }
+    }
+    result.sort((a, b) => a['name']!.compareTo(b['name']!));
+    return result;
+  }
+
+  /// Saves (and applies) the voice for [langPrefix]; null restores default.
+  Future<void> setPreferredVoice(
+      String langPrefix, String? name, String? locale) async {
+    _prefs = await SharedPreferences.getInstance();
+    if (name == null) {
+      _preferredVoices.remove(langPrefix);
+      _preferredLocales.remove(langPrefix);
+      await _prefs.remove('tts_voice_$langPrefix');
+      await _prefs.remove('tts_voice_locale_$langPrefix');
+    } else {
+      _preferredVoices[langPrefix] = name;
+      _preferredLocales[langPrefix] = locale ?? '';
+      await _prefs.setString('tts_voice_$langPrefix', name);
+      await _prefs.setString('tts_voice_locale_$langPrefix', locale ?? '');
+    }
+    if (kIsWeb) setPreferredWebVoice(langPrefix, name);
   }
 
   void _initializeAudioIfNeeded() {
@@ -169,7 +231,15 @@ class SoundService {
     if (!_ttsInitialized || _flutterTts == null) return;
     try {
       final isChinese = _chineseChar.hasMatch(word);
+      final prefix = isChinese ? 'zh' : 'en';
       await _flutterTts!.setLanguage(isChinese ? "zh-CN" : "en-US");
+      final voice = _preferredVoices[prefix];
+      if (voice != null) {
+        final locale = _preferredLocales[prefix] ??
+            _prefs.getString('tts_voice_locale_$prefix') ??
+            '';
+        await _flutterTts!.setVoice({'name': voice, 'locale': locale});
+      }
       await _flutterTts!.speak(word);
     } catch (e) {
       // TTS playback failed, but app continues gracefully

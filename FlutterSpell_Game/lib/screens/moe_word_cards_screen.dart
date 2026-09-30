@@ -6,6 +6,7 @@ import 'package:spell_game/models/moe_word_models.dart';
 import 'package:spell_game/providers/game_provider.dart';
 import 'package:spell_game/services/sound_service.dart';
 import 'package:spell_game/widgets/hanzi_writer_trace.dart';
+import 'package:spell_game/utils/moe_phrases.dart';
 import 'package:spell_game/widgets/moe_flip_card.dart';
 
 enum _MoeFilter { all, recognise, write, difficult }
@@ -825,6 +826,8 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
                 key: ValueKey(character.id),
                 character: character,
                 onPlayAudio: () => _playAudio(character.text),
+                onPlayBackAudio: () =>
+                    _playAudio(MoePhrases.readAloudText(character.text)),
                 onPracticeWriting: () => _practiceWriting(character),
                 isDifficult: _difficultIds.contains(character.id),
                 onToggleDifficult: () => _toggleDifficult(character.id),

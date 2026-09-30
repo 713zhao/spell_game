@@ -88,6 +88,7 @@ class GameProvider extends ChangeNotifier {
       final verified = await apiClient.verifyPassword(password);
       isLoggedIn = verified;
       if (verified) {
+        await _adoptCanonicalName();
         await _onAuthenticated(_userName);
         await _savePassword(_userName, password);
         await apiClient.logLogin();
@@ -98,6 +99,24 @@ class GameProvider extends ChangeNotifier {
       errorMessage = 'Login failed: $e';
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Usernames are matched case-insensitively by the backend, but the
+  /// stored name may differ in case from what was typed ("hellen" vs
+  /// "HELLEN"). Switch to the stored spelling so every later request, the
+  /// saved session, and the recent-users list all use one canonical name
+  /// instead of splitting the same person into two entries.
+  Future<void> _adoptCanonicalName() async {
+    try {
+      final profile = await apiClient.getUserProfile();
+      final canonical = profile['name'] as String?;
+      if (canonical != null && canonical.isNotEmpty && canonical != _userName) {
+        _userName = canonical;
+        apiClient = ApiClient(userName: canonical);
+      }
+    } catch (_) {
+      // Keep the typed name; the backend resolves it case-insensitively.
     }
   }
 
@@ -112,7 +131,9 @@ class GameProvider extends ChangeNotifier {
   Future<void> _addRecentUser(String name) async {
     final prefs = await SharedPreferences.getInstance();
     final existing = prefs.getStringList('recent_users') ?? [];
-    existing.remove(name);
+    // Case-insensitive: drop older entries for the same person typed with a
+    // different case.
+    existing.removeWhere((n) => n.toLowerCase() == name.toLowerCase());
     existing.insert(0, name);
     final trimmed = existing.take(5).toList();
     await prefs.setStringList('recent_users', trimmed);

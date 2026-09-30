@@ -1,5 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:http_parser/http_parser.dart' show MediaType;
 import '../models/game_models.dart';
 import '../models/moe_word_models.dart';
 import '../config/api_config.dart';
@@ -662,5 +664,94 @@ class ApiClient {
     } catch (e) {
       rethrow;
     }
+  }
+
+  // ---- Parent mode: word import and label (tag) management ----
+
+  List<Map<String, dynamic>> _decodeList(http.Response r, String what) {
+    if (r.statusCode != 200) throw Exception('Failed to load $what');
+    return (jsonDecode(r.body) as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableTags() async => _decodeList(
+      await http.get(Uri.parse('$_baseUrl/tags/available/$userName')),
+      'available labels');
+
+  Future<List<Map<String, dynamic>>> getUserTags() async => _decodeList(
+      await http.get(Uri.parse('$_baseUrl/tags/user/$userName')),
+      'assigned labels');
+
+  Future<void> assignTags(List<int> tagIds) async {
+    final r = await http.post(
+      Uri.parse('$_baseUrl/tags/user/$userName/assign'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(tagIds),
+    );
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw Exception('Failed to assign labels');
+    }
+  }
+
+  Future<void> unassignTags(List<int> tagIds) async {
+    final r = await http.post(
+      Uri.parse('$_baseUrl/tags/user/$userName/unassign'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(tagIds),
+    );
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw Exception('Failed to unassign labels');
+    }
+  }
+
+  Future<void> deleteUserTag(int tagId) async {
+    final r = await http
+        .delete(Uri.parse('$_baseUrl/tags/user/$userName/delete/$tagId'));
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw Exception('Failed to delete label');
+    }
+  }
+
+  /// Adds one word under [tag] (created if new). Returns false on failure.
+  Future<bool> createUserWord(String text, String language,
+      {String? tag, bool isPublic = false}) async {
+    final params = <String, String>{
+      if (tag != null && tag.isNotEmpty) 'tag': tag,
+      if (isPublic) 'is_public': 'true',
+    };
+    final r = await http.post(
+      Uri.parse('$_baseUrl/words/users/$userName/words/')
+          .replace(queryParameters: params.isEmpty ? null : params),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'text': text, 'language': language}),
+    );
+    if (r.statusCode != 200 && r.statusCode != 201) return false;
+    return !r.body.contains('"error"');
+  }
+
+  /// Uses the backend's Gemini OCR to pull words out of a photo/worksheet.
+  Future<List<String>> extractWordsFromImage(
+      Uint8List bytes, String filename) async {
+    final lower = filename.toLowerCase();
+    final type = lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+        ? 'image/jpeg'
+        : lower.endsWith('.gif')
+            ? 'image/gif'
+            : lower.endsWith('.webp')
+                ? 'image/webp'
+                : 'image/png';
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$_baseUrl/ai/extract-words'))
+          ..files.add(http.MultipartFile.fromBytes('file', bytes,
+              filename: filename, contentType: MediaType.parse(type)));
+    final response = await http.Response.fromStream(await request.send());
+    if (response.statusCode != 200) {
+      throw Exception('Could not read the image (${response.statusCode})');
+    }
+    return (jsonDecode(response.body) as List)
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 }
