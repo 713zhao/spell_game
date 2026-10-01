@@ -9,6 +9,8 @@ specifically so this script doesn't need direct DB access to do so).
 Input JSON shape: same as import_words.py - each lesson's value is either
 a plain word list, or a {"date", "words"} object.
 
+Auth: export ADMIN_USERNAME and ADMIN_PASSWORD (the backend's admin secrets).
+
 Usage:
     python3 import_words_http.py --json words.json --user ADMIN
     python3 import_words_http.py --json words.json --user ADMIN --assign-to HELLEN \
@@ -20,6 +22,8 @@ Exit codes:
     3  could not reach the backend API
 """
 import argparse
+import base64
+import os
 import json
 import re
 import sys
@@ -48,6 +52,12 @@ def detect_language(text: str) -> str:
 def http_json(method: str, url: str, body: dict | list | None = None):
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, method=method)
+    # The backend requires auth: use the admin credentials (Fly secrets
+    # ADMIN_USERNAME / ADMIN_PASSWORD) via env vars of the same names.
+    admin_user, admin_pw = os.environ.get("ADMIN_USERNAME"), os.environ.get("ADMIN_PASSWORD")
+    if admin_user and admin_pw:
+        cred = base64.b64encode(f"{admin_user}:{admin_pw}".encode()).decode()
+        req.add_header("Authorization", f"Basic {cred}")
     if data is not None:
         req.add_header("Content-Type", "application/json")
     try:

@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/game_models.dart';
 import '../services/api_client.dart';
+import '../services/authed_http.dart' show AuthSession;
 import '../services/sound_service.dart';
 
 class GameProvider extends ChangeNotifier {
@@ -58,6 +58,7 @@ class GameProvider extends ChangeNotifier {
   void init(String userName) {
     _userName = userName;
     apiClient = ApiClient(userName: userName);
+    AuthSession.use(userName);
     _soundService = SoundService();
     _initializeSoundSettings();
   }
@@ -90,7 +91,6 @@ class GameProvider extends ChangeNotifier {
       if (verified) {
         await _adoptCanonicalName();
         await _onAuthenticated(_userName);
-        await _savePassword(_userName, password);
         await apiClient.logLogin();
       }
       notifyListeners();
@@ -142,42 +142,26 @@ class GameProvider extends ChangeNotifier {
     // Evict saved passwords for anyone who fell out of the trimmed list,
     // so storage doesn't grow unbounded for names no longer reachable
     // from the quick-pick list.
-    final saved = _readSavedPasswords(prefs);
-    saved.removeWhere((key, _) => !trimmed.contains(key));
-    await prefs.setString('saved_passwords', jsonEncode(saved));
   }
 
-  Map<String, String> _readSavedPasswords(SharedPreferences prefs) {
-    final raw = prefs.getString('saved_passwords');
-    if (raw == null) return {};
-    final decoded = jsonDecode(raw) as Map<String, dynamic>;
-    return decoded.map((key, value) => MapEntry(key, value as String));
-  }
-
-  Future<void> _savePassword(String name, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = _readSavedPasswords(prefs);
-    saved[name] = password;
-    await prefs.setString('saved_passwords', jsonEncode(saved));
-  }
-
-  Future<String?> _getSavedPassword(String name) async {
-    final prefs = await SharedPreferences.getInstance();
-    return _readSavedPasswords(prefs)[name];
-  }
-
-  /// Attempts to log in [name] using a password saved locally from a
-  /// previous successful login/signup (see [_savePassword]). Returns
-  /// false without any network call if there's no saved password - the
-  /// caller (the login screen's quick-pick) should fall back to asking
-  /// for one manually. A saved-but-now-stale password (e.g. changed via
-  /// the admin panel) is caught the same way a manually-typed wrong
-  /// password is, via the real verification inside [login].
+  /// Attempts to log in [name] using the bearer token saved from a
+  /// previous successful login/signup. No password is ever stored on the
+  /// device. Returns false (so the caller can ask for the password) when
+  /// there is no saved token or the backend no longer accepts it.
   Future<bool> loginQuick(String name) async {
-    final saved = await _getSavedPassword(name);
-    if (saved == null) return false;
+    await AuthSession.load();
+    if (!AuthSession.hasToken(name)) return false;
     init(name);
-    return await login(saved);
+    try {
+      await apiClient.getUserProfile(); // 401 -> token expired/revoked
+    } catch (_) {
+      await AuthSession.clear(name);
+      return false;
+    }
+    await _adoptCanonicalName();
+    await _onAuthenticated(_userName);
+    await apiClient.logLogin();
+    return true;
   }
 
   Future<void> _persistSession(String name) async {
@@ -200,6 +184,13 @@ class GameProvider extends ChangeNotifier {
   /// stored username without re-verifying a password (none is stored
   /// client-side) - [init] must be called with the same name first.
   Future<void> restoreSession(String userName) async {
+    await AuthSession.load();
+    if (!AuthSession.hasToken(userName)) {
+      // Session predates token auth (or token was cleared): force a fresh
+      // login rather than trusting a bare username.
+      throw StateError('No saved credentials for $userName');
+    }
+    AuthSession.use(userName);
     await _onAuthenticated(userName);
     // Fire-and-forget: a failed streak-tracking call shouldn't block
     // startup or undo an otherwise-valid restored session. The error is
@@ -221,9 +212,6 @@ class GameProvider extends ChangeNotifier {
       ).createUser(name: name, password: password, grade: grade);
       init(name);
       await _onAuthenticated(name);
-      if (password != null && password.isNotEmpty) {
-        await _savePassword(name, password);
-      }
       return true;
     } catch (e) {
       errorMessage = e.toString().replaceFirst('Exception: ', '');
@@ -245,6 +233,7 @@ class GameProvider extends ChangeNotifier {
     // already flipped isLoggedIn to true before throwing.
     isLoggedIn = false;
     try {
+      await AuthSession.load();
       // Idempotent: the backend only needs a name to create a user, and
       // treats a repeat call as "already exists" - either way, GUEST ends
       // up present so the data-loading calls below don't 404. `grade`
@@ -253,6 +242,12 @@ class GameProvider extends ChangeNotifier {
       // P1 lessons instead of "no lessons assigned yet".
       await apiClient.createUser(name: 'GUEST', grade: 'P1');
     } catch (_) {
+      // Already exists: sign in to the passwordless Guest account to get a token.
+      if (!AuthSession.hasToken('GUEST')) {
+        try {
+          await apiClient.verifyPassword('');
+        } catch (_) {}
+      }
       // Already exists, or a transient error - proceed regardless; if
       // GUEST truly isn't reachable server-side, the screens' own data
       // loads will surface that the same way any other backend hiccup

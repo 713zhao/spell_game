@@ -1,4 +1,4 @@
-import 'package:http/http.dart' as http;
+import 'authed_http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http_parser/http_parser.dart' show MediaType;
@@ -19,7 +19,11 @@ class ApiClient {
       body: {'password': password},
     );
     if (response.statusCode == 200) {
-      return jsonDecode(response.body)['verified'] == true;
+      final data = jsonDecode(response.body);
+      if (data['verified'] == true && data['token'] is String) {
+        await http.AuthSession.save(userName, data['token'] as String);
+        return true;
+      }
     }
     return false;
   }
@@ -53,6 +57,11 @@ class ApiClient {
       } catch (_) {}
       throw Exception(detail);
     }
+    // The backend returns a bearer token for the new account.
+    try {
+      final token = jsonDecode(response.body)['token'];
+      if (token is String) await http.AuthSession.save(name, token);
+    } catch (_) {}
   }
 
   /// Fetch the full account profile (age, grade, school, email, phone) -
@@ -745,6 +754,7 @@ class ApiClient {
         http.MultipartRequest('POST', Uri.parse('$_baseUrl/ai/extract-words'))
           ..files.add(http.MultipartFile.fromBytes('file', bytes,
               filename: filename, contentType: MediaType.parse(type)));
+    request.headers.addAll(http.AuthSession.headersFor(request.url, null));
     final response = await http.Response.fromStream(await request.send());
     if (response.statusCode != 200) {
       throw Exception('Could not read the image (${response.statusCode})');

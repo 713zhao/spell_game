@@ -8,7 +8,18 @@ Three independently-deployed pieces:
 | FlutterSpell        | `FlutterSpell/`       | Cloudflare Pages  | https://aispell.pages.dev        |
 | FlutterSpell_Game   | `FlutterSpell_Game/`  | Cloudflare Pages  | https://aispellgame.pages.dev    |
 
-Both frontends call the same backend and it already allows that (`allow_origins=["*"]` in `SpellBackend/main.py`).
+Both frontends call the same backend and CORS only allows `*.aispell.pages.dev`, `*.aispellgame.pages.dev` and localhost (see `main.py`; add more with the `CORS_ORIGINS` env var).
+
+**Required Fly secrets** (backend refuses/limits features without them):
+
+```bash
+flyctl secrets set -a spellbackend \
+  ADMIN_USERNAME=... ADMIN_PASSWORD=... \
+  AUTH_SECRET=$(openssl rand -hex 32) \
+  Gemini_key=...        # AI features; the old key committed to git is revoked - never commit keys
+```
+
+`AUTH_SECRET` signs login tokens (rotate it to log everyone out). On first start after upgrading, the backend hashes all existing plaintext passwords in place.
 
 ## Backend (Fly.io)
 
