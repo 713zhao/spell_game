@@ -88,3 +88,11 @@ For a real functional check, load the site in a browser (or headless Chromium), 
 ## Local development
 
 `restart-dev.bat` (repo root) kills and restarts all three processes for local dev: backend on port 8090, `FlutterSpell` on 8081, `FlutterSpell_Game` on 8080, each pointed at the local backend via the same `--dart-define=API_BASE_URL` mechanism described above.
+
+
+## Database backups
+
+- **Fly volume snapshots**: automatic, daily, kept 5 days (`flyctl volumes snapshots list <vol-id> -a spellbackend`).
+- **Local copy on the dev PC**: `backup-db.sh` downloads a consistent copy (SQLite online backup, integrity-checked) to `~/Projects/spelldbbackup/`, keeps 30 days, logs to `backup.log`. A cron job runs it hourly with `--daily`, so it takes one backup per day as soon as the PC is on (`crontab -l`). Requires `flyctl auth login`.
+- **Restore**: stop the app, `flyctl ssh sftp shell -a spellbackend` -> `put <backup> /database/db.sqlite3`, restart. (Passwords are hashed and email/phone encrypted: keep `DATA_ENCRYPTION_KEY` and `AUTH_SECRET` safe, the backup is useless for those fields without them.)
+- `POST /admin/backup` (admin Basic auth) makes a server-side copy and uploads to Google Drive only if `GOOGLE_DRIVE_CREDENTIALS` and `GOOGLE_DRIVE_FOLDER_ID` are set (they are not).
