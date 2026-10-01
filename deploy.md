@@ -16,10 +16,11 @@ Both frontends call the same backend and CORS only allows `*.aispell.pages.dev`,
 flyctl secrets set -a spellbackend \
   ADMIN_USERNAME=... ADMIN_PASSWORD=... \
   AUTH_SECRET=$(openssl rand -hex 32) \
+  DATA_ENCRYPTION_KEY=$(openssl rand -hex 32) \   # encrypts email/phone at rest - back it up!
   Gemini_key=...        # AI features; the old key committed to git is revoked - never commit keys
 ```
 
-`AUTH_SECRET` signs login tokens (rotate it to log everyone out). On first start after upgrading, the backend hashes all existing plaintext passwords in place.
+`AUTH_SECRET` signs login tokens (rotate it to log everyone out). On first start after upgrading, the backend hashes all existing plaintext passwords and encrypts existing email/phone in place. Legacy passwordless accounts (other than GUEST) can no longer log in: set a password with `curl -u ADMIN:PASS -d password=NEWPW https://spellbackend.fly.dev/admin/users/NAME/password`.
 
 ## Backend (Fly.io)
 

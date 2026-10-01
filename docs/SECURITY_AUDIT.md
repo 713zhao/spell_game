@@ -41,16 +41,18 @@ Branch: `security-hardening` (all three repos). Status: **Fixed** = in this bran
 | M7 | Admin CSV import unbounded; temp-file/format issues | Fixed — 10 MB cap, columns validated |
 | M8 | Debug `print`s of passwords in FlutterSpell | Fixed |
 
-## Open — needs your decision
+## Second pass — previously open items
 
-1. **Passwordless accounts** (`GUEST`, and any user created without a password) can be logged into by anyone who knows the name. That is the product's "quick login" design; the token only scopes damage to that one account. Consider requiring a password for every non-Guest account.
-2. **Client-authoritative game economy**: `POST /users/{name}/points/add`, minigame/boss/streak endpoints trust the client, so a signed-in child can grant *themselves* points. Fixing it means computing rewards server-side.
-3. **No parent/child roles**: "Parent Mode" is a client-side toggle; any token can call the same endpoints. Add a role claim if parents need real separation.
-4. **Global content writes** (`POST /words/`, `PUT /words/{id}/quiz`, tag spell-date) are open to any signed-in user.
-5. **Leaderboard** is public and shows names, school and grade of (child) users — consider pseudonyms / opt-in.
-6. **PII at rest**: email/phone/school are stored unencrypted in SQLite (Fly volume). Volume snapshots/backups to Google Drive contain them.
-7. FlutterSpell stores users' own AI provider keys in browser storage (`ai_service.dart`) — inherent to calling providers client-side.
-8. Container runs as root; rate limiter is in-memory (single Fly machine).
+| # | Item | Status |
+|---|------|--------|
+| 1 | Passwordless accounts | Fixed — every account except the intended shared **GUEST** needs a password (≥ 4 chars) at sign-up, in profile updates and at login. Legacy passwordless users (`admin`, `JARRETT`, `SMOKETEST_*` locally) are locked until the operator sets one via `POST /admin/users/{name}/password` |
+| 2 | Client-authoritative points | Mitigated — `points/add` capped at 100/call and 500/day per user. Game-app earns (reviews, levels, chests, bosses) were already computed server-side |
+| 4 | Global content writes | Fixed — `POST /words/` and tag spell-date are operator-only; back-card/quiz edits only on shared words or your own words, size-capped |
+| 5 | Leaderboard privacy | Fixed — login required; school removed from rows; email-style usernames show only the part before `@` |
+| 6 | PII at rest | Fixed — email/phone encrypted (Fernet) in the DB, existing rows migrated at startup. Set `DATA_ENCRYPTION_KEY` as a Fly secret (otherwise the key is derived from a file on the same volume) |
+| 8 | Container as root | Fixed — `start.sh` chowns the volume then drops to user `app` via `setpriv` |
+
+Still open / accepted: GUEST is passwordless by design; Parent Mode is client-side by design; FlutterSpell keeps users' own AI-provider keys in browser storage (inherent to calling providers from the client); the rate limiter is in-memory (fine for one Fly machine, use a shared store if you scale out); Google Drive backups of the DB contain the (now encrypted/hashed) data.
 
 ## Deploy checklist
 `flyctl secrets set -a spellbackend ADMIN_USERNAME=… ADMIN_PASSWORD=… AUTH_SECRET=$(openssl rand -hex 32) Gemini_key=…`, deploy the backend **and** both frontends together (old frontends have no token and will get 401s), and note that existing passwords are hashed on first start (take a DB backup first).

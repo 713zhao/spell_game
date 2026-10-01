@@ -32,6 +32,10 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _errorText = 'Enter a username');
       return;
     }
+    if (_passwordController.text.length < 4) {
+      setState(() => _errorText = 'Password must be at least 4 characters');
+      return;
+    }
     setState(() {
       _isSubmitting = true;
       _errorText = null;
@@ -101,7 +105,7 @@ class _SignupScreenState extends State<SignupScreen> {
             TextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: _inputDecoration('Password (optional)'),
+              decoration: _inputDecoration('Password (min 4 characters)'),
             ),
             SizedBox(height: DuolingoSpacing.lg),
             Text('Grade (optional)', style: DuolingoTextStyles.sectionTitle),
