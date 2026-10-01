@@ -9,6 +9,7 @@ import '../models/game_models.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/achievement_badge.dart';
 import '../services/sound_service.dart';
+import '../services/app_settings.dart';
 import '../services/parent_mode.dart';
 import '../widgets/user_avatar.dart';
 
@@ -848,6 +849,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 trailing: Switch(
                                   value: _parentMode,
                                   onChanged: _updateParentModeSetting,
+                                ),
+                              ),
+                              Divider(height: 0, color: Colors.grey[300]),
+                              ValueListenableBuilder<bool>(
+                                valueListenable: AppSettings.showSkipWriting,
+                                builder: (context, show, _) => ListTile(
+                                  leading: const Icon(Icons.skip_next),
+                                  title: const Text('Show Skip button in writing'),
+                                  trailing: Switch(
+                                    value: show,
+                                    onChanged: AppSettings.setShowSkipWriting,
+                                  ),
                                 ),
                               ),
                             ],

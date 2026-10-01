@@ -123,6 +123,8 @@ class SoundService {
     try {
       // Set default language to English (US); playWordPronunciation swaps
       // to zh-CN per-utterance for Chinese text.
+      // speak() resolves when speech ends (Spell player timing relies on it).
+      await _flutterTts!.awaitSpeakCompletion(true);
       await _flutterTts!.setLanguage("en-US");
       // Set speech rate (0.0 to 2.0, where 1.0 is normal)
       await _flutterTts!.setSpeechRate(0.5);

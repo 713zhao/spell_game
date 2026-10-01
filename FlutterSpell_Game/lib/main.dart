@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'services/sound_service.dart';
+import 'services/app_settings.dart';
 import 'services/parent_mode.dart';
 import 'screens/parent_add_words_screen.dart';
 import 'screens/parent_labels_screen.dart';
@@ -50,6 +51,7 @@ Future<void> main() async {
     );
   };
   await ParentMode.load();
+  await AppSettings.load();
   runApp(const MyApp());
 }
 

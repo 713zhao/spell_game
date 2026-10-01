@@ -4,6 +4,7 @@ import 'dart:math';
 import '../design_system/design_system.dart';
 import '../models/game_models.dart';
 import '../models/stage_data.dart' show reviewNodeIndex;
+import '../services/app_settings.dart';
 import '../services/hanzi_stroke_data.dart';
 import '../services/sound_service.dart';
 import '../widgets/celebration.dart';
@@ -15,6 +16,7 @@ import '../utils/chinese_pronunciation.dart';
 import '../utils/exercise_content_parser.dart';
 import '../utils/handwriting_gift.dart';
 import '../utils/handwriting_plan.dart';
+import '../utils/similar_characters.dart';
 import '../utils/practice_sessions.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
@@ -45,6 +47,9 @@ enum ExerciseType {
   // Chinese-specific: single hanzi aren't decomposable into letters, so
   // these replace the letter-tile/typing exercises above for Chinese words.
   listenChoose,
+  // Chinese: a word with one character blanked ("_出信件"); pick the missing
+  // character from look-alikes.
+  charFill,
   handwriteTrace,
   voiceRead,
   // English-specific, powered by back_card/quiz data that isn't present
@@ -108,6 +113,7 @@ class _StudyScreenState extends State<StudyScreen>
   // Guided (HanziWriter) vs free-draw handwriting trace. Null while the
   // stroke-data availability check for the current word is in flight.
   bool? _hanziQuizAvailable;
+  bool _skippedChar = false; // a character of this word was skipped
   int _hanziCharIndex = 0; // which character of the word is active in quiz mode
   // The characters the child actually writes: the whole word when short, only
   // the hardest few of a long sentence. Empty until the preflight resolves.
@@ -231,6 +237,9 @@ class _StudyScreenState extends State<StudyScreen>
             _buildExercise(card.word, _typeForMasteryChinese(card.repetitions)),
           );
           final skills = widget.args.skills;
+          if (_canCharFill(card.word.text) && _random.nextBool()) {
+            _queue.add(_buildExercise(card.word, ExerciseType.charFill));
+          }
           if (skills.isEmpty || skills.contains('write')) {
             _queue.add(_buildExercise(card.word, ExerciseType.handwriteTrace));
           }
@@ -307,6 +316,18 @@ class _StudyScreenState extends State<StudyScreen>
           word: word,
           type: type,
           choices: _buildCharacterChoices(word.text),
+          isRetry: isRetry,
+        );
+      case ExerciseType.charFill:
+        final chars = cjkChars(word.text);
+        final missing = chars[_random.nextInt(chars.length)];
+        final blanked = word.text.replaceFirst(missing, '＿');
+        return _Exercise(
+          word: word,
+          type: type,
+          choices: _buildFillChoices(missing, word.text),
+          promptText: blanked,
+          correctAnswer: missing,
           isRetry: isRetry,
         );
       case ExerciseType.missingLetters:
@@ -400,6 +421,37 @@ class _StudyScreenState extends State<StudyScreen>
     '为',
   ];
 
+  /// A multi-character word has enough context to blank one character.
+  bool _canCharFill(String text) {
+    final n = cjkChars(text).length;
+    return n >= 2 && n <= 6;
+  }
+
+  /// The missing character plus look-alikes; padded from the lesson's own
+  /// characters, then common ones.
+  List<String> _buildFillChoices(String missing, String word) {
+    final picked = <String>[...similarCharacters(missing, 3)..shuffle(_random)];
+    if (picked.length > 3) picked.removeRange(3, picked.length);
+    final lessonChars = _chineseDistractorPool
+        .expand((t) => cjkChars(t))
+        .toSet()
+        .where((c) => c != missing && !word.contains(c))
+        .toList()
+      ..shuffle(_random);
+    for (final c in lessonChars) {
+      if (picked.length >= 3) break;
+      if (!picked.contains(c)) picked.add(c);
+    }
+    var guard = 0;
+    while (picked.length < 3 && guard < 30) {
+      guard++;
+      final c =
+          _fallbackCharacters[_random.nextInt(_fallbackCharacters.length)];
+      if (c != missing && !picked.contains(c)) picked.add(c);
+    }
+    return <String>[missing, ...picked]..shuffle(_random);
+  }
+
   /// Distractor characters for Listen & Choose: prefer sibling characters
   /// from this lesson so choices stay visually plausible; pad with common
   /// characters if the lesson is too small to have three others.
@@ -484,6 +536,7 @@ class _StudyScreenState extends State<StudyScreen>
     _voiceStars = null;
     _hanziQuizAvailable = null;
     _hanziCharIndex = 0;
+    _skippedChar = false;
     _writeChars = [];
     _typeInstead = false;
     final blanks = _current.slots.where((s) => s == null).length;
@@ -544,6 +597,7 @@ class _StudyScreenState extends State<StudyScreen>
     switch (_current.type) {
       case ExerciseType.chooseSpelling:
       case ExerciseType.listenChoose:
+      case ExerciseType.charFill:
       case ExerciseType.meaningMatch:
         return _selectedChoice ?? '';
       case ExerciseType.typeWord:
@@ -574,6 +628,7 @@ class _StudyScreenState extends State<StudyScreen>
     switch (_current.type) {
       case ExerciseType.chooseSpelling:
       case ExerciseType.listenChoose:
+      case ExerciseType.charFill:
       case ExerciseType.meaningMatch:
         return _selectedChoice != null;
       case ExerciseType.typeWord:
@@ -626,7 +681,13 @@ class _StudyScreenState extends State<StudyScreen>
   /// auto-grade since HanziWriter already verified the strokes.
   void _onHanziCharComplete() {
     if (_hanziCharIndex + 1 >= _writeChars.length) {
-      _applyResult(true);
+      // A skipped character means the word wasn't fully written: move on
+      // ungraded rather than awarding credit.
+      if (_skippedChar) {
+        _advance();
+      } else {
+        _applyResult(true);
+      }
     } else {
       setState(() => _hanziCharIndex++);
     }
@@ -979,6 +1040,8 @@ class _StudyScreenState extends State<StudyScreen>
         return _buildTypeWord();
       case ExerciseType.listenChoose:
         return _buildListenChoose();
+      case ExerciseType.charFill:
+        return _buildCharFill();
       case ExerciseType.handwriteTrace:
         // Only reached when typing instead; tracing goes through
         // _buildExerciseContent's fixed layout.
@@ -1237,9 +1300,39 @@ class _StudyScreenState extends State<StudyScreen>
     );
   }
 
+  Widget _buildCharFill() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pick the missing character',
+          style: DuolingoTextStyles.sectionTitle,
+        ),
+        SizedBox(height: DuolingoSpacing.xl),
+        Center(
+          child: Text(
+            _current.promptText ?? '',
+            style: DuolingoTextStyles.cardTitle.copyWith(fontSize: 44),
+          ),
+        ),
+        SizedBox(height: DuolingoSpacing.md),
+        Center(child: _buildAudioButton(size: 44, iconSize: 22)),
+        SizedBox(height: DuolingoSpacing.xl),
+        Center(
+          child: Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            alignment: WrapAlignment.center,
+            children: _current.choices.map(_buildCharacterChoiceTile).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCharacterChoiceTile(String choice) {
     final selected = _selectedChoice == choice;
-    final isCorrectChoice = choice == _current.word.text;
+    final isCorrectChoice = choice == _targetAnswer;
 
     Color border = const Color(0xFFE5E5E5);
     Color fill = DuolingoColors.backgroundWhite;
@@ -1324,7 +1417,7 @@ class _StudyScreenState extends State<StudyScreen>
         : 'Character ${activeIndex + 1} of ${characters.length}';
 
     // Everything but the trace itself, so the trace gets what's left.
-    var otherHeight = 170.0; // title + audio + Show/Restart row + gaps
+    var otherHeight = 210.0; // title + audio + Show/Restart + Skip rows + gaps
     if (_isSentenceTrace) {
       final perRow = max(1, (area.width - 24) ~/ 24);
       otherHeight +=
@@ -1402,7 +1495,44 @@ class _StudyScreenState extends State<StudyScreen>
           ),
         ),
         if (_isSentenceTrace) Center(child: _buildTypeInsteadButton()),
+        if (!_checked) _buildSkipButton(),
       ],
+    );
+  }
+
+  /// Skips only the character being written; on the last character (or a
+  /// single-character word) the exercise ends ungraded. Hidden via the
+  /// Profile setting.
+  void _skipWriting() {
+    final inQuiz = _hanziQuizAvailable == true;
+    if (inQuiz && _hanziCharIndex + 1 < _writeChars.length) {
+      setState(() {
+        _skippedChar = true;
+        _hanziCharIndex++;
+      });
+    } else {
+      _advance();
+    }
+  }
+
+  /// (Skip is ungraded: no reward, no penalty, no review submitted.)
+  Widget _buildSkipButton() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppSettings.showSkipWriting,
+      builder: (context, show, _) {
+        if (!show) return const SizedBox.shrink();
+        return Center(
+          child: TextButton(
+            onPressed: _skipWriting,
+            child: Text(
+              'Skip',
+              style: DuolingoTextStyles.label.copyWith(
+                color: DuolingoColors.bodyText,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1682,6 +1812,7 @@ class _StudyScreenState extends State<StudyScreen>
           ),
         ),
         if (_isSentenceTrace) Center(child: _buildTypeInsteadButton()),
+        if (!_checked) _buildSkipButton(),
       ],
     );
   }

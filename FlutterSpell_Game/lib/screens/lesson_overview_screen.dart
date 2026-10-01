@@ -8,6 +8,7 @@ import '../providers/game_provider.dart';
 import '../models/game_models.dart';
 import '../models/stage_data.dart' show reviewNodeIndex;
 import '../utils/reward_calc.dart';
+import '../widgets/spell_player_dialog.dart';
 
 /// Presentation theme (emoji/label/gradient) for whichever kingdom a lesson
 /// belongs to, so Lesson Overview isn't hardcoded to the English Castle.
@@ -168,6 +169,22 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   }
 
   static const int _reviewSessionSize = 15;
+
+  void _openSpellPlayer() {
+    // Every word of the lesson, not just the selected point.
+    final words = <String>[for (final c in gameProvider.deckCards) c.word.text];
+    if (words.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Words are still loading...')),
+      );
+      return;
+    }
+    SpellPlayerDialog.show(
+      context,
+      title: widget.args.lesson.displayName,
+      words: words,
+    );
+  }
 
   Widget _buildWordDetailGrid() {
     if (gameProvider.deckCards.isEmpty) {
@@ -529,6 +546,33 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
                 ),
               ),
               SizedBox(height: DuolingoSpacing.xl),
+
+              // Spell: read the lesson's words aloud (dictation)
+              GestureDetector(
+                onTap: _openSpellPlayer,
+                child: Container(
+                  height: DuolingoSpacing.largeButton - 10,
+                  margin: EdgeInsets.only(bottom: DuolingoSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: DuolingoColors.backgroundWhite,
+                    border: Border.all(
+                      color: DuolingoColors.informationBlue,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      DuolingoSpacing.radiusButton,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '🔊  SPELL',
+                    style: DuolingoTextStyles.cardTitle.copyWith(
+                      color: DuolingoColors.informationBlue,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ),
 
               // Start Adventure
               GestureDetector(

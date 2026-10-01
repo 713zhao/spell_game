@@ -273,6 +273,13 @@ Future<void> _speakWithBrowserTts(String word) async {
             ),
           );
     final fallbackLang = isChinese ? 'zh-CN' : 'en-US';
+    // Completes when the utterance finishes (or fails for good) so callers
+    // awaiting speakOnWeb - e.g. the Spell player's interval - only start
+    // timing once the word has actually been read out.
+    final finished = Completer<void>();
+    void finish() {
+      if (!finished.isCompleted) finished.complete();
+    }
 
     void speakOnce({bool isRetry = false}) {
       final utter = js_util.callConstructor(
@@ -296,10 +303,25 @@ Future<void> _speakWithBrowserTts(String word) async {
       // down the cancel() call issued above, or hit a transient glitch);
       // one retry after a short delay recovers from that specific case
       // without risking a retry loop.
+      js_util.callMethod(utter, 'addEventListener', [
+        'end',
+        js_util.allowInterop((_) => finish()),
+      ]);
+      if (isRetry) {
+        js_util.callMethod(utter, 'addEventListener', [
+          'error',
+          js_util.allowInterop((_) => finish()),
+        ]);
+      }
       if (!isRetry) {
         js_util.callMethod(utter, 'addEventListener', [
           'error',
-          js_util.allowInterop((_) {
+          js_util.allowInterop((e) {
+            final reason = js_util.getProperty(e, 'error')?.toString();
+            if (reason == 'canceled' || reason == 'interrupted') {
+              finish(); // superseded by a newer utterance, not a glitch
+              return;
+            }
             Future.delayed(
               const Duration(milliseconds: 150),
               () => speakOnce(isRetry: true),
@@ -311,6 +333,10 @@ Future<void> _speakWithBrowserTts(String word) async {
     }
 
     speakOnce();
+    await finished.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {},
+    );
   } catch (_) {
     // No speechSynthesis available at all — silently give up, matching
     // native flutter_tts's own try/catch-and-continue behavior.
