@@ -93,6 +93,6 @@ For a real functional check, load the site in a browser (or headless Chromium), 
 ## Database backups
 
 - **Fly volume snapshots**: automatic, daily, kept 5 days (`flyctl volumes snapshots list <vol-id> -a spellbackend`).
-- **Local copy on the dev PC**: `backup-db.sh` downloads a consistent copy (SQLite online backup, integrity-checked) to `~/Projects/spelldbbackup/`, keeps 30 days, logs to `backup.log`. A cron job runs it hourly with `--daily`, so it takes one backup per day as soon as the PC is on (`crontab -l`). Requires `flyctl auth login`.
+- **Local copy on the dev PC**: `backup-db.sh` downloads a consistent copy (SQLite online backup, integrity-checked) to `~/Projects/spelldbbackup/`, skips the save when nothing changed, keeps 1 year (always at least the newest 5), logs to `backup.log`. A cron job runs it hourly with `--daily`, so it checks once per day as soon as the PC is on (`crontab -l`). Requires `flyctl auth login`.
 - **Restore**: stop the app, `flyctl ssh sftp shell -a spellbackend` -> `put <backup> /database/db.sqlite3`, restart. (Passwords are hashed and email/phone encrypted: keep `DATA_ENCRYPTION_KEY` and `AUTH_SECRET` safe, the backup is useless for those fields without them.)
 - `POST /admin/backup` (admin Basic auth) makes a server-side copy and uploads to Google Drive only if `GOOGLE_DRIVE_CREDENTIALS` and `GOOGLE_DRIVE_FOLDER_ID` are set (they are not).
