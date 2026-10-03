@@ -53,7 +53,10 @@ echo "Starting backend (SpellBackend, port $BACKEND_PORT)..."
     python3 -m venv .venv
     ./.venv/bin/pip install -q -r requirements.txt
   fi
-  SERVER_PORT=$BACKEND_PORT ./.venv/bin/python main.py > "$LOG_DIR/backend.log" 2>&1 &
+  # CORS only allows localhost + *.pages.dev by default; add the LAN origins
+  # so another device on the network can use the dev frontends.
+  CORS_ORIGINS="http://${DEV_HOST}:${FRONTEND_PORT},http://${DEV_HOST}:${FRONTEND2_PORT}" \
+  SERVER_RELOAD=false SERVER_PORT=$BACKEND_PORT ./.venv/bin/python main.py > "$LOG_DIR/backend.log" 2>&1 &
   echo $! > "$PID_DIR/backend.pid"
 )
 
