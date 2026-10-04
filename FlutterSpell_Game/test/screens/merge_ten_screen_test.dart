@@ -24,10 +24,10 @@ void main() {
       ),
     );
     expect(find.text('Merge Ten'), findsOneWidget);
-    final before = find.byType(Container).evaluate().length;
+    final before = find.byType(FittedBox).evaluate().length;
     await tester.tapAt(tester.getTopLeft(find.byType(AspectRatio)) + const Offset(20, 50));
     await tester.pump();
-    expect(find.byType(Container).evaluate().length, greaterThan(before));
+    expect(find.byType(FittedBox).evaluate().length, greaterThan(before));
     await tester.pump(const Duration(seconds: 3));
   });
 }

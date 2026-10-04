@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spell_game/models/merge_ten_board.dart';
 
@@ -20,6 +21,7 @@ void main() {
     expect(b.cells[MergeTenBoard.rows - 1][1], 2);
   });
 
+  seedTest();
   test('column fills up', () {
     final b = MergeTenBoard();
     for (var i = 0; i < MergeTenBoard.rows; i++) {
@@ -27,5 +29,16 @@ void main() {
     }
     expect(b.isColumnFull(2), isTrue);
     expect(b.drop(2, 1), -1);
+  });
+}
+
+void seedTest() {
+  test('seed fills bottom rows with nothing to clear', () {
+    for (var i = 0; i < 50; i++) {
+      final b = MergeTenBoard()..seed(Random(i));
+      expect(b.cells[MergeTenBoard.rows - 1].every((v) => v != 0), isTrue);
+      expect(b.cells[0].every((v) => v == 0), isTrue);
+      expect(b.clearMatches(), 0);
+    }
   });
 }

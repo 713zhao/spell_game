@@ -63,7 +63,7 @@ class _MergeTenScreenState extends State<MergeTenScreen>
   }
 
   void _reset() {
-    _board = MergeTenBoard();
+    _board = MergeTenBoard()..seed(_random);
     _next = _randomTile();
     _score = 0;
     _combo = 0;
@@ -164,7 +164,7 @@ class _MergeTenScreenState extends State<MergeTenScreen>
           _buildHeader(),
           SizedBox(height: DuolingoSpacing.md),
           Text(
-            'Touching tiles vanish if they are the same or add up to 10!',
+            'Tap a column to drop the next tile.\nTouching tiles vanish if they are the same or add up to 10!',
             textAlign: TextAlign.center,
             style: DuolingoTextStyles.body,
           ),
@@ -261,7 +261,12 @@ class _MergeTenScreenState extends State<MergeTenScreen>
                     child: Padding(
                       padding: const EdgeInsets.all(2),
                       child: v == 0
-                          ? const SizedBox.expand()
+                          ? Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            )
                           : LayoutBuilder(
                               builder: (_, box) => _tile(
                                 v,

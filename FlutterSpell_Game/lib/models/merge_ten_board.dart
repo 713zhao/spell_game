@@ -17,6 +17,21 @@ class MergeTenBoard {
   bool isColumnFull(int col) => cells[0][col] != 0;
   bool get isFull => List.generate(cols, isColumnFull).every((full) => full);
 
+  /// Fills the bottom [rowCount] rows with random tiles that don't touch a
+  /// matching tile, so the board starts populated but with nothing to clear.
+  void seed(Random random, {int rowCount = 3}) {
+    for (var r = rows - 1; r >= rows - rowCount; r--) {
+      for (var c = 0; c < cols; c++) {
+        int v;
+        do {
+          v = random.nextInt(9) + 1;
+        } while ((c > 0 && matches(v, cells[r][c - 1])) ||
+            (r < rows - 1 && matches(v, cells[r + 1][c])));
+        cells[r][c] = v;
+      }
+    }
+  }
+
   /// Drops [value] into [col]. Returns the row it landed on, or -1 if the
   /// column is full.
   int drop(int col, int value) {
