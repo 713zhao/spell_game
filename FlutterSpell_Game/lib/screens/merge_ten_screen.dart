@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/merge_ten_board.dart';
@@ -38,6 +39,9 @@ class _MergeTenScreenState extends State<MergeTenScreen>
   int _score = 0;
   int _best = 0;
   int _combo = 0;
+  int _col = MergeTenBoard.cols ~/ 2;
+  int? _fallRow; // row of the falling tile while it drops
+  final _focus = FocusNode();
   bool _busy = false;
   bool _gameOver = false;
   bool _playtimeLocked = false;
@@ -59,6 +63,7 @@ class _MergeTenScreenState extends State<MergeTenScreen>
   @override
   void dispose() {
     disposePlaytimeGuard();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -67,6 +72,8 @@ class _MergeTenScreenState extends State<MergeTenScreen>
     _next = _randomTile();
     _score = 0;
     _combo = 0;
+    _col = MergeTenBoard.cols ~/ 2;
+    _fallRow = null;
     _busy = false;
     _gameOver = false;
   }
@@ -88,12 +95,33 @@ class _MergeTenScreenState extends State<MergeTenScreen>
     } catch (_) {}
   }
 
-  Future<void> _onDrop(int col) async {
+  void _move(int delta) {
+    if (_busy || _gameOver) return;
+    setState(() => _col = (_col + delta).clamp(0, MergeTenBoard.cols - 1));
+  }
+
+  void _moveTo(int col) {
+    if (_busy || _gameOver) return;
+    setState(() => _col = col.clamp(0, MergeTenBoard.cols - 1));
+  }
+
+  Future<void> _onDrop() async {
     if (_busy || _gameOver || _playtimeLocked) return;
-    if (_board.isColumnFull(col)) return;
+    final col = _col;
+    final land = _board.landingRow(col);
+    if (land < 0) return;
     setState(() {
       _busy = true;
       _combo = 0;
+    });
+    // Animate the tile falling from the top lane to where it lands.
+    for (var r = 0; r <= land; r++) {
+      setState(() => _fallRow = r);
+      await Future.delayed(const Duration(milliseconds: 40));
+      if (!mounted) return;
+    }
+    setState(() {
+      _fallRow = null;
       _board.drop(col, _next);
       _next = _randomTile();
     });
@@ -141,7 +169,27 @@ class _MergeTenScreenState extends State<MergeTenScreen>
           ),
         ],
       ),
-      body: SafeArea(child: _buildBody()),
+      body: SafeArea(
+        child: Focus(
+          focusNode: _focus,
+          autofocus: true,
+          onKeyEvent: (_, e) {
+            if (e is! KeyDownEvent) return KeyEventResult.ignored;
+            if (e.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              _move(-1);
+            } else if (e.logicalKey == LogicalKeyboardKey.arrowRight) {
+              _move(1);
+            } else if (e.logicalKey == LogicalKeyboardKey.arrowDown ||
+                e.logicalKey == LogicalKeyboardKey.space) {
+              _onDrop();
+            } else {
+              return KeyEventResult.ignored;
+            }
+            return KeyEventResult.handled;
+          },
+          child: _buildBody(),
+        ),
+      ),
     );
   }
 
@@ -164,7 +212,7 @@ class _MergeTenScreenState extends State<MergeTenScreen>
           _buildHeader(),
           SizedBox(height: DuolingoSpacing.md),
           Text(
-            'Tap a column to drop the next tile.\nTouching tiles vanish if they are the same or add up to 10!',
+            'Move the tile left or right, then press Drop.\nTouching tiles vanish if they are the same or add up to 10!',
             textAlign: TextAlign.center,
             style: DuolingoTextStyles.body,
           ),
@@ -172,18 +220,77 @@ class _MergeTenScreenState extends State<MergeTenScreen>
           Expanded(
             child: Center(
               child: AspectRatio(
-                aspectRatio: MergeTenBoard.cols / MergeTenBoard.rows,
+                aspectRatio: MergeTenBoard.cols / (MergeTenBoard.rows + 1),
                 child: Stack(
                   children: [
-                    _buildGrid(),
+                    Column(
+                      children: [
+                        Expanded(child: _buildLane()),
+                        Expanded(
+                          flex: MergeTenBoard.rows,
+                          child: _buildGrid(),
+                        ),
+                      ],
+                    ),
                     if (_gameOver) _buildGameOver(),
                   ],
                 ),
               ),
             ),
           ),
+          SizedBox(height: DuolingoSpacing.md),
+          _buildControls(),
         ],
       ),
+    );
+  }
+
+  /// Horizontal drag moves the hovering tile column by column.
+  Widget _buildLane() {
+    return LayoutBuilder(
+      builder: (_, box) {
+        final colWidth = box.maxWidth / MergeTenBoard.cols;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => _moveTo(d.localPosition.dx ~/ colWidth),
+          onHorizontalDragUpdate: (d) => _moveTo(d.localPosition.dx ~/ colWidth),
+          child: Row(
+            children: List.generate(MergeTenBoard.cols, (c) {
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: c == _col && _fallRow == null && !_gameOver
+                      ? LayoutBuilder(
+                          builder: (_, b) =>
+                              _tile(_next, size: min(b.maxWidth, b.maxHeight)),
+                        )
+                      : null,
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildControls() {
+    Widget arrow(IconData icon, int delta) => IconButton.filled(
+          iconSize: 36,
+          onPressed: () => _move(delta),
+          icon: Icon(icon),
+        );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        arrow(Icons.arrow_left, -1),
+        ElevatedButton.icon(
+          onPressed: _onDrop,
+          icon: const Icon(Icons.arrow_downward),
+          label: const Text('Drop'),
+        ),
+        arrow(Icons.arrow_right, 1),
+      ],
     );
   }
 
@@ -251,12 +358,12 @@ class _MergeTenScreenState extends State<MergeTenScreen>
       child: Row(
         children: List.generate(MergeTenBoard.cols, (c) {
           return Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _onDrop(c),
+            child: Container(
+              color: c == _col ? Colors.black.withValues(alpha: 0.04) : null,
               child: Column(
                 children: List.generate(MergeTenBoard.rows, (r) {
-                  final v = _board.cells[r][c];
+                  final falling = _fallRow == r && _col == c;
+                  final v = falling ? _next : _board.cells[r][c];
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(2),

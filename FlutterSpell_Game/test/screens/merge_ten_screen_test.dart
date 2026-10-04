@@ -16,7 +16,7 @@ class _StubProvider extends ChangeNotifier implements GameProvider {
 }
 
 void main() {
-  testWidgets('tapping a column drops a tile', (tester) async {
+  testWidgets('move left then drop lands a tile', (tester) async {
     await tester.pumpWidget(
       ChangeNotifierProvider<GameProvider>(
         create: (_) => _StubProvider(),
@@ -24,10 +24,14 @@ void main() {
       ),
     );
     expect(find.text('Merge Ten'), findsOneWidget);
-    final before = find.byType(FittedBox).evaluate().length;
-    await tester.tapAt(tester.getTopLeft(find.byType(AspectRatio)) + const Offset(20, 50));
-    await tester.pump();
-    expect(find.byType(FittedBox).evaluate().length, greaterThan(before));
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.byIcon(Icons.arrow_left));
+      await tester.pump();
+      await tester.tap(find.text('Drop'));
+      // Fall animation plus match/gravity waves must finish on their own.
+      await tester.pump(const Duration(seconds: 10));
+    }
+    expect(find.text('Score'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
   });
 }

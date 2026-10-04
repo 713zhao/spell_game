@@ -32,6 +32,14 @@ class MergeTenBoard {
     }
   }
 
+  /// The row a tile dropped into [col] would land on, or -1 if full.
+  int landingRow(int col) {
+    for (var r = rows - 1; r >= 0; r--) {
+      if (cells[r][col] == 0) return r;
+    }
+    return -1;
+  }
+
   /// Drops [value] into [col]. Returns the row it landed on, or -1 if the
   /// column is full.
   int drop(int col, int value) {
