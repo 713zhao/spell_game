@@ -9,6 +9,7 @@ import 'game_play_screen.dart' show GamePlayArgs;
 import 'word_snake_screen.dart';
 import 'flying_dog_reading_screen.dart';
 import 'word_wheel_screen.dart';
+import 'merge_ten_screen.dart';
 
 /// Game store: a catalog of embeddable mini-games. Each game has a one-time
 /// coin cost to unlock and a smaller coin cost every time it's played,
@@ -99,6 +100,12 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (context) => const WordWheelScreen()));
+      return;
+    }
+    if (result['gameType'] == 'native' && result['nativeKey'] == 'merge_ten') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (context) => const MergeTenScreen()));
       return;
     }
     if (result['gameType'] == 'native' &&
