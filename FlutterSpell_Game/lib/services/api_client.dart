@@ -182,6 +182,26 @@ class ApiClient {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  /// Grants [points] coins/XP to this user with [reason] as the audit
+  /// label (shows up in points history). Backend caps this per-call (100)
+  /// and per-day (500) so a tampered client can't mint unlimited points -
+  /// see SpellBackend's POST /users/{name}/points/add.
+  Future<Map<String, dynamic>> addPoints(int points, String reason) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/$userName/points/add'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'points': points, 'reason': reason}),
+    );
+    if (response.statusCode != 200) {
+      String detail = 'Failed to add points';
+      try {
+        detail = jsonDecode(response.body)['detail'] as String? ?? detail;
+      } catch (_) {}
+      throw Exception(detail);
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   /// Every achievement's unlock state (Progress screen's Milestones list).
   Future<List<Map<String, dynamic>>> getAchievements() async {
     final response = await http.get(

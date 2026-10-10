@@ -1,0 +1,556 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:spell_game/design_system/design_system.dart';
+import 'package:spell_game/models/coloring_models.dart';
+import 'package:spell_game/providers/game_provider.dart';
+import 'package:spell_game/services/sound_service.dart';
+import 'package:spell_game/widgets/celebration.dart';
+import 'package:spell_game/widgets/coloring_canvas.dart';
+import 'package:spell_game/utils/playtime_guard.dart';
+
+/// All 6 built-in Color by Number pictures, loaded from assets/coloring/.
+const List<String> kColoringPictureIds = [
+  'cat',
+  'flower',
+  'rocket',
+  'fish',
+  'sun',
+  'balloon',
+];
+
+/// Coin+XP reward for completing a single picture for the first time -
+/// in the same ballpark as a daily chest claim (20 points).
+const int kColoringCompletionReward = 15;
+
+/// Small bonus (coins/XP only - gems aren't part of the add_points model,
+/// see report) for completing all 6 pictures at least once each.
+const int kColoringAllCompleteBonus = 30;
+
+/// Color by Number: a Happy-Color-style coloring minigame. Shows a gallery
+/// of 6 pictures, then a tap-to-fill coloring canvas for the selected one.
+class ColorByNumberScreen extends StatefulWidget {
+  const ColorByNumberScreen({super.key});
+
+  @override
+  State<ColorByNumberScreen> createState() => _ColorByNumberScreenState();
+}
+
+class _ColorByNumberScreenState extends State<ColorByNumberScreen> {
+  final Map<String, ColoringPicture> _pictures = {};
+  bool _loading = true;
+  String? _selectedId;
+  Set<String> _completed = {};
+
+  String get _userName => context.read<GameProvider>().userName;
+
+  String _completedPrefsKey(String userName) => 'coloring_completed_$userName';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    for (final id in kColoringPictureIds) {
+      final raw = await DefaultAssetBundle.of(
+        context,
+      ).loadString('assets/coloring/$id.json');
+      final picture = ColoringPicture.fromJson(
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
+      _pictures[id] = picture;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final completed =
+        prefs.getStringList(_completedPrefsKey(_userName)) ?? [];
+    if (!mounted) return;
+    setState(() {
+      _completed = completed.toSet();
+      _loading = false;
+    });
+  }
+
+  Future<void> _markCompleted(String id) async {
+    if (_completed.contains(id)) return;
+    final prefs = await SharedPreferences.getInstance();
+    final updated = {..._completed, id};
+    await prefs.setStringList(_completedPrefsKey(_userName), updated.toList());
+    if (!mounted) return;
+    setState(() => _completed = updated);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_selectedId != null) {
+      return _ColoringPictureView(
+        picture: _pictures[_selectedId]!,
+        alreadyCompleted: _completed.contains(_selectedId),
+        onBack: () => setState(() => _selectedId = null),
+        onCompleted: () => _markCompleted(_selectedId!),
+        allComplete:
+            _completed.length == kColoringPictureIds.length - 1 &&
+            !_completed.contains(_selectedId),
+      );
+    }
+    return _GalleryView(
+      pictures: _pictures,
+      completed: _completed,
+      onSelect: (id) => setState(() => _selectedId = id),
+    );
+  }
+}
+
+class _GalleryView extends StatelessWidget {
+  final Map<String, ColoringPicture> pictures;
+  final Set<String> completed;
+  final void Function(String id) onSelect;
+
+  const _GalleryView({
+    required this.pictures,
+    required this.completed,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DuolingoColors.backgroundWhite,
+      appBar: AppBar(
+        title: Text('Color by Number', style: DuolingoTextStyles.pageTitle),
+        backgroundColor: DuolingoColors.backgroundWhite,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: DuolingoColors.darkText),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(DuolingoSpacing.lg),
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 0.85,
+          ),
+          itemCount: kColoringPictureIds.length,
+          itemBuilder: (context, index) {
+            final id = kColoringPictureIds[index];
+            final picture = pictures[id]!;
+            final isDone = completed.contains(id);
+            return _ThumbnailCard(
+              picture: picture,
+              completed: isDone,
+              onTap: () => onSelect(id),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ThumbnailCard extends StatelessWidget {
+  final ColoringPicture picture;
+  final bool completed;
+  final VoidCallback onTap;
+
+  const _ThumbnailCard({
+    required this.picture,
+    required this.completed,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cache = ColoringPathCache.build(picture);
+    return InkWell(
+      borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: DuolingoColors.neutralGray,
+          borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+          border: Border.all(
+            color: completed
+                ? DuolingoColors.primaryGreen
+                : Colors.transparent,
+            width: 3,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: EdgeInsets.all(DuolingoSpacing.md),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: SizedBox(
+                        width: picture.width,
+                        height: picture.height,
+                        child: CustomPaint(
+                          painter: ColoringThumbnailPainter(
+                            picture: picture,
+                            cache: cache,
+                          ),
+                          size: Size(picture.width, picture.height),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: DuolingoSpacing.xs),
+                  Text(picture.title, style: DuolingoTextStyles.cardTitle),
+                ],
+              ),
+            ),
+            if (completed)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: DuolingoColors.primaryGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 16),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ColoringPictureView extends StatefulWidget {
+  final ColoringPicture picture;
+  final bool alreadyCompleted;
+  final bool allComplete;
+  final VoidCallback onBack;
+  final VoidCallback onCompleted;
+
+  const _ColoringPictureView({
+    required this.picture,
+    required this.alreadyCompleted,
+    required this.allComplete,
+    required this.onBack,
+    required this.onCompleted,
+  });
+
+  @override
+  State<_ColoringPictureView> createState() => _ColoringPictureViewState();
+}
+
+class _ColoringPictureViewState extends State<_ColoringPictureView>
+    with PlaytimeGuardMixin {
+  final Set<int> _solved = {};
+  int? _selectedColorIndex;
+  bool _celebrated = false;
+  bool _playtimeLocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final indexes = widget.picture.distinctColorIndexes;
+    if (indexes.isNotEmpty) _selectedColorIndex = indexes.first;
+    startPlaytimeGuard();
+  }
+
+  @override
+  void onPlaytimeLocked() {
+    if (!mounted) return;
+    setState(() => _playtimeLocked = true);
+  }
+
+  @override
+  void dispose() {
+    disposePlaytimeGuard();
+    super.dispose();
+  }
+
+  int get _totalRegions => widget.picture.regions.length;
+
+  void _onRegionTapped(ColoringRegion region, bool correct) {
+    if (correct) {
+      setState(() => _solved.add(region.id));
+      Celebration.correct(context, withSound: true);
+      if (_solved.length == _totalRegions && !_celebrated) {
+        _celebrated = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _onCompleted());
+      }
+    } else {
+      HapticFeedback.lightImpact();
+      SoundService().playIncorrectAnswer();
+    }
+  }
+
+  Future<void> _onCompleted() async {
+    final gameProvider = context.read<GameProvider>();
+    final wasAlreadyCompleted = widget.alreadyCompleted;
+    final wasAllComplete = widget.allComplete;
+    widget.onCompleted();
+    if (!wasAlreadyCompleted) {
+      try {
+        await gameProvider.apiClient.addPoints(
+          kColoringCompletionReward,
+          'Color by Number: ${widget.picture.title}',
+        );
+        if (wasAllComplete) {
+          await gameProvider.apiClient.addPoints(
+            kColoringAllCompleteBonus,
+            'Color by Number: completed all pictures',
+          );
+        }
+        await gameProvider.loadUserStats();
+      } catch (_) {
+        // Reward grant failing shouldn't block the celebration - the
+        // picture still shows as completed locally.
+      }
+    }
+    if (!mounted) return;
+    Celebration.lessonComplete(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _CompletionDialog(
+        picture: widget.picture,
+        alreadyCompleted: wasAlreadyCompleted,
+        allComplete: wasAllComplete,
+        onDone: () {
+          Navigator.of(context).pop();
+          widget.onBack();
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final picture = widget.picture;
+    final indexes = picture.distinctColorIndexes;
+    return Scaffold(
+      backgroundColor: DuolingoColors.backgroundWhite,
+      appBar: AppBar(
+        title: Text(picture.title, style: DuolingoTextStyles.pageTitle),
+        backgroundColor: DuolingoColors.backgroundWhite,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: DuolingoColors.darkText),
+          onPressed: widget.onBack,
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: DuolingoSpacing.lg,
+              vertical: DuolingoSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                      DuolingoSpacing.radiusBadge,
+                    ),
+                    child: LinearProgressIndicator(
+                      value: _totalRegions == 0
+                          ? 0
+                          : _solved.length / _totalRegions,
+                      minHeight: DuolingoSpacing.progressBarHeight,
+                      backgroundColor: DuolingoColors.neutralGray,
+                      color: DuolingoColors.primaryGreen,
+                    ),
+                  ),
+                ),
+                SizedBox(width: DuolingoSpacing.md),
+                Text(
+                  '${_solved.length}/$_totalRegions',
+                  style: DuolingoTextStyles.label,
+                ),
+              ],
+            ),
+          ),
+          if (_playtimeLocked)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: DuolingoSpacing.lg),
+              child: Text(
+                'You\'ve used your 15 minutes of game time for today. Come back tomorrow!',
+                style: DuolingoTextStyles.body.copyWith(
+                  color: DuolingoColors.mistakeRed,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.all(DuolingoSpacing.md),
+              child: ColoringCanvas(
+                picture: picture,
+                solvedRegionIds: _solved,
+                selectedColorIndex: _selectedColorIndex,
+                onRegionTapped: _onRegionTapped,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: DuolingoSpacing.lg),
+              itemCount: indexes.length,
+              separatorBuilder: (_, __) => SizedBox(width: DuolingoSpacing.sm),
+              itemBuilder: (context, i) {
+                final colorIndex = indexes[i];
+                final color = picture.palette[colorIndex] ?? Colors.grey;
+                final selected = _selectedColorIndex == colorIndex;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedColorIndex = colorIndex),
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selected
+                            ? DuolingoColors.darkText
+                            : Colors.black26,
+                        width: selected ? 3 : 1,
+                      ),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Text(
+                      '$colorIndex',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _contrastingTextColor(color),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          SizedBox(height: DuolingoSpacing.md),
+        ],
+      ),
+    );
+  }
+
+  Color _contrastingTextColor(Color background) {
+    return background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+  }
+}
+
+class _CompletionDialog extends StatelessWidget {
+  final ColoringPicture picture;
+  final bool alreadyCompleted;
+  final bool allComplete;
+  final VoidCallback onDone;
+
+  const _CompletionDialog({
+    required this.picture,
+    required this.alreadyCompleted,
+    required this.allComplete,
+    required this.onDone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: DuolingoColors.backgroundWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(DuolingoSpacing.radiusCard),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(DuolingoSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🎉', style: TextStyle(fontSize: 72)),
+            SizedBox(height: DuolingoSpacing.md),
+            Text(
+              '${picture.title} complete!',
+              textAlign: TextAlign.center,
+              style: DuolingoTextStyles.sectionTitle,
+            ),
+            SizedBox(height: DuolingoSpacing.md),
+            if (!alreadyCompleted) ...[
+              Text(
+                '+$kColoringCompletionReward 💰',
+                style: DuolingoTextStyles.cardTitle.copyWith(
+                  color: DuolingoColors.treasureGold,
+                  fontSize: 22,
+                ),
+              ),
+              if (allComplete)
+                Padding(
+                  padding: EdgeInsets.only(top: DuolingoSpacing.xs),
+                  child: Text(
+                    'All pictures complete! +$kColoringAllCompleteBonus bonus 💰',
+                    textAlign: TextAlign.center,
+                    style: DuolingoTextStyles.cardTitle.copyWith(
+                      color: DuolingoColors.specialPurple,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+            ] else
+              Text(
+                'Already completed - no bonus this time.',
+                style: DuolingoTextStyles.body.copyWith(
+                  color: DuolingoColors.bodyText,
+                ),
+              ),
+            SizedBox(height: DuolingoSpacing.xl),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DuolingoColors.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: DuolingoSpacing.lg),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      DuolingoSpacing.radiusButton,
+                    ),
+                  ),
+                ),
+                onPressed: onDone,
+                child: Text(
+                  'BACK TO GALLERY',
+                  style: DuolingoTextStyles.label.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

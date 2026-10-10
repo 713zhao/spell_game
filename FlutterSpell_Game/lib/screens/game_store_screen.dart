@@ -10,6 +10,7 @@ import 'word_snake_screen.dart';
 import 'flying_dog_reading_screen.dart';
 import 'word_wheel_screen.dart';
 import 'merge_ten_screen.dart';
+import 'color_by_number_screen.dart';
 
 /// Game store: a catalog of embeddable mini-games. Each game has a one-time
 /// coin cost to unlock and a smaller coin cost every time it's played,
@@ -112,6 +113,13 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
         result['nativeKey'] == 'flying_dog_reading') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const FlyingDogReadingScreen()),
+      );
+      return;
+    }
+    if (result['gameType'] == 'native' &&
+        result['nativeKey'] == 'color_by_number') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const ColorByNumberScreen()),
       );
       return;
     }
