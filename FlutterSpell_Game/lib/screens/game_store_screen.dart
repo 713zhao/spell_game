@@ -6,6 +6,7 @@ import 'package:spell_game/design_system/design_system.dart';
 import 'package:spell_game/models/game_models.dart';
 import 'package:spell_game/providers/game_provider.dart';
 import 'game_play_screen.dart' show GamePlayArgs;
+import '../widgets/cards/daily_goals_card.dart';
 import 'word_snake_screen.dart';
 import 'flying_dog_reading_screen.dart';
 import 'word_wheel_screen.dart';
@@ -38,6 +39,7 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
   Future<void> _load() async {
     await gameProvider.loadMiniGames();
     await gameProvider.loadPlaytimeStatus();
+    await gameProvider.loadDailyGoals();
     if (!mounted) return;
     setState(() => _loading = false);
   }
@@ -69,11 +71,19 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
   }
 
   Future<void> _onPlay(MiniGame game) async {
-    if (gameProvider.playtimeLocked) {
+    if (!gameProvider.dailyGoalsAllDone) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
+          content: Text('Finish today\'s daily goals to unlock the games!'),
+        ),
+      );
+      return;
+    }
+    if (gameProvider.playtimeLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
           content: Text(
-            'You\'ve used your 15 minutes of game time for today. Come back tomorrow!',
+            'Game time used up. Do the daily goals again for 10 more minutes!',
           ),
         ),
       );
@@ -152,6 +162,20 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
           : Column(
               children: [
                 _buildCoinsBanner(),
+                if (!gameProvider.dailyGoalsAllDone)
+                  DailyGoalsCard(
+                    goals: gameProvider.dailyGoals,
+                    allDone: false,
+                    onGoalTap: (kind) => Navigator.of(context).pushNamed(
+                      const {
+                            'math': '/ai-math',
+                            'english': '/english-castle',
+                            'chinese': '/chinese-kingdom',
+                            'moe': '/word-cards',
+                          }[kind] ??
+                          '/world-map',
+                    ),
+                  ),
                 _buildPlaytimeBanner(),
                 Expanded(
                   child: gameProvider.minigames.isEmpty
@@ -240,7 +264,7 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
           Expanded(
             child: Text(
               locked
-                  ? 'Daily game time used up - come back tomorrow!'
+                  ? 'Game time used up - do the daily goals again for +10 min!'
                   : '$remainingMin min of game time left today',
               style: DuolingoTextStyles.label.copyWith(
                 color: locked ? DuolingoColors.mistakeRed : null,
@@ -305,8 +329,10 @@ class _GameStoreScreenState extends State<GameStoreScreen> {
 
   Widget _buildActionButton({required MiniGame game, required bool enabled}) {
     final label = game.unlocked ? 'Play' : 'Unlock';
+    final canTap =
+        enabled && !(game.unlocked && !gameProvider.dailyGoalsAllDone);
     return ElevatedButton(
-      onPressed: enabled
+      onPressed: canTap
           ? () => game.unlocked ? _onPlay(game) : _onUnlock(game)
           : null,
       style: ElevatedButton.styleFrom(

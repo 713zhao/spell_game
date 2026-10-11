@@ -1,6 +1,6 @@
 {
-    "name": "flutterspell_game",
-    "short_name": "flutterspell_game",
+    "name": "Ai_Spell_Game",
+    "short_name": "Ai_Spell_Game",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

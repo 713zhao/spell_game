@@ -367,6 +367,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     setState(() {
       _ankiSessionReviewed++;
       _bumpPracticedCount(character.id);
+      _maybeCompleteSession(gameProvider);
       final deck = _filteredDeck;
       if (deck.isEmpty) {
         _cardIndex = 0;
@@ -376,6 +377,16 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
         _cardIndex = deck.length - 1;
       }
     });
+  }
+
+  /// Counts the daily "word cards session" goal once every card in the
+  /// Anki deck has been reviewed.
+  void _maybeCompleteSession(GameProvider gameProvider) {
+    if (_ankiMode &&
+        _ankiDeck.isNotEmpty &&
+        _ankiSessionReviewed == _ankiDeck.length) {
+      gameProvider.reportMoeSession();
+    }
   }
 
   /// Switches grade and reloads. Returns the in-flight [_load] future so
@@ -527,6 +538,7 @@ class _MoeWordCardsScreenState extends State<MoeWordCardsScreen> {
     setState(() {
       if (_ankiMode) _ankiSessionReviewed++;
       _bumpPracticedCount(character.id);
+      _maybeCompleteSession(gameProvider);
     });
   }
 

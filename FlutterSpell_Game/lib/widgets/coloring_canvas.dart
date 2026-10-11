@@ -29,6 +29,54 @@ class ColoringPathCache {
   }
 
   Path pathFor(int regionId) => _paths[regionId]!;
+
+  final Map<int, Offset> _labels = {};
+
+  /// Where to draw a region's number: a point well inside the part of the
+  /// region that isn't covered by regions painted later (so the number of a
+  /// big base shape, or a ring around an eye, isn't hidden under details).
+  /// Computed lazily, once per region.
+  Offset labelFor(ColoringPicture picture, ColoringRegion region) {
+    return _labels.putIfAbsent(region.id, () {
+      final own = _paths[region.id]!;
+      final b = _bounds[region.id]!;
+      final later = <Path>[];
+      var after = false;
+      for (final r in picture.regions) {
+        if (r.id == region.id) {
+          after = true;
+          continue;
+        }
+        if (after && _bounds[r.id]!.overlaps(b)) later.add(_paths[r.id]!);
+      }
+      bool visible(Offset p) =>
+          own.contains(p) && !later.any((path) => path.contains(p));
+      final probe = max(2.0, min(b.width, b.height) * 0.2);
+      const dirs = [
+        Offset(1, 0), Offset(-1, 0), Offset(0, 1), Offset(0, -1),
+        Offset(0.7, 0.7), Offset(-0.7, 0.7), Offset(0.7, -0.7), Offset(-0.7, -0.7),
+      ];
+      Offset best = b.center;
+      var bestScore = -1.0;
+      const steps = 9;
+      for (var i = 0; i < steps; i++) {
+        for (var j = 0; j < steps; j++) {
+          final p = Offset(
+            b.left + (i + 0.5) / steps * b.width,
+            b.top + (j + 0.5) / steps * b.height,
+          );
+          if (!visible(p)) continue;
+          var score = dirs.where((d) => visible(p + d * probe)).length.toDouble();
+          score -= (p - b.center).distance / (b.longestSide + 1);
+          if (score > bestScore) {
+            bestScore = score;
+            best = p;
+          }
+        }
+      }
+      return best;
+    });
+  }
   Rect boundsFor(int regionId) => _bounds[regionId]!;
 }
 
@@ -77,18 +125,20 @@ class ColoringPainter extends CustomPainter {
 
       if (!solved && showNumbers) {
         final bounds = cache.boundsFor(region.id);
+        // Small regions get a smaller number so it stays inside them.
+        final fontSize = (min(bounds.width, bounds.height) * 0.7).clamp(7.0, 16.0);
         final textPainter = TextPainter(
           text: TextSpan(
             text: '${region.colorIndex}',
-            style: const TextStyle(
-              color: Color(0xFF9E9E9E),
-              fontSize: 16,
+            style: TextStyle(
+              color: const Color(0xFF757575),
+              fontSize: fontSize,
               fontWeight: FontWeight.bold,
             ),
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        final center = bounds.center;
+        final center = cache.labelFor(picture, region);
         textPainter.paint(
           canvas,
           Offset(

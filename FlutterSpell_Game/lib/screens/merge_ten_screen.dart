@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +46,10 @@ class _MergeTenScreenState extends State<MergeTenScreen>
   bool _busy = false;
   bool _gameOver = false;
   bool _playtimeLocked = false;
+  // Auto mode: the hovering tile drops by itself every second (the player
+  // can still steer it left/right between drops).
+  bool _auto = false;
+  Timer? _autoTimer;
 
   @override
   void initState() {
@@ -62,6 +67,7 @@ class _MergeTenScreenState extends State<MergeTenScreen>
 
   @override
   void dispose() {
+    _autoTimer?.cancel();
     disposePlaytimeGuard();
     _focus.dispose();
     super.dispose();
@@ -76,6 +82,55 @@ class _MergeTenScreenState extends State<MergeTenScreen>
     _fallRow = null;
     _busy = false;
     _gameOver = false;
+  }
+
+  void _setAuto(bool value) {
+    setState(() {
+      _auto = value;
+      // Turning Auto off mid-fall puts the tile back to hovering.
+      if (!value && !_busy) _fallRow = null;
+    });
+    _autoTimer?.cancel();
+    if (!value) return;
+    _autoTimer = Timer.periodic(const Duration(seconds: 1), (_) => _autoStep());
+  }
+
+  /// One Auto tick: the tile enters the board, then falls one row per tick
+  /// (steerable left/right in between) until it lands.
+  void _autoStep() {
+    if (!mounted || _busy || _gameOver || _playtimeLocked) return;
+    final fall = _fallRow;
+    if (fall == null) {
+      // Top cell taken - slide to the nearest column that is still open.
+      if (_board.cells[0][_col] != 0) {
+        final open = [
+          for (var c = 0; c < MergeTenBoard.cols; c++)
+            if (_board.cells[0][c] == 0) c,
+        ]..sort((a, b) => (a - _col).abs().compareTo((b - _col).abs()));
+        if (open.isEmpty) return;
+        _col = open.first;
+      }
+      setState(() => _fallRow = 0);
+      return;
+    }
+    if (fall + 1 < MergeTenBoard.rows && _board.cells[fall + 1][_col] == 0) {
+      setState(() => _fallRow = fall + 1);
+    } else {
+      _landFalling();
+    }
+  }
+
+  /// Lands the falling tile where it is, then resolves any matches.
+  Future<void> _landFalling() async {
+    final col = _col;
+    setState(() {
+      _busy = true;
+      _combo = 0;
+      _fallRow = null;
+      _board.drop(col, _next);
+      _next = _randomTile();
+    });
+    await _resolveChains();
   }
 
   int _randomTile() => _random.nextInt(9) + 1;
@@ -95,14 +150,15 @@ class _MergeTenScreenState extends State<MergeTenScreen>
     } catch (_) {}
   }
 
-  void _move(int delta) {
-    if (_busy || _gameOver) return;
-    setState(() => _col = (_col + delta).clamp(0, MergeTenBoard.cols - 1));
-  }
+  void _move(int delta) => _moveTo(_col + delta);
 
   void _moveTo(int col) {
     if (_busy || _gameOver) return;
-    setState(() => _col = col.clamp(0, MergeTenBoard.cols - 1));
+    col = col.clamp(0, MergeTenBoard.cols - 1);
+    // A tile already falling can only slide into an empty cell beside it.
+    final fall = _fallRow;
+    if (fall != null && _board.cells[fall][col] != 0) return;
+    setState(() => _col = col);
   }
 
   Future<void> _onDrop() async {
@@ -115,7 +171,7 @@ class _MergeTenScreenState extends State<MergeTenScreen>
       _combo = 0;
     });
     // Animate the tile falling from the top lane to where it lands.
-    for (var r = 0; r <= land; r++) {
+    for (var r = _fallRow ?? 0; r <= land; r++) {
       setState(() => _fallRow = r);
       await Future.delayed(const Duration(milliseconds: 40));
       if (!mounted) return;
@@ -125,7 +181,11 @@ class _MergeTenScreenState extends State<MergeTenScreen>
       _board.drop(col, _next);
       _next = _randomTile();
     });
-    // Resolve chains one wave at a time so the player can follow them.
+    await _resolveChains();
+  }
+
+  /// Resolve chains one wave at a time so the player can follow them.
+  Future<void> _resolveChains() async {
     while (true) {
       await Future.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
@@ -212,7 +272,7 @@ class _MergeTenScreenState extends State<MergeTenScreen>
           _buildHeader(),
           SizedBox(height: DuolingoSpacing.md),
           Text(
-            'Move the tile left or right, then press Drop.\nTouching tiles vanish if they are the same or add up to 10!',
+            'Move the tile left or right, then press Drop (or turn on Auto).\nTouching tiles vanish if they are the same or add up to 10!',
             textAlign: TextAlign.center,
             style: DuolingoTextStyles.body,
           ),
@@ -284,10 +344,22 @@ class _MergeTenScreenState extends State<MergeTenScreen>
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         arrow(Icons.arrow_left, -1),
-        ElevatedButton.icon(
-          onPressed: _onDrop,
-          icon: const Icon(Icons.arrow_downward),
-          label: const Text('Drop'),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton.icon(
+              onPressed: _onDrop,
+              icon: const Icon(Icons.arrow_downward),
+              label: const Text('Drop'),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Auto', style: DuolingoTextStyles.label),
+                Switch(value: _auto, onChanged: _setAuto),
+              ],
+            ),
+          ],
         ),
         arrow(Icons.arrow_right, 1),
       ],

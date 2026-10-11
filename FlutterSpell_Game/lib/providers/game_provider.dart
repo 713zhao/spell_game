@@ -40,6 +40,12 @@ class GameProvider extends ChangeNotifier {
   bool playtimeLocked = false;
   int playtimeRemainingSeconds = 15 * 60;
 
+  // Daily goals (see DailyGoalService on the backend - the source of
+  // truth). Games stay locked until every goal is done.
+  List<Map<String, dynamic>> dailyGoals = [];
+  bool dailyGoalsAllDone = false;
+  int dailyGoalsRounds = 0;
+
   // Home's daily treasure chest (see ChestService on the backend - the
   // source of truth for the once-per-UTC-day claim). Starts unavailable
   // rather than optimistically true, so the card doesn't flash "claimable"
@@ -89,8 +95,9 @@ class GameProvider extends ChangeNotifier {
       final verified = await apiClient.verifyPassword(password);
       isLoggedIn = verified;
       if (verified) {
+        final tester = apiClient.testerLogin;
         await _adoptCanonicalName();
-        await _onAuthenticated(_userName);
+        await _onAuthenticated(_userName, persist: !tester);
         await apiClient.logLogin();
       }
       notifyListeners();
@@ -153,7 +160,11 @@ class GameProvider extends ChangeNotifier {
     if (!AuthSession.hasToken(name)) return false;
     init(name);
     try {
-      await apiClient.getUserProfile(); // 401 -> token expired/revoked
+      final profile = await apiClient.getUserProfile(); // 401 -> expired
+      if (profile['is_tester'] == true) {
+        await AuthSession.clear(name);
+        return false;
+      }
     } catch (_) {
       await AuthSession.clear(name);
       return false;
@@ -173,9 +184,10 @@ class GameProvider extends ChangeNotifier {
   /// next app open restores it automatically, and records the username for
   /// the login screen's quick-pick list. Shared by [login], [signup], and
   /// [restoreSession] so all three authentication paths stay in sync.
-  Future<void> _onAuthenticated(String name) async {
+  Future<void> _onAuthenticated(String name, {bool persist = true}) async {
     isLoggedIn = true;
-    await _persistSession(name);
+    // Test accounts never keep a session: the next open asks for the password.
+    if (persist) await _persistSession(name);
     await _addRecentUser(name);
     notifyListeners();
   }
@@ -191,6 +203,19 @@ class GameProvider extends ChangeNotifier {
       throw StateError('No saved credentials for $userName');
     }
     AuthSession.use(userName);
+    // Test accounts always sign in with the password, even if an older
+    // build left a saved session behind.
+    try {
+      final profile = await apiClient.getUserProfile();
+      if (profile['is_tester'] == true) {
+        await AuthSession.clear(userName);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('last_user');
+        throw StateError('Test account requires password login');
+      }
+    } on StateError {
+      rethrow;
+    } catch (_) {}
     await _onAuthenticated(userName);
     // Fire-and-forget: a failed streak-tracking call shouldn't block
     // startup or undo an otherwise-valid restored session. The error is
@@ -450,6 +475,33 @@ class GameProvider extends ChangeNotifier {
       errorMessage = e.toString();
       notifyListeners();
     }
+  }
+
+  void _applyDailyGoals(Map<String, dynamic> status) {
+    dailyGoals = (status['goals'] as List).cast<Map<String, dynamic>>();
+    dailyGoalsAllDone = status['allDone'] as bool;
+    dailyGoalsRounds = status['rounds'] as int;
+    notifyListeners();
+  }
+
+  /// Best-effort refresh, like [loadChestStatus]: on failure the last-known
+  /// goals stay in place.
+  Future<void> loadDailyGoals() async {
+    try {
+      _applyDailyGoals(await apiClient.getDailyGoals());
+    } catch (_) {}
+  }
+
+  Future<void> reportMoeSession() async {
+    try {
+      _applyDailyGoals(await apiClient.reportMoeSession());
+    } catch (_) {}
+  }
+
+  Future<void> reportMathTime(int seconds) async {
+    try {
+      _applyDailyGoals(await apiClient.reportMathTime(seconds));
+    } catch (_) {}
   }
 
   Future<void> loadChestStatus() async {

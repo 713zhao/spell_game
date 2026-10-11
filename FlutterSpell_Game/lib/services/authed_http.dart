@@ -23,6 +23,9 @@ export 'package:http/http.dart' hide get, post, put, delete, patch, head;
 class AuthSession {
   static const _prefsKey = 'auth_tokens';
   static final Map<String, String> _tokens = {};
+  // Tokens for test accounts: kept in memory only, so a reload (or a
+  // logout) always asks for the password again.
+  static final Map<String, String> _transient = {};
   static String? _active;
   static bool _loaded = false;
 
@@ -53,6 +56,11 @@ class AuthSession {
 
   static bool hasToken(String name) => _tokens.containsKey(_k(name));
 
+  static void saveTransient(String name, String token) {
+    _transient[_k(name)] = token;
+    _active = _k(name);
+  }
+
   static Future<void> save(String name, String token) async {
     _tokens[_k(name)] = token;
     _active = _k(name);
@@ -64,6 +72,7 @@ class AuthSession {
   }
 
   static Future<void> clear(String name) async {
+    _transient.remove(_k(name));
     _tokens.remove(_k(name));
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -76,7 +85,8 @@ class AuthSession {
     Map<String, String>? headers,
   ) {
     final out = <String, String>{...?headers};
-    final token = _active == null ? null : _tokens[_active!];
+    final token =
+        _active == null ? null : (_tokens[_active!] ?? _transient[_active!]);
     if (token != null && url.toString().startsWith(ApiConfig.baseUrl)) {
       out['Authorization'] = 'Bearer $token';
     }

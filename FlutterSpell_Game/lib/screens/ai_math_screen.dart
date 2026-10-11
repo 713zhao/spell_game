@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:spell_game/design_system/design_system.dart';
@@ -21,11 +22,26 @@ class AiMathScreen extends StatefulWidget {
 
 class _AiMathScreenState extends State<AiMathScreen> {
   String? _url;
+  Timer? _goalTimer;
+  static const _heartbeat = Duration(seconds: 10);
 
   @override
   void initState() {
     super.initState();
     _buildUrl();
+    // AI Math is an external app, so time spent on this screen is what
+    // counts toward its daily goal.
+    final game = context.read<GameProvider>();
+    _goalTimer = Timer.periodic(
+      _heartbeat,
+      (_) => game.reportMathTime(_heartbeat.inSeconds),
+    );
+  }
+
+  @override
+  void dispose() {
+    _goalTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _buildUrl() async {

@@ -11,6 +11,7 @@ import '../widgets/cards/treasure_chest_card.dart';
 import '../widgets/cards/boss_battle_card.dart';
 import '../widgets/cards/stat_card.dart';
 import '../widgets/cards/word_cards_card.dart';
+import '../widgets/cards/daily_goals_card.dart';
 import '../utils/kingdom_progress.dart';
 import '../utils/last_lesson.dart';
 import '../models/game_models.dart';
@@ -67,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen>
     gameProvider.loadLevels();
     gameProvider.loadUserStats();
     gameProvider.loadChestStatus();
+    gameProvider.loadDailyGoals();
     gameProvider.loadLessons('EN').then((_) => _refreshDisplayLesson('EN'));
     gameProvider.loadLessons('CN').then((_) => _refreshDisplayLesson('CN'));
   }
@@ -253,6 +255,30 @@ class _HomeScreenState extends State<HomeScreen>
                       StatCard(icon: '💰', label: 'Coins', value: '$coins'),
                       StatCard(icon: '💎', label: 'Gems', value: '$gems'),
                     ],
+                  ),
+
+                  SizedBox(height: DuolingoSpacing.lg),
+
+                  // Today's goals - finish them all to unlock the games.
+                  DailyGoalsCard(
+                    goals: gameProvider.dailyGoals,
+                    allDone: gameProvider.dailyGoalsAllDone,
+                    onGoalTap: (kind) {
+                      switch (kind) {
+                        case 'math':
+                          Navigator.of(context).pushNamed('/ai-math');
+                          break;
+                        case 'english':
+                          Navigator.of(context).pushNamed('/english-castle');
+                          break;
+                        case 'chinese':
+                          Navigator.of(context).pushNamed('/chinese-kingdom');
+                          break;
+                        case 'moe':
+                          Navigator.of(context).pushNamed('/word-cards');
+                          break;
+                      }
+                    },
                   ),
 
                   SizedBox(height: DuolingoSpacing.xl),

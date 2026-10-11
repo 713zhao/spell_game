@@ -23,21 +23,28 @@
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="flutterspell_game">
+  <meta name="apple-mobile-web-app-title" content="Ai_Spell_Game">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>flutterspell_game</title>
+  <title>Ai_Spell_Game</title>
   <link rel="manifest" href="manifest.json">
 
   <!-- Stroke-order data/animation for the handwriting-trace exercise
        (lib/widgets/hanzi_writer_trace.dart). Pinned versions so a CDN
        release doesn't silently change quiz behavior underneath us. -->
-  <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.7.3/dist/hanzi-writer.min.js"
+  <script defer src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.7.3/dist/hanzi-writer.min.js"
           integrity="sha384-xd6VpwMU5AxPFzG/nyhXrW70SSR2usiUNV8RrA0wlOjYlCrZyzZC6JiR/mT51pm2"
           crossorigin="anonymous"></script>
+
+  <!-- The backend sleeps when idle and takes ~6s to wake. Ping it now so the
+       wake-up overlaps the app download instead of following it. -->
+  <link rel="preconnect" href="https://spellbackend.fly.dev">
+  <script>
+    try { fetch('https://spellbackend.fly.dev/', {mode: 'no-cors', cache: 'no-store'}).catch(function () {}); } catch (e) {}
+  </script>
 
   <!-- This build no longer registers a service worker (built with
        --pwa-strategy=none), but a device that visited before this change

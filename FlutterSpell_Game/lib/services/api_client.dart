@@ -12,6 +12,10 @@ class ApiClient {
 
   ApiClient({required this.userName});
 
+  /// True when the last [verifyPassword] was for a test account, whose
+  /// session must not be persisted on the device.
+  bool testerLogin = false;
+
   /// Verify user password against backend. Returns true when credentials match.
   Future<bool> verifyPassword(String password) async {
     final response = await http.post(
@@ -21,7 +25,12 @@ class ApiClient {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data['verified'] == true && data['token'] is String) {
-        await http.AuthSession.save(userName, data['token'] as String);
+        testerLogin = data['tester'] == true;
+        if (testerLogin) {
+          http.AuthSession.saveTransient(userName, data['token'] as String);
+        } else {
+          await http.AuthSession.save(userName, data['token'] as String);
+        }
         return true;
       }
     }
@@ -521,6 +530,49 @@ class ApiClient {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
     throw Exception(_extractDetail(response.body, 'Failed to start game'));
+  }
+
+  /// Today's daily goals: {goals: [{kind,title,icon,target,unit,progress,
+  /// done}], allDone}. Completing all of them unlocks the game store.
+  Future<Map<String, dynamic>> getDailyGoals() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/daily-goals/?user_name=$userName'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(
+      _extractDetail(response.body, 'Failed to load daily goals'),
+    );
+  }
+
+  /// Reports a finished MOE word-cards session toward its daily goal.
+  Future<Map<String, dynamic>> reportMoeSession() async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/daily-goals/moe-session?user_name=$userName'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(
+      _extractDetail(response.body, 'Failed to report MOE session'),
+    );
+  }
+
+  /// Reports [seconds] spent in AI Math toward its daily goal; returns the
+  /// same shape as [getDailyGoals].
+  Future<Map<String, dynamic>> reportMathTime(int seconds) async {
+    final response = await http.post(
+      Uri.parse(
+        '$_baseUrl/daily-goals/math-time?user_name=$userName&seconds=$seconds',
+      ),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(
+      _extractDetail(response.body, 'Failed to report math time'),
+    );
   }
 
   /// Where this user stands against the daily combined minigame play time
