@@ -1,4 +1,4 @@
-package com.example.flutterspell_game
+package com.aispell.game
 
 import io.flutter.embedding.android.FlutterActivity
 

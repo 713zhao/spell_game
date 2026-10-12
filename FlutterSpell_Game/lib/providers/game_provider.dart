@@ -230,11 +230,13 @@ class GameProvider extends ChangeNotifier {
     required String name,
     String? password,
     String? grade,
+    String? email,
   }) async {
     try {
       await ApiClient(
         userName: name,
-      ).createUser(name: name, password: password, grade: grade);
+      ).createUser(
+          name: name, password: password, grade: grade, email: email);
       init(name);
       await _onAuthenticated(name);
       return true;

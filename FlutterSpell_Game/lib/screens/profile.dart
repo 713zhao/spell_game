@@ -31,7 +31,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _gradeController = TextEditingController();
   final _schoolController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   String? _ageError;
@@ -71,7 +70,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _gradeController.dispose();
     _schoolController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -189,7 +187,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _gradeController.text = profile?['grade']?.toString() ?? '';
     _schoolController.text = profile?['school']?.toString() ?? '';
     _emailController.text = profile?['email']?.toString() ?? '';
-    _phoneController.text = profile?['phone']?.toString() ?? '';
     _newPasswordController.clear();
     _confirmPasswordController.clear();
     setState(() {
@@ -362,7 +359,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildProfileDetailsRow('Grade', profile?['grade']),
                         _buildProfileDetailsRow('School', profile?['school']),
                         _buildProfileDetailsRow('Email', profile?['email']),
-                        _buildProfileDetailsRow('Phone', profile?['phone']),
                       ],
                     ),
             ),
@@ -409,15 +405,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             border: OutlineInputBorder(),
           ),
           keyboardType: TextInputType.emailAddress,
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _phoneController,
-          decoration: const InputDecoration(
-            labelText: 'Phone',
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.phone,
         ),
         const SizedBox(height: 20),
         const Text(
@@ -512,8 +499,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'school': _schoolController.text.trim(),
       if (_emailController.text.trim().isNotEmpty)
         'email': _emailController.text.trim(),
-      if (_phoneController.text.trim().isNotEmpty)
-        'phone': _phoneController.text.trim(),
       if (newPassword.isNotEmpty) 'password': newPassword,
     };
 

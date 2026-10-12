@@ -1,6 +1,6 @@
 {
-    "name": "Ai_Spell_Game",
-    "short_name": "Ai_Spell_Game",
+    "name": "AI Spell Game",
+    "short_name": "AI Spell Game",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -838,6 +838,10 @@ class _StudyScreenState extends State<StudyScreen>
         widget.args.subject,
         widget.args.lessonKey,
       );
+      // Free practice also counts toward the daily stage goal.
+      try {
+        await gameProvider.apiClient.reportPractice(widget.args.subject);
+      } catch (_) {}
     }
     // Also refresh the lesson list so checkpoint/mastery progress from this
     // session (which may have unlocked the next checkpoint or lesson) is

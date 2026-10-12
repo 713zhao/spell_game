@@ -10,6 +10,7 @@ import 'screens/auth_gate.dart';
 import 'screens/home.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'screens/study.dart';
 import 'screens/rewards_shop.dart';
 import 'screens/leaderboard.dart';
@@ -92,6 +93,12 @@ class MyApp extends StatelessWidget {
             case '/login':
               return MaterialPageRoute(
                 builder: (context) => const LoginScreen(),
+              );
+            case '/forgot-password':
+              return MaterialPageRoute(
+                builder: (context) => ForgotPasswordScreen(
+                  initialUsername: settings.arguments as String? ?? '',
+                ),
               );
             case '/signup':
               return MaterialPageRoute(

@@ -13,6 +13,7 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
   String? _selectedGrade;
   bool _isSubmitting = false;
   String? _errorText;
@@ -23,6 +24,7 @@ class _SignupScreenState extends State<SignupScreen> {
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -36,6 +38,11 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _errorText = 'Password must be at least 4 characters');
       return;
     }
+    final email = _emailController.text.trim();
+    if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      setState(() => _errorText = 'Enter a valid email or leave it blank');
+      return;
+    }
     setState(() {
       _isSubmitting = true;
       _errorText = null;
@@ -45,6 +52,7 @@ class _SignupScreenState extends State<SignupScreen> {
           password:
               _passwordController.text.isEmpty ? null : _passwordController.text,
           grade: _selectedGrade,
+          email: email,
         );
     if (!mounted) return;
     setState(() => _isSubmitting = false);
@@ -106,6 +114,17 @@ class _SignupScreenState extends State<SignupScreen> {
               controller: _passwordController,
               obscureText: true,
               decoration: _inputDecoration('Password (min 4 characters)'),
+            ),
+            SizedBox(height: DuolingoSpacing.lg),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: _inputDecoration('Parent email (optional)'),
+            ),
+            SizedBox(height: DuolingoSpacing.xs),
+            Text(
+              'Only used to help recover the account if the password is forgotten.',
+              style: DuolingoTextStyles.label,
             ),
             SizedBox(height: DuolingoSpacing.lg),
             Text('Grade (optional)', style: DuolingoTextStyles.sectionTitle),

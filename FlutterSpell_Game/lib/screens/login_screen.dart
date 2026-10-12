@@ -265,7 +265,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 textAlign: TextAlign.center,
               ),
             ],
-            SizedBox(height: DuolingoSpacing.xxl),
+            SizedBox(height: DuolingoSpacing.md),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pushNamed(
+                  '/forgot-password',
+                  arguments: _selectedRecentUser ?? _usernameController.text.trim(),
+                ),
+                child: const Text('Forgot password?'),
+              ),
+            ),
+            SizedBox(height: DuolingoSpacing.lg),
             Center(
               child: TextButton(
                 onPressed: () => Navigator.of(context).pushNamed('/signup'),

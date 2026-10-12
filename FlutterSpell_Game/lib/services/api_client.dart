@@ -49,6 +49,7 @@ class ApiClient {
     required String name,
     String? password,
     String? grade,
+    String? email,
   }) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/users/'),
@@ -57,6 +58,7 @@ class ApiClient {
         'name': name,
         if (password != null && password.isNotEmpty) 'password': password,
         if (grade != null && grade.isNotEmpty) 'grade': grade,
+        if (email != null && email.isNotEmpty) 'email': email,
       }),
     );
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -557,6 +559,19 @@ class ApiClient {
     throw Exception(
       _extractDetail(response.body, 'Failed to report MOE session'),
     );
+  }
+
+  /// Reports a finished free-practice session ([subject] 'EN' or 'CN')
+  /// toward its daily stage goal.
+  Future<void> reportPractice(String subject) async {
+    final response = await http.post(
+      Uri.parse(
+        '$_baseUrl/daily-goals/practice?user_name=$userName&subject=$subject',
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to report practice');
+    }
   }
 
   /// Reports [seconds] spent in AI Math toward its daily goal; returns the
